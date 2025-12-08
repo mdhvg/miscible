@@ -1,43 +1,20 @@
-BasedOnStyle: llvm
+BasedOnStyle: Microsoft
 IndentWidth: 4
 TabWidth: 4
 UseTab: Always
 LineEnding: LF
 
-AllowShortBlocksOnASingleLine: Always
-AllowShortFunctionsOnASingleLine: Empty
-AllowShortIfStatementsOnASingleLine: false
-AllowShortLoopsOnASingleLine: false
-AllowShortLambdasOnASingleLine: false
-BreakBeforeBraces: Attach
-BraceWrapping:
-  AfterFunction: false
-  AfterControlStatement: false
-  AfterEnum: false
-  AfterStruct: false
-  AfterClass: false
-  AfterUnion: false
-  BeforeCatch: false
-  BeforeElse: false
-  SplitEmptyFunction: false
-  SplitEmptyRecord: false
-  SplitEmptyNamespace: false
-BinPackArguments: false
-BinPackParameters: false
-AllowAllConstructorInitializersOnNextLine: false
-ReflowComments: false  # Prevents splitting comments
-Cpp11BracedListStyle: false
-SpacesInContainerLiterals: true
-SortIncludes: false
 AlignTrailingComments: true
 AlignConsecutiveMacros: true
-AlignConsecutiveDeclarations: true
-SpacesInCStyleCastParentheses: true
-SpaceBeforeParens: ControlStatements
-BreakTemplateDeclarations: Yes
-ColumnLimit: 0
-BreakBeforeBinaryOperators: NonAssignment
 
-AlignAfterOpenBracket: DontAlign
-AllowAllArgumentsOnNextLine: false
-IndentWrappedFunctionNames: false
+SortIncludes: false
+ReflowComments: false
+
+AllowShortBlocksOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+
+ColumnLimit: 0
+
+# Format command (linux): find src -type f \( -name "*.h" -o -name "*.cpp" \) -exec clang-format -i --verbose {} \;

@@ -5,6 +5,8 @@ import hashlib
 import zipfile
 
 import os
+
+# Set cwd as project base dirs
 __src_path = pathlib.Path(__file__)
 os.chdir(str(__src_path.parent.parent.absolute()))
 
