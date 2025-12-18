@@ -1,101 +1,176 @@
-#ifndef CLIP_H
-#define CLIP_H
+#pragma once
 
-#include <stddef.h>
-#include <stdint.h>
+// Source: https://github.com/monatis/clip.cpp
 
 #include <string>
+#include <map>
 
 #include "ggml.h"
+#include "ggml-alloc.h"
+#include "ggml-backend.h"
+#include "gguf.h"
 
-struct clip_ctx;
+#include "base/base_core.h"
+#include "base/arena.h"
+#include "inference/model.h"
 
-#if defined(_WIN32)
-
-#define NOMINMAX
-#include <windows.h>
-
-typedef HANDLE pthread_t;
-typedef DWORD thread_ret_t;
-
-#endif
-
-#ifdef __cplusplus
-extern "C"
+struct clip_layer
 {
-#endif
+	// attention
+	ggml_tensor *k_w;
+	ggml_tensor *k_b;
+	ggml_tensor *q_w;
+	ggml_tensor *q_b;
+	ggml_tensor *v_w;
+	ggml_tensor *v_b;
 
-	struct clip_text_hparams
-	{
-		int32_t n_vocab;
-		int32_t num_positions;
-		int32_t hidden_size;
-		int32_t n_intermediate;
-		int32_t projection_dim;
-		int32_t n_head;
-		int32_t n_layer;
-		float eps;
-	};
+	ggml_tensor *o_w;
+	ggml_tensor *o_b;
 
-	struct clip_vision_hparams
-	{
-		int32_t image_size;
-		int32_t patch_size;
-		int32_t hidden_size;
-		int32_t n_intermediate;
-		int32_t projection_dim;
-		int32_t n_head;
-		int32_t n_layer;
-		float eps;
-	};
+	// layernorm 1
+	ggml_tensor *ln_1_w;
+	ggml_tensor *ln_1_b;
 
-	typedef int32_t clip_vocab_id;
-	struct clip_tokens
-	{
-		clip_vocab_id *data;
-		size_t size;
-	};
+	// ff
+	ggml_tensor *ff_i_w;
+	ggml_tensor *ff_i_b;
 
-	struct clip_ctx *clip_model_load(const char *fname, const int verbosity);
+	ggml_tensor *ff_o_w;
+	ggml_tensor *ff_o_b;
 
-	void clip_free(struct clip_ctx *ctx);
+	// layernorm 2
+	ggml_tensor *ln_2_w;
+	ggml_tensor *ln_2_b;
+};
 
-	struct clip_text_hparams *clip_get_text_hparams(struct clip_ctx *ctx);
-	struct clip_vision_hparams *clip_get_vision_hparams(struct clip_ctx *ctx);
+struct clip_text_hparams
+{
+	S32 n_vocab;
+	S32 num_positions;
+	S32 hidden_size;
+	S32 n_intermediate;
+	S32 projection_dim;
+	S32 n_head;
+	S32 n_layer;
+	F32 eps;
+};
 
-	// TODO: Assuming this works **as intended** for now. Need the check later
-	bool clip_tokenize(struct clip_ctx *ctx, std::string &text, struct clip_tokens *tokens);
+struct clip_vision_hparams
+{
+	S32 image_size;
+	S32 patch_size;
+	S32 hidden_size;
+	S32 n_intermediate;
+	S32 projection_dim;
+	S32 n_head;
+	S32 n_layer;
+	F32 eps;
+};
 
-	bool clip_text_encode(struct clip_ctx *ctx, const int n_threads, const struct clip_tokens *tokens, float *vec,
-						  const bool normalize);
+struct clip_text_model
+{
+	struct clip_text_hparams hparams;
 
-	void clip_get_text_embedding(clip_ctx *clip, ggml_context *text_ctx, ggml_cgraph *text_graph, float *output);
+	// embeddings
+	ggml_tensor *token_embeddings;
+	ggml_tensor *position_embeddings;
 
-	struct ggml_cgraph *build_text_encode_graph(ggml_context *text_ctx, clip_ctx *clip, clip_tokens *tokens);
+	clip_layer *layers;
 
-	float *clip_get_image_embedding(struct clip_ctx *clip, ggml_context *vision_ctx, ggml_cgraph *vision_graph,
-									float *imageData, int batch_size);
+	ggml_tensor *post_ln_w;
+	ggml_tensor *post_ln_b;
 
-	struct ggml_cgraph *build_image_encode_graph(ggml_context *graph_ctx, clip_ctx *clip, int batch_size);
+	ggml_tensor *projection;
+};
 
-	// bool image_normalize(const clip_image_u8 *img, clip_image_f32 *res);
+struct clip_vision_model
+{
+	struct clip_vision_hparams hparams;
 
-	// bool clip_compare_text_and_image(struct clip_ctx *ctx, const int n_threads,
-	//                                  const char *text,
-	//                                  const struct clip_image_u8 *image,
-	//                                  float *score);
-	// float clip_similarity_score(const float *vec1, const float *vec2,
-	//                             const int vec_dim);
-	bool softmax_with_sorting(float *arr, const int length, float *sorted_scores, int *indices);
-	// bool clip_zero_shot_label_image(struct clip_ctx *ctx, const int n_threads,
-	//                                 const struct clip_image_u8 *input_img,
-	//                                 const char **labels, const size_t n_labels,
-	//                                 float *scores, int *indices);
+	// embeddings
+	ggml_tensor *class_embedding;
+	ggml_tensor *patch_embeddings;
+	ggml_tensor *position_embeddings;
 
-	bool clip_model_quantize(const char *fname_inp, const char *fname_out, const int itype);
+	ggml_tensor *pre_ln_w;
+	ggml_tensor *pre_ln_b;
 
-#ifdef __cplusplus
-}
-#endif
+	clip_layer *layers;
 
-#endif // CLIP_H
+	ggml_tensor *post_ln_w;
+	ggml_tensor *post_ln_b;
+
+	ggml_tensor *projection;
+};
+
+typedef S32 clip_vocab_id;
+struct clip_tokens
+{
+	clip_vocab_id *data;
+	U64 size;
+};
+
+struct clip_vocab
+{
+	using id	= clip_vocab_id;
+	using token = std::string;
+
+	std::map<token, id> token_to_id;
+	std::map<id, token> id_to_token;
+	std::vector<std::string> special_tokens;
+
+	//    void add_special_token(const std::string & token);
+};
+
+struct clip_ctx
+{
+	bool has_text_encoder	= false;
+	bool has_vision_encoder = false;
+	struct clip_text_model text_model;
+	struct clip_vision_model vision_model;
+	struct clip_vocab vocab;
+	F32 image_mean[3];
+	F32 image_std[3];
+	bool use_gelu = false;
+	S32 ftype	  = 1;
+	ggml_context *ctx_ggml;
+	ggml_backend_t backend;
+	ggml_backend_buffer_t backend_buf;
+};
+
+void clip_model_load(Arena *arena, clip_ctx *clip, const char *fname);
+
+void clip_free(clip_ctx *ctx);
+
+clip_text_hparams *clip_get_text_hparams(struct clip_ctx *ctx);
+struct clip_vision_hparams *clip_get_vision_hparams(struct clip_ctx *ctx);
+
+// TODO: Assuming this works **as intended** for now. Need the check later
+bool clip_tokenize(struct clip_ctx *ctx, std::string &text, struct clip_tokens *tokens);
+
+bool clip_text_encode(struct clip_ctx *ctx, const int n_threads, const struct clip_tokens *tokens, F32 *vec,
+					  const bool normalize);
+
+void clip_get_text_embedding(clip_ctx *clip, ggml_context *text_ctx, ggml_cgraph *text_graph, F32 *output);
+
+ggml_cgraph *build_text_encode_graph(ggml_context *text_ctx, clip_ctx *clip, clip_tokens *tokens);
+
+F32 *clip_get_image_embedding(Arena *arena, clip_ctx *clip, VisionWorker *vis, F32 *imageData, S32 batch_size);
+
+ggml_cgraph *build_image_encode_graph(ggml_context *graph_ctx, clip_ctx *clip, int batch_size);
+
+// bool image_normalize(const clip_image_u8 *img, clip_image_f32 *res);
+
+// bool clip_compare_text_and_image(struct clip_ctx *ctx, const int n_threads,
+//                                  const char *text,
+//                                  const struct clip_image_u8 *image,
+//                                  F32 *score);
+// F32 clip_similarity_score(const F32 *vec1, const F32 *vec2,
+//                             const int vec_dim);
+bool softmax_with_sorting(F32 *arr, const int length, F32 *sorted_scores, int *indices);
+// bool clip_zero_shot_label_image(struct clip_ctx *ctx, const int n_threads,
+//                                 const struct clip_image_u8 *input_img,
+//                                 const char **labels, const U64 n_labels,
+//                                 F32 *scores, int *indices);
+
+bool clip_model_quantize(const char *fname_inp, const char *fname_out, const int itype);

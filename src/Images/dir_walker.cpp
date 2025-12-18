@@ -1,5 +1,5 @@
 #include "Images/dir_walker.h"
-#include "base/core.h"
+#include "base/base_core.h"
 #include "base/string.h"
 #include "base/stack.h"
 #include "base/path.h"
@@ -19,9 +19,9 @@
 #define SCAN_ARENA_SIZE	 MB(100)
 #define FILE_ARENA_SIZE	 MB(1)
 
-local Arena *scan_arena = NULL;
+local Arena *scan_arena	   = NULL;
 local Arena *scratch_arena = NULL;
-local Arena *file_arena = NULL;
+local Arena *file_arena	   = NULL;
 
 struct PathNode
 {
@@ -44,7 +44,7 @@ void walk_directories(void *data)
 	if (!file_arena) file_arena = arena_alloc(FILE_ARENA_SIZE);
 	arena_clear(file_arena);
 
-	PathNode root = {S(ROOT_DIR "/wallpapers")};
+	PathNode root = {S(ROOT_DIR "/test_imgs")};
 	stack_push(path_stack, root);
 
 	WIN32_FIND_DATA fdFile;
@@ -55,9 +55,9 @@ void walk_directories(void *data)
 	{
 		PathNode *cur = stack_front(path_stack);
 
-		Path expression = string_format(scratch_arena, "%.*s/*.*", cur->path.size, cur->path.value);
-		scan_count = 0;
-		for (hFind = FindFirstFile((const char *)expression.value, &fdFile); FindNextFile(hFind, &fdFile) && scan_count < cur->scanned + PUSH_LIMIT;)
+		Path expression = string_format(scratch_arena, "%.*s/*.*", cur->path.size, cur->path.v);
+		scan_count		= 0;
+		for (hFind = FindFirstFile((const char *)expression.v, &fdFile); FindNextFile(hFind, &fdFile) && scan_count < cur->scanned + PUSH_LIMIT;)
 		{
 			if (hFind == INVALID_HANDLE_VALUE)
 			{
@@ -71,15 +71,16 @@ void walk_directories(void *data)
 			}
 			if (fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY && cur->depth + 1 < MAX_DEPTH)
 			{
-				PathNode new_dir = {string_format(scan_arena, "%.*s/%s", cur->path.size, (char *)cur->path.value, &fdFile.cFileName), cur->depth + 1};
+				PathNode new_dir = {string_format(scan_arena, "%.*s/%s", cur->path.size, (char *)cur->path.v, &fdFile.cFileName), cur->depth + 1};
 				stack_push(cur_stack, new_dir);
 			}
 			else
 			// TODO: Find attribute combinatin to locate all image files safely (without falling for symlinks, system files, etc)
 			// if (fdFile.dwFileAttributes & FILE_ATTRIBUTE_NORMAL)
 			{
+				// TODO: Make conversion to UNIX time
 				FILETIME write_time = fdFile.ftLastWriteTime;
-				FILETIME make_time = fdFile.ftCreationTime;
+				FILETIME make_time	= fdFile.ftCreationTime;
 				U64 mtime = 0, ctime = 0, size = 0;
 				mtime = write_time.dwHighDateTime;
 				mtime <<= 32;
@@ -94,7 +95,7 @@ void walk_directories(void *data)
 				// TODO: Check filetype using magic bytes
 				if (match_end(fdFile.cFileName, ".jpg") || match_end(fdFile.cFileName, ".png"))
 					stack_push(statements, string_format(file_arena, R"(INSERT INTO Images(path, filename, size, mtime, ctime) VALUES('%.*s/%s', '%s', %zu, %zu, %zu) ON CONFLICT(path) DO NOTHING;)",
-														 cur->path.size, (char *)cur->path.value, &fdFile.cFileName, &fdFile.cFileName, size, mtime, ctime));
+														 cur->path.size, (char *)cur->path.v, &fdFile.cFileName, &fdFile.cFileName, size, mtime, ctime));
 				if (stack_full(statements))
 				{
 					db_run("BEGIN TRANSACTION;");

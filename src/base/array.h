@@ -1,23 +1,45 @@
 #pragma once
 
-#include "base/core.h"
+#include "base/base_core.h"
 #include "base/arena.h"
 
-#define _ArrayHeader_ \
-	struct            \
-	{                 \
-		U64 size;     \
-		U64 capacity; \
+#define _DynamicArrayHeader_ \
+	struct                   \
+	{                        \
+		U64 size;            \
+		U64 capacity;        \
 	}
 
-typedef _ArrayHeader_ ArrayHeader;
+#define DynamicArray(t, name) \
+	struct                    \
+	{                         \
+		_DynamicArrayHeader_; \
+		t *v;                 \
+	} name
 
-void *array_grow(Arena *arena, ArrayHeader *header, void *array, U64 item_size, U64 size, B32 clear_to_zero);
+#define DynamicArray_t(t)     \
+	struct                    \
+	{                         \
+		_DynamicArrayHeader_; \
+		t *v;                 \
+	}
 
-#define array_item_size(a)	(sizeof(&(a).v))
-#define array_get_header(a) ((ArrayHeader *)&(a))
-#define array_init(a, c, t) {0, c, push_array(a, c, t)}
+typedef _DynamicArrayHeader_ ArrayHeader;
 
-#define array_push(arena, a, value)                                                                          \
-	(*((void **)&(a).v) = array_grow((arena), array_get_header((a)), (a).v, array_item_size((a)), 1, false), \
-	 (a).v[(a).size++] = (value))
+void *dyn_array_grow(Arena *arena, ArrayHeader *header, void *array, U64 item_size, U64 size, B32 clear_to_zero);
+
+#define dyn_array_item_size(a)	(sizeof(&(a).v))
+#define dyn_array_get_header(a) ((ArrayHeader *)&(a))
+#define dyn_array_init(a, c, t) {0, c, push_array(a, c, t)}
+#define dyn_array_at(a, i)		((a).v[(i)])
+#define dyn_array_push(arena, a, value)                                                                                  \
+	(*((void **)&(a).v) = dyn_array_grow((arena), dyn_array_get_header((a)), (a).v, dyn_array_item_size((a)), 1, false), \
+	 (a).v[(a).size++]	= (value))
+
+#define StaticArray(t, name) \
+	struct                   \
+	{                        \
+		t *v;                \
+		U64 size;            \
+		U64 max;             \
+	} name

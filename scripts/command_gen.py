@@ -37,7 +37,7 @@ common_flags = [
 
 root_dir = os.getcwd().replace("\\", "/")
 
-defines = ["-DDEBUG=1", f'-DROOT_DIR="""{root_dir}"""', "-D_CRT_SECURE_NO_WARNINGS=1"]
+defines = ["-DDEBUG=1", f'-DROOT_DIR="""{root_dir}"""', "-D_CRT_SECURE_NO_WARNINGS=1", "-D_GLFW_WIN32=1"]
 
 compiler = "cl.exe"
 paths = os.environ.get("PATH", "").split(os.pathsep)
@@ -47,13 +47,16 @@ for path in paths:
         compiler = potential_path
         break
 
-dirs = ["deps/sqlite", "deps/stb"]
-
-headers = [f"-I{os.path.abspath('src')}"]
+source_dirs = ["deps/ggml/src", "deps/usearch", "deps/sqlite", "deps/stb", "deps/glfw/src", "deps/glad/src", "deps/imgui"]
 sources = [os.path.abspath("src/main.cpp")]
 
-for d in dirs:
+header_dirs = ["src", "deps/ggml/include", "deps/ggml/src", "deps/usearch/c", "deps/icons", "deps/sqlite", "deps/stb", "deps/glfw/include", "deps/glad/include", "deps/imgui"]
+headers = []
+
+for d in source_dirs:
     sources.extend(glob.glob(f"{d}/**/*.c", recursive=True) + glob.glob(f"{d}/**/*.cpp", recursive=True))
+
+for d in header_dirs:
     headers.append(f"-I{os.path.abspath(d)}")
 
 commands = []

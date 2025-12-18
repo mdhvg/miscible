@@ -103,11 +103,11 @@
 #define WCHAR_UTF16
 #endif
 
-#define PERF(A, ...)                                                         \
-	static auto start_##A = std::chrono::high_resolution_clock::now();       \
-	__VA_ARGS__;                                                             \
-	static auto end_##A = std::chrono::high_resolution_clock::now();         \
-	static std::chrono::duration<double> duration_##A = end_##A - start_##A; \
+#define PERF(A, ...)                                                                               \
+	static auto start_##A = std::chrono::high_resolution_clock::now();                             \
+	__VA_ARGS__;                                                                                   \
+	static auto end_##A								  = std::chrono::high_resolution_clock::now(); \
+	static std::chrono::duration<double> duration_##A = end_##A - start_##A;                       \
 	printf("PERF(%s): %.6f seconds", #A, duration_##A.count())
 // TODO: Make a logging system (with colors :) )
 
@@ -139,6 +139,8 @@ typedef float F32;
 typedef double F64;
 
 #define U64_MAX 0xFFFFFFFFFFFFFFFFull
+
+#define StaticArraySize(a) (sizeof((a)) / sizeof((a)[0]))
 
 #if COMPILER_MSVC
 #include <intrin.h>
@@ -195,7 +197,31 @@ typedef double F64;
 #error Missing pointer-to-integer cast for this architecture.
 #endif
 
+#define OS_COMMON         \
+	struct                \
+	{                     \
+		ThreadPool *pool; \
+		U64 worker_count; \
+	}
+
 //using json = nlohmann::json;
+
+#define ATLAS_RENDER_VARS                 \
+	struct                                \
+	{                                     \
+		struct Arena *lifetime_arena;     \
+		struct Arena *scratch;            \
+		struct Thumbnail *thumbnail_data; \
+	}
+
+struct Application
+{
+	struct Arena *persistent_arena;
+	struct Arena *scratch;
+	// ATLAS_RENDER_VARS atlas_render_system;
+};
+
+extern Application pics;
 
 union Guid {
 	struct
@@ -212,5 +238,13 @@ void bytes_as_hex_lower(U8 *data, U64 start, U64 len, char *out);
 void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
 
 // TODO: Move these to some other place
-#define ATLAS_DIR ROOT_DIR "/.atlas"
-#define DB_PATH	  ROOT_DIR "/pics.sqlite"
+#define ATLAS_DIR  ROOT_DIR "/.atlas"
+#define DB_PATH	   ROOT_DIR "/pics.sqlite"
+#define INDEX_PATH ROOT_DIR "/index.usearch"
+
+#define APP_NAME "Pics"
+
+#define ATLAS_CAPACITY 100
+#define ATLAS_SIZE	   2560
+#define THUMB_PER_SIDE 10
+#define THUMB_SIZE	   256

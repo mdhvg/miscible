@@ -7,7 +7,7 @@
 #include <winbase.h>
 #include <winnt.h>
 
-#include "base/core.h"
+#include "base/base_core.h"
 #include "base/threadpool.h"
 
 Guid os_make_guid()
@@ -59,11 +59,11 @@ internal U32 win32_sleep_ms_from_us(U64 end_us)
 	if (end_us == U64_MAX) return INFINITE;
 
 	U32 sleep_ms = 0;
-	U64 begint = os_now_microseconds();
+	U64 begint	 = os_now_microseconds();
 	if (begint < end_us)
 	{
 		U64 sleep_us = end_us - begint;
-		sleep_ms = (U32)((sleep_us + 999) / 1000);
+		sleep_ms	 = (U32)((sleep_us + 999) / 1000);
 	}
 	return sleep_ms;
 }
@@ -88,10 +88,10 @@ void os_semaphore_drop(Semaphore s)
 
 B8 os_semaphore_take(Semaphore s, U64 end_us)
 {
-	U32 sleep = win32_sleep_ms_from_us(end_us);
-	HANDLE h = (HANDLE)s.u64[0];
+	U32 sleep		  = win32_sleep_ms_from_us(end_us);
+	HANDLE h		  = (HANDLE)s.u64[0];
 	DWORD wait_result = WaitForSingleObject(h, sleep);
-	B8 result = (wait_result == WAIT_OBJECT_0);
+	B8 result		  = (wait_result == WAIT_OBJECT_0);
 	return result;
 }
 

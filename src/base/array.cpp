@@ -1,6 +1,6 @@
 #include "base/array.h"
 
-void *array_grow(Arena *arena, ArrayHeader *header, void *array, U64 item_size, U64 size, B32 clear_to_zero)
+void *dyn_array_grow(Arena *arena, ArrayHeader *header, void *array, U64 item_size, U64 size, B32 clear_to_zero)
 {
 	if (header->capacity < header->size + size)
 	{

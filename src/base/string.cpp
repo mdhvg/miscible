@@ -1,11 +1,13 @@
-#include "base/string.h"
 #include <stdarg.h>
+
+#include "base/string.h"
+#include "string.h"
 
 String string_from_to(String in, U64 start, U64 end)
 {
 	String r = {0};
-	r.size = end - start;
-	r.value = in.value + start;
+	r.size	 = end - start;
+	r.v		 = in.v + start;
 	return r;
 }
 
@@ -34,11 +36,11 @@ void string_grow(Arena *arena, String *in, U64 capacity)
 	if (cap < 256) cap = 256;
 
 	U8 *buffer = push_array(arena, cap, U8);
-	if (in->value)
+	if (in->v)
 	{
-		MemoryCopy(buffer, in->value, in->size);
+		MemoryCopy(buffer, in->v, in->size);
 	}
-	in->value = buffer;
+	in->v		 = buffer;
 	in->capacity = cap;
 }
 
@@ -70,12 +72,12 @@ void utf8_encode(U8 *ptr, U32 codepoint)
 UnicodeDecode utf16_decode(U16 *str, U64 max)
 {
 	UnicodeDecode decode = {1, UTF_INVALID};
-	decode.codepoint = str[0];
-	decode.size = 1;
+	decode.codepoint	 = str[0];
+	decode.size			 = 1;
 	if (max > 1 && str[0] >= 0xD800 && str[0] < 0xDC00 && 0xDC00 <= str[1] && str[1] <= 0xDFFF)
 	{
 		decode.codepoint = ((str[0] & 0x3FF) << 10) | (str[1] & 0x3FF) + 0x10000;
-		decode.size = 2;
+		decode.size		 = 2;
 	}
 	return decode;
 }
@@ -85,10 +87,10 @@ void string_wstr16(Arena *arena, String *in, WString ws)
 	if (ws.size == 0) return;
 
 	string_grow(arena, in, ws.size * 3);
-	U8 *b_ptr = in->value + in->size;
+	U8 *b_ptr = in->v + in->size;
 
-	U16 *in_ptr = ws.value;
-	U16 *in_end = ws.value + ws.size;
+	U16 *in_ptr			 = ws.v;
+	U16 *in_end			 = ws.v + ws.size;
 	UnicodeDecode decode = {};
 	for (; in_ptr < in_end; in_ptr += decode.size)
 	{
@@ -117,7 +119,7 @@ void string_str(Arena *arena, String *in, String s)
 {
 	if (!s.size) return;
 	string_grow(arena, in, s.size);
-	MemoryCopy(in->value + in->size, s.value, s.size);
+	MemoryCopy(in->v + in->size, s.v, s.size);
 	in->size += s.size;
 }
 
@@ -139,21 +141,21 @@ void string_cstr(Arena *arena, String *in, const char *c)
 
 String cstr_cpy(Arena *arena, const char *c)
 {
-	String s = {};
+	String s = {0};
 	string(arena, &s, c);
 	return s;
 }
 
 String cwstr_cpy(Arena *arena, const wchar *c)
 {
-	String s = {};
+	String s = {0};
 	string(arena, &s, c);
 	return s;
 }
 
 String str_cpy(Arena *arena, String c)
 {
-	String s = {};
+	String s = {0};
 	string(arena, &s, c);
 	return s;
 }
@@ -161,21 +163,53 @@ String str_cpy(Arena *arena, String c)
 char *str_to_cstr(String c)
 {
 	if (c.capacity > c.size)
-		c.value[c.size] = 0;
-	return (char *)c.value;
+		c.v[c.size] = 0;
+	return (char *)c.v;
 }
 
 String string_format(Arena *arena, const char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
-	U64 size = vsnprintf(0, 0, fmt, args) + 1;
-	String result = {0};
-	result.value = push_array(arena, size, U8);
-	result.size = vsnprintf((char *)result.value, size, fmt, args);
-	result.value[result.size] = 0;
+	U64 size			  = vsnprintf(0, 0, fmt, args) + 1;
+	String result		  = {0};
+	result.v			  = push_array(arena, size, U8);
+	result.size			  = vsnprintf((char *)result.v, size, fmt, args);
+	result.v[result.size] = 0;
 	va_end(args);
 	return result;
+}
+
+StringGrow string_empty(Arena *arena)
+{
+	StringGrow s = {0};
+	s.arena		 = arena;
+	string_grow(arena, (String *)&s, 1);
+	return s;
+}
+
+String format_str(StringGrow *s, const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	U64 size = vsnprintf(0, 0, fmt, args) + 1;
+	if (s->capacity < size) string_grow(s->arena, (String *)s, size);
+	s->size		  = vsnprintf((char *)s->v, size, fmt, args);
+	s->v[s->size] = 0;
+	va_end(args);
+	return *(String *)s;
+}
+
+const char *format_cstr(StringGrow *s, const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	U64 size = vsnprintf(0, 0, fmt, args) + 1;
+	if (s->capacity < size) string_grow(s->arena, (String *)s, size);
+	s->size		  = vsnprintf((char *)s->v, size, fmt, args);
+	s->v[s->size] = 0;
+	va_end(args);
+	return str_to_cstr(*(String *)s);
 }
 
 bool match_end(const char *s, const char *match)

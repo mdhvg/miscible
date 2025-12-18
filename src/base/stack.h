@@ -1,13 +1,13 @@
 #pragma once
 
-#include "base/core.h"
+#include "base/base_core.h"
 
 #define stack_def(name, t, s) \
 	struct                    \
 	{                         \
 		t v[s];               \
 		U64 size;             \
-	} name
+	} name = {0}
 
 #define stack_push(s, x) ((s).v[(s).size++] = (x))
 #define stack_pop(s)	 ((s).v[--(s).size])

@@ -2,7 +2,7 @@
 
 #include <windows.h>
 
-#include "base/core.h"
+#include "base/base_core.h"
 #include "base/threadpool.h"
 
 #define OS_SEMAPHORE_MAX		LONG_MAX
@@ -11,14 +11,17 @@
 
 struct OSInfo
 {
-	Arena *arena;
+	OS_COMMON;
 	U64 microsecond_resolution;
 };
 
-global OSInfo os_info = {0};
-
 Guid os_make_guid();
 void os_prelaunch();
+
+inline void win32_sleep_ms(U64 ms)
+{
+	Sleep(ms);
+}
 
 Semaphore os_semaphore_alloc(U32 initial, U32 max);
 void os_semaphore_release(Semaphore s);

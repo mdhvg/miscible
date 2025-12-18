@@ -1,2 +1,2 @@
 CompileFlags:
-  Add: [-Wno-missing-field-initializers]
+  Add: [-Wno-missing-field-initializers, -Wno-missing-braces]

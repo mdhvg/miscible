@@ -9,14 +9,14 @@ $originalFG = $Host.UI.RawUI.ForegroundColor
 Write-Host "Building..." -ForegroundColor Cyan
 
 $Host.UI.RawUI.ForegroundColor = (Get-random -InputObject $warnColors)
-& "$SCRIPT_DIR\build2.bat"
+& "$SCRIPT_DIR\build.bat"
 $Host.UI.RawUI.ForegroundColor = $originalFG
 
 Push-Location "$SCRIPT_DIR\..\build"
 
+Pop-Location
+
 Write-Host "Running..." -ForegroundColor Cyan
 $Host.UI.RawUI.ForegroundColor = "Green"
-& .\Pics.exe
+& .\build\Pics.exe
 $Host.UI.RawUI.ForegroundColor = $originalFG
-
-Pop-Location

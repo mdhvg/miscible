@@ -1,6 +1,6 @@
 #pragma once
 
-#include "base/core.h"
+#include "base/base_core.h"
 #include "base/arena.h"
 #include "base/array.h"
 
@@ -10,17 +10,25 @@
 
 struct String
 {
-	U8 *value;
+	U8 *v;
 	U64 size;
 	U64 capacity;
+};
+
+struct StringGrow
+{
+	U8 *v;
+	U64 size;
+	U64 capacity;
+	Arena *arena;
 };
 
 struct WString
 {
 #if defined WCHAR_UTF16
-	U16 *value;
+	U16 *v;
 #elif defined WCHAR_UTF32
-	U32 *value;
+	U32 *v;
 #endif
 
 	U64 size;
@@ -29,7 +37,7 @@ struct WString
 
 struct StringArray
 {
-	_ArrayHeader_;
+	_DynamicArrayHeader_;
 	String *v;
 };
 
@@ -55,6 +63,10 @@ String str_cpy(Arena *arena, String c);
 char *str_to_cstr(String c);
 
 String string_format(Arena *arena, const char *fmt, ...);
+
+StringGrow string_empty(Arena *arena);
+String format_str(StringGrow *s, const char *fmt, ...);
+const char *format_cstr(StringGrow *s, const char *fmt, ...);
 
 bool match_end(const char *s, const char *match);
 bool match_front(const char *s, const char *match);
