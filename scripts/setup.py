@@ -13,30 +13,35 @@ os.chdir(str(__src_path.parent.parent.absolute()))
 FILES = [
     {
         "url": "https://raw.githubusercontent.com/nothings/stb/master/stb_image.h",
-        "path": "stb_image.h",
+        "filename": "stb_image.h",
         "parent": "deps/stb"
     },
     {
         "url": "https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h",
-        "path": "stb_image_write.h",
+        "filename": "stb_image_write.h",
         "parent": "deps/stb"
     },
     {
         "url": "https://raw.githubusercontent.com/nothings/stb/master/stb_image_resize2.h",
-        "path": "stb_image_resize2.h",
+        "filename": "stb_image_resize2.h",
         "parent": "deps/stb"
     },
     {
-        "url": "https://raw.githubusercontent.com/juliettef/IconFontCppHeaders/refs/heads/main/IconsLucide.h",
-        "path": "IconsLucide.h",
+        "url": "https://raw.githubusercontent.com/juliettef/IconFontCppHeaders/refs/heads/main/IconsMaterialSymbols.h",
+        "filename": "IconsMaterialSymbols.h",
         "parent": "deps/icons"
     },
     {
         "url": "https://sqlite.org/2025/sqlite-amalgamation-3490100.zip",
-        "path": "sqlite.zip",
+        "filename": "sqlite.zip",
         "parent": "deps/",
         "hash": "6cebd1d8403fc58c30e93939b246f3e6e58d0765a5cd50546f16c00fd805d2c3",
         "extract": "deps/sqlite"
+    },
+    {
+        "url": "https://github.com/google/material-design-icons/raw/refs/heads/master/variablefont/MaterialSymbolsRounded%5BFILL,GRAD,opsz,wght%5D.ttf",
+        "filename": "MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf",
+        "parent": "fonts"
     }
 ]
 
@@ -65,7 +70,7 @@ def extract_files_flat(zip_path, target_dir):
                 dst.write(src.read())
 
 for file in FILES:
-    pth = pathlib.Path(file["parent"]) / file["path"]
+    pth = pathlib.Path(file["parent"]) / file["filename"]
     file_path = str(pth)
     if not pathlib.Path.exists(pth):
         pathlib.Path.mkdir(pth.parent, parents=True, exist_ok=True)

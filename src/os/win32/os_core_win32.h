@@ -23,6 +23,11 @@ inline void win32_sleep_ms(U64 ms)
 	Sleep(ms);
 }
 
+void *os_reserve(void *ptr, U64 size);
+B32 os_release(void *ptr);
+B32 os_commit(void *ptr, U64 size);
+B32 os_decommit(void *ptr, U64 size);
+
 Semaphore os_semaphore_alloc(U32 initial, U32 max);
 void os_semaphore_release(Semaphore s);
 void os_semaphore_drop(Semaphore s);

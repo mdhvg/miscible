@@ -52,7 +52,7 @@ F32 *preprocess_batch_from_to(Arena *arena, ImageEmbedding *entries, U64 size, U
 	U32 frame_size	= size * size;
 	U32 image_size	= frame_size * 3;
 	F32 *resized	= push_array(arena, image_size, F32);
-	F32 *batch_data = push_array(arena, (image_size * (to - from)), F32);
+	F32 *batch_data = push_array(arena, (image_size * MODEL_BATCH_SIZE), F32);
 	F32 *mean		= clip_data.clip.image_mean;
 	F32 inv_std[3]	= {
 		 1 / clip_data.clip.image_std[0],
@@ -67,6 +67,7 @@ F32 *preprocess_batch_from_to(Arena *arena, ImageEmbedding *entries, U64 size, U
 		Assert(data);
 		stbir_resize_float_linear(data, w, h, 0, resized, size, size, 0, STBIR_RGB);
 
+		// TODO: Please find something to speed it up. This abomination takes ~4s per image to process
 		for (U32 i = 0; i < frame_size; i++)
 		{
 			batch_data[batch_idx * image_size + 0 * frame_size + i] = ((resized[3 * i + 0] - mean[0]) * inv_std[0]); /* red */
@@ -77,13 +78,14 @@ F32 *preprocess_batch_from_to(Arena *arena, ImageEmbedding *entries, U64 size, U
 		stbi_image_free(data);
 		batch_idx++;
 	}
+	if (batch_idx < MODEL_BATCH_SIZE) MemoryZero(batch_data + (batch_idx * image_size), (MODEL_BATCH_SIZE - batch_idx) * image_size * sizeof(F32));
 
 	return batch_data;
 }
 
 THREAD_FUNC(embed_batch)
 {
-	printf("Arena usage: %zu bytes (%.4f%%)\n", arena->used, (float)(arena->used) / (arena->capacity));
+	printf("Arena usage: %zu bytes (%.4f)\n", arena->used, (float)(arena->used) / (arena->capacity));
 
 	ggml_context **ctx	= &dyn_array_at(clip_data.vision_workers, id).ctx;
 	ggml_cgraph **graph = &dyn_array_at(clip_data.vision_workers, id).graph;
@@ -112,7 +114,7 @@ THREAD_FUNC(embed_batch)
 	// ggml_init_params graph_params = {graph_size, NULL, true};
 	// ggml_context *vision_ctx	  = ggml_init(graph_params);
 	// ggml_cgraph *vision_graph	  = build_image_encode_graph(vision_ctx, &clip_data.clip, (end - base));
-	F32 *embeddings	   = clip_get_image_embedding(arena, &clip_data.clip, &dyn_array_at(clip_data.vision_workers, id), image_data, (end - base));
+	F32 *embeddings	   = clip_get_image_embedding(arena, &clip_data.clip, &dyn_array_at(clip_data.vision_workers, id), image_data, MODEL_BATCH_SIZE);
 	S32 embedding_size = clip_get_vision_hparams(&clip_data.clip)->projection_dim;
 
 	sqlite3_stmt *stmt = db_prepare("UPDATE Images SET embedding = ? WHERE id = ?;");
@@ -125,7 +127,6 @@ THREAD_FUNC(embed_batch)
 		sqlite3_clear_bindings(stmt);
 	}
 	sqlite3_finalize(stmt);
-
 	temp_end(scratch);
 }
 
@@ -151,17 +152,18 @@ void model_create_embeddings()
 	arena_array_clear(embed_arena);
 	embed_start = clock();
 
+	U64 worker_count = MIN(os_info.pool->worker_count, ToCeilInt(clip_data.embed_pending_images.size, MODEL_BATCH_SIZE));
+
 	if (!clip_data.vision_workers.size)
 	{
-		U64 graph_count			 = MIN(os_info.pool->worker_count, clip_data.embed_pending_images.size);
-		clip_data.vision_workers = dyn_array_init(model_arena, graph_count, VisionWorker);
-		for (U64 i = 0; i < clip_data.vision_workers.size; i++)
+		clip_data.vision_workers = dyn_array_init(model_arena, worker_count, VisionWorker);
+		for (U64 i = 0; i < worker_count; i++)
 		{
 			dyn_array_at(clip_data.vision_workers, i) = {0};
 		}
 	}
 
-	parallel_for(os_info.pool, clip_data.embed_pending_images.size / MODEL_BATCH_SIZE, embed_batch, NULL, &embed_arena);
+	parallel_for(os_info.pool, worker_count, embed_batch, NULL, &embed_arena);
 }
 
 void model_after_create_embedding()

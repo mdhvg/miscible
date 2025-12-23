@@ -1,12 +1,13 @@
-#include "os_core_win32.h"
-
 #include <handleapi.h>
+#include <memoryapi.h>
 #include <minwindef.h>
 #include <processthreadsapi.h>
 #include <synchapi.h>
+#include <sysinfoapi.h>
 #include <winbase.h>
 #include <winnt.h>
 
+#include "os_core_win32.h"
 #include "base/base_core.h"
 #include "base/threadpool.h"
 
@@ -41,6 +42,10 @@ void os_prelaunch()
 			os_info.microsecond_resolution = large_int_resolution.QuadPart;
 		}
 	}
+
+	SYSTEM_INFO sysinfo = {0};
+	GetSystemInfo(&sysinfo);
+	os_info.page_size = sysinfo.dwPageSize;
 }
 
 internal U64 os_now_microseconds(void)
@@ -66,6 +71,58 @@ internal U32 win32_sleep_ms_from_us(U64 end_us)
 		sleep_ms	 = (U32)((sleep_us + 999) / 1000);
 	}
 	return sleep_ms;
+}
+
+void *os_reserve(void *ptr, U64 size)
+{
+	void *result = VirtualAlloc(ptr, size, MEM_RESERVE, PAGE_READWRITE);
+
+	if (!result)
+	{
+		U32 err = GetLastError();
+		msc_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
+		Assert(0);
+	}
+	return result;
+}
+
+B32 os_release(void *ptr)
+{
+	B32 result = (VirtualFree(ptr, 0, MEM_RELEASE) != 0);
+
+	if (!result)
+	{
+		U32 err = GetLastError();
+		msc_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
+		Assert(0);
+	}
+	return result;
+}
+
+B32 os_commit(void *ptr, U64 size)
+{
+	B32 result = (VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE) != 0);
+
+	if (!result)
+	{
+		U32 err = GetLastError();
+		msc_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
+		Assert(0);
+	}
+	return result;
+}
+
+B32 os_decommit(void *ptr, U64 size)
+{
+	B32 result = (VirtualFree(ptr, size, MEM_DECOMMIT) != 0);
+
+	if (!result)
+	{
+		U32 err = GetLastError();
+		msc_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
+		Assert(0);
+	}
+	return result;
 }
 
 Semaphore os_semaphore_alloc(U32 initial, U32 max)
