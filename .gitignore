@@ -15,5 +15,6 @@ imgui.ini
 .atlas
 clip-load
 Testing
+*.ttf
 
 .vs

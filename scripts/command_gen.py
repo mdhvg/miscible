@@ -12,7 +12,7 @@ BUILD_DIR = "build"
 COMPILE_COMMANDS_FILE = os.path.join(BUILD_DIR, "compile_commands.json")
 
 common_flags = [
-    "/std:c++17",
+    "-std:c++17",
     "-Od",
     "-nologo",
     "-FC",

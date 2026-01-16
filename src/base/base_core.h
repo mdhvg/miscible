@@ -1,18 +1,16 @@
 #pragma once
-
 // A lot of it comes from: https://github.com/EpicGamesExt/raddebugger
 
-#include <chrono>
-#include <mutex>
-#include <filesystem>
+// #include <filesystem>
+#include <stdint.h>
+#include <string.h>
 #include <wchar.h>
 #include <stdio.h>
 
 //#include "nlohmann/json.hpp"
 
-#define internal static
-#define global	 static
-#define local	 static
+#define global_v static
+#define local_v  static
 
 #if defined(_WIN32)
 #define OS_WINDOWS 1
@@ -72,15 +70,15 @@
 #define MAX(A, B) (((A) > (B)) ? (A) : (B))
 #define MIN(A, B) (((A) < (B)) ? (A) : (B))
 
-#define KB(A) ((A) << 10)
-#define MB(A) ((A) << 20)
-#define GB(A) ((A) << 30)
+#define KB(A) ((U64)(A) << 10)
+#define MB(A) ((U64)(A) << 20)
+#define GB(A) ((U64)(A) << 30)
 
-#define Kil(A) ((A) * 1000)
-#define Mil(A) ((A) * 1000000)
-#define Bil(A) ((A) * 1000000000)
+#define Kil(A) ((U64)(A) * 1000)
+#define Mil(A) ((U64)(A) * 1000000)
+#define Bil(A) ((U64)(A) * 1000000000)
 
-#define AlignOf(A) (A - 1) & ~(A - 1)
+#define AlignOf(A, B) (((A) + (B) - 1) & (~((B) - 1)))
 
 #define ToCeilInt(A, B) (((A) + (B - 1)) / (B))
 
@@ -89,10 +87,10 @@
 // #define TestBit(bitset, idx)  (bitset[(idx) / 64] & (1ull << ((idx) % 64)))
 
 #define MemoryCopy(dst, src, size) memmove((dst), (src), (size))
-#define MemoryCopyArray(d, s)	   MemoryCopy((d), (s), sizeof(d))
+#define MemoryCopyArray(d, s)      MemoryCopy((d), (s), sizeof(d))
 
-#define MemoryZero(s, z)	memset((s), 0, (z))
-#define MemoryZeroStruct(s) MemoryZero((s), sizeof(*(s)))
+#define MemoryZero(p, s)    memset((p), 0, (s))
+#define MemoryZeroStruct(A) MemoryZero((A), sizeof(*(A)))
 
 #define Stringify_(S) #S
 #define Stringify(S)  Stringify_(S)
@@ -103,14 +101,6 @@
 #define WCHAR_UTF16
 #endif
 
-#define PERF(A, ...)                                                                               \
-	static auto start_##A = std::chrono::high_resolution_clock::now();                             \
-	__VA_ARGS__;                                                                                   \
-	static auto end_##A								  = std::chrono::high_resolution_clock::now(); \
-	static std::chrono::duration<double> duration_##A = end_##A - start_##A;                       \
-	printf("PERF(%s): %.6f seconds", #A, duration_##A.count())
-// TODO: Make a logging system (with colors :) )
-
 #if defined(COMPILER_MSVC)
 #define TRAP() __debugbreak()
 #elif defined(COMPILER_GCC) || defined(COMPILER_CLANG)
@@ -118,9 +108,10 @@
 #endif
 
 #define Assert(x)             \
-	do {                      \
-		if (!(x)) { TRAP(); } \
-	} while (0)
+    do                        \
+    {                         \
+        if (!(x)) { TRAP(); } \
+    } while (0)
 
 typedef uint8_t U8;
 typedef uint16_t U16;
@@ -138,6 +129,7 @@ typedef wchar_t wchar;
 typedef float F32;
 typedef double F64;
 
+#define U32_MAX 0xFFFFFFFFul
 #define U64_MAX 0xFFFFFFFFFFFFFFFFull
 
 #define StaticArraySize(a) (sizeof((a)) / sizeof((a)[0]))
@@ -146,45 +138,45 @@ typedef double F64;
 #include <intrin.h>
 #if ARCH_64BIT
 #define ins_atomic_u128_eval_cond_assign(x, k, c) (B32) InterlockedCompareExchange128((__int64 *)(x), ((__int64 *)&(k))[1], ((__int64 *)&(k))[0], (__int64 *)c)
-#define ins_atomic_u64_eval(x)					  *((volatile U64 *)(x))
-#define ins_atomic_u64_inc_eval(x)				  InterlockedIncrement64((__int64 *)(x))
-#define ins_atomic_u64_dec_eval(x)				  InterlockedDecrement64((__int64 *)(x))
-#define ins_atomic_u64_eval_assign(x, c)		  InterlockedExchange64((__int64 *)(x), (c))
-#define ins_atomic_u64_add_eval(x, c)			  InterlockedAdd64((__int64 *)(x), c)
+#define ins_atomic_u64_eval(x)                    *((volatile U64 *)(x))
+#define ins_atomic_u64_inc_eval(x)                InterlockedIncrement64((__int64 *)(x))
+#define ins_atomic_u64_dec_eval(x)                InterlockedDecrement64((__int64 *)(x))
+#define ins_atomic_u64_eval_assign(x, c)          InterlockedExchange64((__int64 *)(x), (c))
+#define ins_atomic_u64_add_eval(x, c)             InterlockedAdd64((__int64 *)(x), c)
 #define ins_atomic_u64_eval_cond_assign(x, k, c)  InterlockedCompareExchange64((__int64 *)(x), (k), (c))
-#define ins_atomic_u32_eval(x)					  *((volatile U32 *)(x))
-#define ins_atomic_u32_inc_eval(x)				  InterlockedIncrement((LONG *)(x))
-#define ins_atomic_u32_dec_eval(x)				  InterlockedDecrement((LONG *)(x))
-#define ins_atomic_u32_eval_assign(x, c)		  InterlockedExchange((LONG *)(x), (c))
+#define ins_atomic_u32_eval(x)                    *((volatile U32 *)(x))
+#define ins_atomic_u32_inc_eval(x)                InterlockedIncrement((LONG *)(x))
+#define ins_atomic_u32_dec_eval(x)                InterlockedDecrement((LONG *)(x))
+#define ins_atomic_u32_eval_assign(x, c)          InterlockedExchange((LONG *)(x), (c))
 #define ins_atomic_u32_eval_cond_assign(x, k, c)  InterlockedCompareExchange((LONG *)(x), (k), (c))
-#define ins_atomic_u32_add_eval(x, c)			  InterlockedAdd((LONG *)(x), (c))
-#define ins_atomic_u8_eval_assign(x, c)			  InterlockedExchange8((CHAR *)(x), (c))
+#define ins_atomic_u32_add_eval(x, c)             InterlockedAdd((LONG *)(x), (c))
+#define ins_atomic_u8_eval_assign(x, c)           InterlockedExchange8((CHAR *)(x), (c))
 #else
 #error Atomic intrinsics not defined for this compiler / architecture combination.
 #endif
 #elif COMPILER_CLANG || COMPILER_GCC
 #define ins_atomic_u128_eval_cond_assign(x, k, c) (B32) __atomic_compare_exchange_n((__int128 *)(x), (__int128 *)(c), *(__int128 *)(k), 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
-#define ins_atomic_u64_eval(x)					  __atomic_load_n(x, __ATOMIC_SEQ_CST)
-#define ins_atomic_u64_inc_eval(x)				  (__atomic_fetch_add((U64 *)(x), 1, __ATOMIC_SEQ_CST) + 1)
-#define ins_atomic_u64_dec_eval(x)				  (__atomic_fetch_sub((U64 *)(x), 1, __ATOMIC_SEQ_CST) - 1)
-#define ins_atomic_u64_eval_assign(x, c)		  __atomic_exchange_n(x, c, __ATOMIC_SEQ_CST)
-#define ins_atomic_u64_add_eval(x, c)			  (__atomic_fetch_add((U64 *)(x), c, __ATOMIC_SEQ_CST) + (c))
+#define ins_atomic_u64_eval(x)                    __atomic_load_n(x, __ATOMIC_SEQ_CST)
+#define ins_atomic_u64_inc_eval(x)                (__atomic_fetch_add((U64 *)(x), 1, __ATOMIC_SEQ_CST) + 1)
+#define ins_atomic_u64_dec_eval(x)                (__atomic_fetch_sub((U64 *)(x), 1, __ATOMIC_SEQ_CST) - 1)
+#define ins_atomic_u64_eval_assign(x, c)          __atomic_exchange_n(x, c, __ATOMIC_SEQ_CST)
+#define ins_atomic_u64_add_eval(x, c)             (__atomic_fetch_add((U64 *)(x), c, __ATOMIC_SEQ_CST) + (c))
 #define ins_atomic_u64_eval_cond_assign(x, k, c)  ({ U64 _new = (c); __atomic_compare_exchange_n((U64 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
-#define ins_atomic_u32_eval(x)					  __atomic_load_n(x, __ATOMIC_SEQ_CST)
-#define ins_atomic_u32_inc_eval(x)				  (__atomic_fetch_add((U32 *)(x), 1, __ATOMIC_SEQ_CST) + 1)
-#define ins_atomic_u32_dec_eval(x)				  (__atomic_fetch_sub((U32 *)(x), 1, __ATOMIC_SEQ_CST) - 1)
-#define ins_atomic_u32_add_eval(x, c)			  (__atomic_fetch_add((U32 *)(x), c, __ATOMIC_SEQ_CST) + (c))
-#define ins_atomic_u32_eval_assign(x, c)		  __atomic_exchange_n((x), (c), __ATOMIC_SEQ_CST)
+#define ins_atomic_u32_eval(x)                    __atomic_load_n(x, __ATOMIC_SEQ_CST)
+#define ins_atomic_u32_inc_eval(x)                (__atomic_fetch_add((U32 *)(x), 1, __ATOMIC_SEQ_CST) + 1)
+#define ins_atomic_u32_dec_eval(x)                (__atomic_fetch_sub((U32 *)(x), 1, __ATOMIC_SEQ_CST) - 1)
+#define ins_atomic_u32_add_eval(x, c)             (__atomic_fetch_add((U32 *)(x), c, __ATOMIC_SEQ_CST) + (c))
+#define ins_atomic_u32_eval_assign(x, c)          __atomic_exchange_n((x), (c), __ATOMIC_SEQ_CST)
 #define ins_atomic_u32_eval_cond_assign(x, k, c)  ({ U32 _new = (c); __atomic_compare_exchange_n((U32 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
-#define ins_atomic_u8_eval_assign(x, c)			  __atomic_exchange_n((x), (c), __ATOMIC_SEQ_CST)
+#define ins_atomic_u8_eval_assign(x, c)           __atomic_exchange_n((x), (c), __ATOMIC_SEQ_CST)
 #else
 #error Atomic intrinsics not defined for this compiler / architecture.
 #endif
 
 #if ARCH_64BIT
 #define ins_atomic_ptr_eval_cond_assign(x, k, c) (void *)ins_atomic_u64_eval_cond_assign((U64 *)(x), (U64)(k), (U64)(c))
-#define ins_atomic_ptr_eval_assign(x, c)		 (void *)ins_atomic_u64_eval_assign((U64 *)(x), (U64)(c))
-#define ins_atomic_ptr_eval(x)					 (void *)ins_atomic_u64_eval((U64 *)x)
+#define ins_atomic_ptr_eval_assign(x, c)         (void *)ins_atomic_u64_eval_assign((U64 *)(x), (U64)(c))
+#define ins_atomic_ptr_eval(x)                   (void *)ins_atomic_u64_eval((U64 *)x)
 #else
 #error Atomic intrinsics for pointers not defined for this architecture.
 #endif
@@ -198,40 +190,41 @@ typedef double F64;
 #endif
 
 #define OS_COMMON         \
-	struct                \
-	{                     \
-		ThreadPool *pool; \
-		U64 worker_count; \
-	}
+    struct                \
+    {                     \
+        ThreadPool *pool; \
+        U64 worker_count; \
+        U64 page_size;    \
+    }
 
 //using json = nlohmann::json;
 
 #define ATLAS_RENDER_VARS                 \
-	struct                                \
-	{                                     \
-		struct Arena *lifetime_arena;     \
-		struct Arena *scratch;            \
-		struct Thumbnail *thumbnail_data; \
-	}
+    struct                                \
+    {                                     \
+        struct Arena *lifetime_arena;     \
+        struct Arena *scratch;            \
+        struct Thumbnail *thumbnail_data; \
+    }
 
 struct Application
 {
-	struct Arena *persistent_arena;
-	struct Arena *scratch;
-	// ATLAS_RENDER_VARS atlas_render_system;
+    struct Arena *persistent_arena;
+    struct Arena *scratch;
+    // ATLAS_RENDER_VARS atlas_render_system;
 };
 
-extern Application pics;
+global_v Application mscbl;
 
 union Guid {
-	struct
-	{
-		U32 data1;
-		U16 data2;
-		U16 data3;
-		U8 data4[8];
-	};
-	U8 v[16];
+    struct
+    {
+        U32 data1;
+        U16 data2;
+        U16 data3;
+        U8 data4[8];
+    };
+    U8 v[16];
 };
 
 void bytes_as_hex_lower(U8 *data, U64 start, U64 len, char *out);
@@ -239,12 +232,13 @@ void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
 
 // TODO: Move these to some other place
 #define ATLAS_DIR  ROOT_DIR "/.atlas"
-#define DB_PATH	   ROOT_DIR "/pics.sqlite"
+#define DB_PATH    ROOT_DIR "/miscible.sqlite"
 #define INDEX_PATH ROOT_DIR "/index.usearch"
+#define MODEL_PATH ROOT_DIR "/CLIP-ViT-B-32-laion2B-s34B-b79K_ggml-model-f16.gguf"
 
-#define APP_NAME "Pics"
+#define APP_NAME "Miscible"
 
 #define ATLAS_CAPACITY 100
-#define ATLAS_SIZE	   2560
+#define ATLAS_SIZE     2560
 #define THUMB_PER_SIDE 10
-#define THUMB_SIZE	   256
+#define THUMB_SIZE     256

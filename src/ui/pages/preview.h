@@ -3,7 +3,7 @@
 #include "base/base_core.h"
 #include "ui/ui_core.h"
 
-// void ui_preview()
+extern "C" void ui_preview();
 // {
 // 	if (ImGui::IsKeyPressed(ImGuiKey_Escape))
 // 	{

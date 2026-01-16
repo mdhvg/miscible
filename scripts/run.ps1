@@ -18,5 +18,5 @@ Pop-Location
 
 Write-Host "Running..." -ForegroundColor Cyan
 $Host.UI.RawUI.ForegroundColor = "Green"
-& .\build\Pics.exe
+& .\build\Miscible.exe
 $Host.UI.RawUI.ForegroundColor = $originalFG

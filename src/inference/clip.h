@@ -1,9 +1,9 @@
 #pragma once
-
 // Source: https://github.com/monatis/clip.cpp
 
 #include <string>
 #include <map>
+#include <vector>
 
 #include "ggml.h"
 #include "ggml-alloc.h"
@@ -12,130 +12,129 @@
 
 #include "base/base_core.h"
 #include "base/arena.h"
-#include "inference/model.h"
 
 struct clip_layer
 {
-	// attention
-	ggml_tensor *k_w;
-	ggml_tensor *k_b;
-	ggml_tensor *q_w;
-	ggml_tensor *q_b;
-	ggml_tensor *v_w;
-	ggml_tensor *v_b;
+    // attention
+    ggml_tensor *k_w;
+    ggml_tensor *k_b;
+    ggml_tensor *q_w;
+    ggml_tensor *q_b;
+    ggml_tensor *v_w;
+    ggml_tensor *v_b;
 
-	ggml_tensor *o_w;
-	ggml_tensor *o_b;
+    ggml_tensor *o_w;
+    ggml_tensor *o_b;
 
-	// layernorm 1
-	ggml_tensor *ln_1_w;
-	ggml_tensor *ln_1_b;
+    // layernorm 1
+    ggml_tensor *ln_1_w;
+    ggml_tensor *ln_1_b;
 
-	// ff
-	ggml_tensor *ff_i_w;
-	ggml_tensor *ff_i_b;
+    // ff
+    ggml_tensor *ff_i_w;
+    ggml_tensor *ff_i_b;
 
-	ggml_tensor *ff_o_w;
-	ggml_tensor *ff_o_b;
+    ggml_tensor *ff_o_w;
+    ggml_tensor *ff_o_b;
 
-	// layernorm 2
-	ggml_tensor *ln_2_w;
-	ggml_tensor *ln_2_b;
+    // layernorm 2
+    ggml_tensor *ln_2_w;
+    ggml_tensor *ln_2_b;
 };
 
 struct clip_text_hparams
 {
-	S32 n_vocab;
-	S32 num_positions;
-	S32 hidden_size;
-	S32 n_intermediate;
-	S32 projection_dim;
-	S32 n_head;
-	S32 n_layer;
-	F32 eps;
+    S32 n_vocab;
+    S32 num_positions;
+    S32 hidden_size;
+    S32 n_intermediate;
+    S32 projection_dim;
+    S32 n_head;
+    S32 n_layer;
+    F32 eps;
 };
 
 struct clip_vision_hparams
 {
-	S32 image_size;
-	S32 patch_size;
-	S32 hidden_size;
-	S32 n_intermediate;
-	S32 projection_dim;
-	S32 n_head;
-	S32 n_layer;
-	F32 eps;
+    S32 image_size;
+    S32 patch_size;
+    S32 hidden_size;
+    S32 n_intermediate;
+    S32 projection_dim;
+    S32 n_head;
+    S32 n_layer;
+    F32 eps;
 };
 
 struct clip_text_model
 {
-	struct clip_text_hparams hparams;
+    struct clip_text_hparams hparams;
 
-	// embeddings
-	ggml_tensor *token_embeddings;
-	ggml_tensor *position_embeddings;
+    // embeddings
+    ggml_tensor *token_embeddings;
+    ggml_tensor *position_embeddings;
 
-	clip_layer *layers;
+    clip_layer *layers;
 
-	ggml_tensor *post_ln_w;
-	ggml_tensor *post_ln_b;
+    ggml_tensor *post_ln_w;
+    ggml_tensor *post_ln_b;
 
-	ggml_tensor *projection;
+    ggml_tensor *projection;
 };
 
 struct clip_vision_model
 {
-	struct clip_vision_hparams hparams;
+    struct clip_vision_hparams hparams;
 
-	// embeddings
-	ggml_tensor *class_embedding;
-	ggml_tensor *patch_embeddings;
-	ggml_tensor *position_embeddings;
+    // embeddings
+    ggml_tensor *class_embedding;
+    ggml_tensor *patch_embeddings;
+    ggml_tensor *position_embeddings;
 
-	ggml_tensor *pre_ln_w;
-	ggml_tensor *pre_ln_b;
+    ggml_tensor *pre_ln_w;
+    ggml_tensor *pre_ln_b;
 
-	clip_layer *layers;
+    clip_layer *layers;
 
-	ggml_tensor *post_ln_w;
-	ggml_tensor *post_ln_b;
+    ggml_tensor *post_ln_w;
+    ggml_tensor *post_ln_b;
 
-	ggml_tensor *projection;
+    ggml_tensor *projection;
 };
 
 typedef S32 clip_vocab_id;
 struct clip_tokens
 {
-	clip_vocab_id *data;
-	U64 size;
+    clip_vocab_id *data;
+    U64 size;
 };
 
 struct clip_vocab
 {
-	using id	= clip_vocab_id;
-	using token = std::string;
+    using id    = clip_vocab_id;
+    using token = std::string;
 
-	std::map<token, id> token_to_id;
-	std::map<id, token> id_to_token;
-	std::vector<std::string> special_tokens;
+    // std::map<token, id> token_to_id;
+    // std::map<id, token> id_to_token;
+    // std::vector<std::string> special_tokens;
 
-	//    void add_special_token(const std::string & token);
+    //    void add_special_token(const std::string & token);
 };
 
 struct clip_ctx
 {
-	bool has_text_encoder	= false;
-	bool has_vision_encoder = false;
-	struct clip_text_model text_model;
-	struct clip_vision_model vision_model;
-	struct clip_vocab vocab;
-	F32 image_mean[3];
-	F32 image_std[3];
-	bool use_gelu = false;
-	S32 ftype	  = 1;
-	ggml_context *ctx_ggml;
-	ggml_backend_t backend;
-	ggml_backend_buffer_t backend_buf;
+    bool has_text_encoder   = false;
+    bool has_vision_encoder = false;
+    clip_text_model text_model;
+    clip_vision_model vision_model;
+    clip_vocab vocab;
+    F32 image_mean[3];
+    F32 image_std[3];
+    bool use_gelu = false;
+    S32 ftype     = 1;
+    ggml_context *ctx_ggml;
+    ggml_backend_t backend;
+    ggml_backend_buffer_t backend_buf;
 };
 
 void clip_model_load(Arena *arena, clip_ctx *clip, const char *fname);
@@ -149,13 +148,13 @@ struct clip_vision_hparams *clip_get_vision_hparams(struct clip_ctx *ctx);
 bool clip_tokenize(struct clip_ctx *ctx, std::string &text, struct clip_tokens *tokens);
 
 bool clip_text_encode(struct clip_ctx *ctx, const int n_threads, const struct clip_tokens *tokens, F32 *vec,
-					  const bool normalize);
+                      const bool normalize);
 
 void clip_get_text_embedding(clip_ctx *clip, ggml_context *text_ctx, ggml_cgraph *text_graph, F32 *output);
 
 ggml_cgraph *build_text_encode_graph(ggml_context *text_ctx, clip_ctx *clip, clip_tokens *tokens);
 
-F32 *clip_get_image_embedding(Arena *arena, clip_ctx *clip, VisionWorker *vis, F32 *imageData, S32 batch_size);
+F32 *clip_get_image_embedding(Arena *arena, clip_ctx *clip, struct VisionWorker *vis, F32 *imageData, S32 batch_size);
 
 ggml_cgraph *build_image_encode_graph(ggml_context *graph_ctx, clip_ctx *clip, int batch_size);
 

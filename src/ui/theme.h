@@ -1,4 +1,4 @@
-#define RGBA255(r, g, b, a) ImVec4((r) / 255.0f, (g) / 255.0f, (b) / 255.0f, (a))
+#define RGBA255(r, g, b, a) ImVec4((r) / 255.0f, (g) / 255.0f, (b) / 255.0f, (a) / 255.0f)
 
 // https://ui.shadcn.com/themes - Rose theme
 
@@ -63,7 +63,8 @@
 
 // .dark {
 //   --background: oklch(0.141 0.005 285.823);
-#define DARK_BACKGROUND ImVec4(RGBA255(9, 9, 11, 255))
+#define DARK_BACKGROUND       ImVec4(RGBA255(9, 9, 11, 255))
+#define DARK_BACKGROUND_HOVER ImVec4(RGBA255(9, 9, 11, 204))
 //   --foreground: oklch(0.985 0 0);
 #define DARK_FOREGROUND ImVec4(RGBA255(250, 250, 250, 255))
 //   --card: oklch(0.21 0.006 285.885);
@@ -75,11 +76,14 @@
 //   --popover-foreground: oklch(0.985 0 0);
 #define DARK_POPOVER_FOREGROUND ImVec4(RGBA255(250, 250, 250, 255))
 //   --primary: oklch(0.645 0.246 16.439);
-#define DARK_PRIMARY ImVec4(RGBA255(255, 32, 86, 255))
+#define DARK_PRIMARY       ImVec4(RGBA255(255, 32, 86, 255))
+#define DARK_PRIMARY_HOVER ImVec4(RGBA255(255, 32, 86, 127))
 //   --primary-foreground: oklch(0.969 0.015 12.422);
 #define DARK_PRIMARY_FOREGROUND ImVec4(RGBA255(255, 241, 242, 255))
 //   --secondary: oklch(0.274 0.006 286.033);
-#define DARK_SECONDARY ImVec4(RGBA255(39, 39, 42, 255))
+#define DARK_SECONDARY        ImVec4(RGBA255(39, 39, 42, 255))
+#define DARK_SECONDARY_HOVER  ImVec4(RGBA255(39, 39, 42, 204))
+#define DARK_SECONDARY_ACTIVE ImVec4(RGBA255(42, 42, 45, 230))
 //   --secondary-foreground: oklch(0.985 0 0);
 #define DARK_SECONDARY_FOREGROUND ImVec4(RGBA255(250, 250, 250, 255))
 //   --muted: oklch(0.274 0.006 286.033);
@@ -87,12 +91,13 @@
 //   --muted-foreground: oklch(0.705 0.015 286.067);
 #define DARK_MUTED_FOREGROUND ImVec4(RGBA255(159, 159, 169, 255))
 //   --accent: oklch(0.274 0.006 286.033);
-#define DARK_ACCENT ImVec4(RGBA255(39, 39, 42, 255))
+#define DARK_ACCENT       ImVec4(RGBA255(39, 39, 42, 255))
+#define DARK_ACCENT_HOVER ImVec4(RGBA255(39, 39, 42, 127))
 //   --accent-foreground: oklch(0.985 0 0);
 #define DARK_ACCENT_FOREGROUND ImVec4(RGBA255(250, 250, 250, 255))
 //   --destructive: oklch(0.704 0.191 22.216);
 //   --border: oklch(1 0 0 / 10%);
-#define DARK_BORDER ImVec4(RGBA255(255, 255, 255, 0.1))
+#define DARK_BORDER ImVec4(RGBA255(255, 255, 255, 25.5))
 //   --input: oklch(1 0 0 / 15%);
 #define DARK_INPUT ImVec4(RGBA255(255, 255, 255, 15))
 //   --ring: oklch(0.41 0.159 10.272);
@@ -114,14 +119,13 @@
 //   --sidebar-accent-foreground: oklch(0.985 0 0);
 #define DARK_SIDEBAR_ACCENT_FOREGROUND ImVec4(RGBA255(250, 250, 250, 255))
 //   --sidebar-border: oklch(1 0 0 / 10%);
-#define DARK_SIDEBAR_BORDER ImVec4(RGBA255(255, 255, 255, 0.1))
+#define DARK_SIDEBAR_BORDER ImVec4(RGBA255(255, 255, 255, 25.5))
 //   --sidebar-ring: oklch(0.41 0.159 10.272);
 // }
 
-// Stupid OKLCH conversion took 3 hours (Only if they posted the OKLCH to sRGB
+// Stupid OKLCH conversion took 3 hours (Only if they posted the OKLCH to RGBA
 // conversion formula online)
 
-#define REM(x) ((float)(ImGui::GetFontSize() * x))
-
-#define RADIUS(x)  REM(0.65) * x
+#define REM(x)     ((float)(ImGui::GetFontSize() * x))
+#define RADIUS(x)  REM(0.625) * x
 #define SPACING(x) REM(0.25) * x

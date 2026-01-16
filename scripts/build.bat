@@ -71,7 +71,9 @@ set Definitions=-DDEBUG=1 ^
                 -D_GLFW_WIN32=1 ^
                 -DSQLITE_CORE=1
 
-set Includes=-I../deps/sqlite ^
+set Includes=-I../src ^
+             ^
+             -I../deps/sqlite ^
              ^
              -I../deps/stb ^
              ^
@@ -150,12 +152,23 @@ echo:
 echo Building glad
 cl %CCompilerFlags% %Includes% /c ../deps/glad/src/*.c
 
-REM Build Pics
+REM Build Miscible
 echo:
-echo Building Pics
-@REM dir *.obj
-@REM cl %CommonCompilerFlags% %Definitions% %Includes% /P /Fiintermediate/pics.i ../src/main.cpp
-cl /Fe:Pics.exe %CppCompilerFlags% %Definitions% %Includes% -Fmpics.map ../src/main.cpp *.obj /link %CommonLinkerFlags%
+echo Building Miscible
+REM Intermediate
+REM cl %CppCompilerFlags% %Definitions% %Includes% ../src/miscible.cpp /P /Fiintermediate/Miscible.i
+REM Miscible lib
+cl /c %CppCompilerFlags% %Definitions% %Includes% ../src/miscible.cpp /Fo:miscible.obj /link %CommonLinkerFlags%
+lib /OUT:miscible.lib *.obj
+REM cl %CppCompilerFlags% %Definitions% %Includes% ../src/miscible.cpp *.obj /LD /Fe:miscible.lib /link %CommonLinkerFlags%
+
+REM Hot reloaded components
+REM - UI Menu
+cl %CppCompilerFlags% %Definitions% %Includes% ../src/ui/pages/menu.cpp /LD /Fe:menu.dll /link miscible.lib
+copy menu.dll menu.tmp.dll
+
+REM Executable
+cl %CppCompilerFlags% %Definitions% %Includes% ../src/main.cpp /Fe:Miscible.exe -FmMiscible.map /link miscible.lib
 
 popd
 popd

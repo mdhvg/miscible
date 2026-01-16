@@ -1,5 +1,4 @@
 #pragma once
-
 #include "base/arena.h"
 #include "base/base_core.h"
 #include "base/threads.h"
@@ -9,34 +8,34 @@ typedef THREAD_FUNC(thread_func);
 
 struct Worker
 {
-	U64 id;
-	struct ThreadPool *pool;
-	Thread handle;
+    U64 id;
+    struct ThreadPool *pool;
+    Thread handle;
 };
 
 struct ThreadPool
 {
-	B16 active;
-	U64 task_count;
-	U64 task_done;
-	S64 task_left;
-	B8 available;
+    B32 active;
+    B32 busy;
 
-	U32 worker_count;
-	Worker *worker_array;
-	ArenaArray *worker_arena;
+    U64 task_count;
+    U64 task_done;
+    S64 task_left;
+    B32 available;
+    U32 worker_count;
+    Semaphore task_semaphore;
+    Worker *worker_array;
+    ArenaArray worker_arena;
+    thread_func *pool_func;
+    void *pool_data;
 
-	Semaphore task_semaphore;
-
-	thread_func *task_func;
-	void *task_data;
+    Worker async_worker;
+    thread_func *async_func;
+    void *async_data;
+    B32 async_busy;
 };
 
 ThreadPool *threadpool_init(Arena *arena, U32 worker_count);
 void threadpool_free(ThreadPool *pool);
-B8 parallel_for(ThreadPool *pool, U64 task_count, thread_func *func, void *data, ArenaArray *worker_arena);
-
-// void threadpool_init(int n = 4);
-// void threadpool_enqueue(std::function<void()> job, std::mutex *block = NULL);
-// void threadpool_enqueue(thread_func func, void *data, std::mutex *block = NULL);
-// void threadpool_destroy();
+B32 async_job(ThreadPool *pool, thread_func *func, void *data);
+B32 parallel_for(ThreadPool *pool, U64 task_count, thread_func *func, void *data);
