@@ -3,7 +3,7 @@
 Miscible is a smart (and personal) photo gallery. It aims to provide image gallery features provided by (Web based) applications like Google Photos, Windows Photos, etc, while keeping everything running locally (and smoothly).
 
 <p align="center">
-    <img width="60%" src="docs/Screenshot.png" alt="Miscible Screenshot">
+    <img src="docs/Screenshot.png" alt="Miscible Screenshot">
 </p>
 <p align="center">
     <i>Miscible running on Windows 10</i>
@@ -63,7 +63,7 @@ bash ./scripts/build.sh
 
 Binary is built in the `./build` directory and can be ran from there.
 
-Setup script doesn't automatically download the CLIP model, so it can be manually downloaded from [Hugging Face 🤗](https://huggingface.co/laion/CLIP-ViT-B-32-laion2B-s34B-b79K) and placed at `(project root)/CLIP-ViT-B-32-laion2B-s34B-b79K.gguf`.
+Setup script doesn't automatically download the CLIP model, so it can be manually downloaded from [Hugging Face🤗](https://huggingface.co/laion/CLIP-ViT-B-32-laion2B-s34B-b79K) and placed at `(project root)/CLIP-ViT-B-32-laion2B-s34B-b79K.gguf`.
 
 #### Usage Options
 
