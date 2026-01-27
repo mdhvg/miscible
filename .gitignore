@@ -5,6 +5,7 @@ deps/stb
 deps/icons
 deps/sqlite.zip
 deps/sqlite
+deps/easy-args
 
 test_imgs
 wallpapers

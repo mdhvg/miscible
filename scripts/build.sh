@@ -22,7 +22,7 @@ if [ ! -e "libggml.a" ]; then
     else
         cmake -S .. -B . -DCMAKE_BUILD_TYPE=Debug
     fi
-    cmake --build . -j
+    cmake --build . -j &
 fi
 
 if [ -e "compile_commands.json" ]; then
@@ -44,6 +44,8 @@ else
     LINK_MODE="hotreload"
 fi
 
+DEFINES+=(-DIMGUI_USER_CONFIG=\"mscbl_imconfig.h\")
+
 INCLUDES=(
     -I"${PROJECT_DIR}/src"
 
@@ -59,6 +61,10 @@ INCLUDES=(
 
     -I"${PROJECT_DIR}/deps/stb"
 
+    -I"${PROJECT_DIR}/deps/tinyfiledialogs"
+
+    -I"${PROJECT_DIR}/deps/easy-args"
+
     -I"${PROJECT_DIR}/deps/sqlite"
 
     -I"${PROJECT_DIR}/deps/ggml/src"
@@ -72,10 +78,10 @@ INCLUDES=(
 )
 
 if [ ! -e "deps_c.o" ]; then
+    printf "Building CXX deps\n"
+    ${CXX} ${CXXFLAGS} "${DEFINES[@]}" -c "${INCLUDES[@]}" "${PROJECT_DIR}/src/deps_unity.cpp" -o deps_cxx.o &
     printf "Building C deps\n"
     ${CC} ${CFLAGS} "${DEFINES[@]}" -c "${INCLUDES[@]}" "${PROJECT_DIR}/src/deps_unity.c" -o deps_c.o
-    printf "Building CXX deps\n"
-    ${CXX} ${CXXFLAGS} "${DEFINES[@]}" -c "${INCLUDES[@]}" "${PROJECT_DIR}/src/deps_unity.cpp" -o deps_cxx.o
 fi
 
 if [[ $MODE == "release" ]]; then
@@ -85,17 +91,17 @@ if [[ $MODE == "release" ]]; then
         -L. -l:libglfw3.a -l:libggml.a -l:libggml-cpu.a -l:libggml-base.a \
         -o Miscible
 else
+    printf "Building pages.so\n"
+    ${CXX} -shared ${CXXFLAGS} "${DEFINES[@]}" "${INCLUDES[@]}" \
+        ${PROJECT_DIR}/src/ui/pages/*.cpp deps_c.o deps_cxx.o \
+        -L. -l:libglfw3.a -l:libggml.a -l:libggml-cpu.a -l:libggml-base.a \
+        -o pages.so &
+
     printf "Building libmiscible.so\n"
     ${CXX} -shared ${CXXFLAGS} "${DEFINES[@]}" "${INCLUDES[@]}" \
         "${PROJECT_DIR}/src/miscible.cpp" deps_c.o deps_cxx.o \
         -L. -l:libglfw3.a -l:libggml.a -l:libggml-cpu.a -l:libggml-base.a \
         -o libmiscible.so
-
-    printf "Building pages.so\n"
-    ${CXX} -shared ${CXXFLAGS} "${DEFINES[@]}" "${INCLUDES[@]}" \
-        ${PROJECT_DIR}/src/ui/pages/*.cpp deps_c.o deps_cxx.o \
-        -L. -l:libglfw3.a -l:libggml.a -l:libggml-cpu.a -l:libggml-base.a \
-        -o pages.so
 
     printf "Building Miscible\n"
     ${CXX} ${CXXFLAGS} "${DEFINES[@]}" "${INCLUDES[@]}" \

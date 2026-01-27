@@ -42,6 +42,11 @@ FILES = [
         "url": "https://github.com/google/material-design-icons/raw/refs/heads/master/variablefont/MaterialSymbolsRounded%5BFILL,GRAD,opsz,wght%5D.ttf",
         "filename": "MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf",
         "parent": "fonts"
+    },
+    {
+        "url": "https://raw.githubusercontent.com/gouwsxander/easy-args/1b776957e13200a8d0d192dc909c46672baeb065/includes/easyargs.h",
+        "filename": "easyargs.h",
+        "parent": "deps/easy-args"
     }
 ]
 
