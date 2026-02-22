@@ -14,53 +14,60 @@ FILES = [
     {
         "url": "https://raw.githubusercontent.com/nothings/stb/master/stb_image.h",
         "filename": "stb_image.h",
-        "parent": "deps/stb"
+        "parent": "deps/stb",
     },
     {
         "url": "https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h",
         "filename": "stb_image_write.h",
-        "parent": "deps/stb"
+        "parent": "deps/stb",
     },
     {
         "url": "https://raw.githubusercontent.com/nothings/stb/master/stb_image_resize2.h",
         "filename": "stb_image_resize2.h",
-        "parent": "deps/stb"
+        "parent": "deps/stb",
     },
     {
         "url": "https://raw.githubusercontent.com/juliettef/IconFontCppHeaders/refs/heads/main/IconsMaterialSymbols.h",
         "filename": "IconsMaterialSymbols.h",
-        "parent": "deps/icons"
+        "parent": "deps/icons",
     },
     {
         "url": "https://sqlite.org/2025/sqlite-amalgamation-3490100.zip",
         "filename": "sqlite.zip",
         "parent": "deps/",
         "hash": "6cebd1d8403fc58c30e93939b246f3e6e58d0765a5cd50546f16c00fd805d2c3",
-        "extract": "deps/sqlite"
+        "extract": "deps/sqlite",
     },
     {
         "url": "https://github.com/google/material-design-icons/raw/refs/heads/master/variablefont/MaterialSymbolsRounded%5BFILL,GRAD,opsz,wght%5D.ttf",
         "filename": "MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf",
-        "parent": "fonts"
+        "parent": "fonts",
     },
     {
         "url": "https://raw.githubusercontent.com/gouwsxander/easy-args/1b776957e13200a8d0d192dc909c46672baeb065/includes/easyargs.h",
         "filename": "easyargs.h",
-        "parent": "deps/easy-args"
-    }
+        "parent": "deps/easy-args",
+    },
+    {
+        "url": "https://raw.githubusercontent.com/doctest/doctest/1da23a3e8119ec5cce4f9388e91b065e20bf06f5/doctest/doctest.h",
+        "filename": "doctest.h",
+        "parent": "deps/doctest",
+    },
 ]
+
 
 def get_sha256hash(path):
     hasher = hashlib.sha256()
-    with open(path, 'rb') as file:
+    with open(path, "rb") as file:
         for chunk in iter(lambda: file.read(4096), b""):
             hasher.update(chunk)
     return hasher.hexdigest()
 
+
 def extract_files_flat(zip_path, target_dir):
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    with zipfile.ZipFile(zip_path, 'r') as z:
+    with zipfile.ZipFile(zip_path, "r") as z:
         for member in z.infolist():
             if member.is_dir():
                 continue
@@ -71,8 +78,9 @@ def extract_files_flat(zip_path, target_dir):
 
             out_path = target_dir / filename
 
-            with z.open(member) as src, open(out_path, 'wb') as dst:
+            with z.open(member) as src, open(out_path, "wb") as dst:
                 dst.write(src.read())
+
 
 for file in FILES:
     pth = pathlib.Path(file["parent"]) / file["filename"]

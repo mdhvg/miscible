@@ -1,12 +1,8 @@
-#include <handleapi.h>
-#include <memoryapi.h>
-#include <processthreadsapi.h>
-#include <synchapi.h>
-#include <sysinfoapi.h>
-#include <winbase.h>
-#include <winnt.h>
+#include <ShObjIdl.h>
 
-#include "os_core_win32.h"
+#include "os/win32/os_core_win32.h"
+#include "base/log.h"
+#include "base/base_core.h"
 
 Guid os_make_guid()
 {
@@ -43,6 +39,18 @@ void os_prelaunch()
     SYSTEM_INFO sysinfo = {0};
     GetSystemInfo(&sysinfo);
     os_info.page_size = sysinfo.dwPageSize;
+
+    // Set terminal UTF-8
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
+    // For <shobjidl.h>
+    CoInitialize(NULL);
+}
+
+void os_cleanup()
+{
+    CoUninitialize();
 }
 
 void os_loadlib(const char *filename, const char *func_name, void *func)
@@ -50,7 +58,7 @@ void os_loadlib(const char *filename, const char *func_name, void *func)
     LoadLibraryA(filename);
 }
 
-internal U64 os_now_microseconds(void)
+local_v U64 os_now_microseconds(void)
 {
     U64 result = 0;
     LARGE_INTEGER large_int_counter;
@@ -61,9 +69,10 @@ internal U64 os_now_microseconds(void)
     return result;
 }
 
-internal U32 win32_sleep_ms_from_us(U64 end_us)
+local_v U32 win32_sleep_ms_from_us(U64 end_us)
 {
-    if (end_us == U64_MAX) return INFINITE;
+    if (end_us == U64_MAX)
+        return INFINITE;
 
     U32 sleep_ms = 0;
     U64 begint   = os_now_microseconds();
@@ -73,6 +82,41 @@ internal U32 win32_sleep_ms_from_us(U64 end_us)
         sleep_ms     = (U32)((sleep_us + 999) / 1000);
     }
     return sleep_ms;
+}
+
+void os_select_dir(const wchar *title, const wchar *default_path, StringBuilder *sb)
+{
+    PWSTR path           = NULL;
+    IShellItem *res_psi  = NULL;
+    IShellItem *def_psi  = NULL;
+    IFileOpenDialog *pfd = NULL;
+    HRESULT hr           = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, (void **)&pfd);
+
+    Assert(SUCCEEDED(hr) && "CoCreateInstance failed");
+    pfd->SetOptions(FOS_PICKFOLDERS | FOS_PATHMUSTEXIST);
+    pfd->SetTitle(title);
+
+    if (default_path && *default_path && SUCCEEDED(SHCreateItemFromParsingName(default_path, NULL, IID_IShellItem, (void **)&def_psi)))
+    {
+        pfd->SetFolder(def_psi);
+        pfd->SetDefaultFolder(def_psi);
+        def_psi->Release();
+    }
+
+    Assert(SUCCEEDED(pfd->Show(NULL)));
+    Assert(SUCCEEDED(pfd->GetResult(&res_psi)));
+    res_psi->GetDisplayName(SIGDN_FILESYSPATH, &path);
+
+    string_push(sb, path);
+
+    CoTaskMemFree(path);
+    res_psi->Release();
+    pfd->Release();
+}
+
+void win32_format_path(StringBuilder *dir)
+{
+    string_replace(dir, "\\", "/");
 }
 
 void *os_reserve(void *ptr, U64 size)
@@ -101,9 +145,9 @@ void os_release(void *ptr, U64 size)
     }
 }
 
-B32 os_commit(void *ptr, U64 size)
+void os_commit(void *ptr, U64 size)
 {
-    if (!size) return 1;
+    if (!size) return;
     B32 result = (VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE) != 0);
 
     if (!result)
@@ -112,12 +156,11 @@ B32 os_commit(void *ptr, U64 size)
         mscbl_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
         Assert(0);
     }
-    return result;
 }
 
-B32 os_decommit(void *ptr, U64 size)
+void os_decommit(void *ptr, U64 size)
 {
-    if (!size) return 1;
+    if (!size) return;
     B32 result = (VirtualFree(ptr, size, MEM_DECOMMIT) != 0);
 
     if (!result)
@@ -126,49 +169,59 @@ B32 os_decommit(void *ptr, U64 size)
         mscbl_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
         Assert(0);
     }
-    return result;
 }
 
 Semaphore os_semaphore_alloc(U32 initial, U32 max)
 {
-    HANDLE handle = CreateSemaphore(0, initial, max, NULL);
-    return {(U64)handle};
+    HANDLE h = CreateSemaphore(0, initial, max, NULL);
+    if (!h)
+    {
+        U32 err = GetLastError();
+        mscbl_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
+        Assert(0);
+    }
+    return h;
 }
 
 void os_semaphore_release(Semaphore s)
 {
-    HANDLE h = (HANDLE)s.u64[0];
-    CloseHandle(h);
+    B32 result = (CloseHandle(s) != 0);
+    if (!result)
+    {
+        U32 err = GetLastError();
+        mscbl_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
+        Assert(0);
+    }
 }
 
 void os_semaphore_drop(Semaphore s)
 {
-    HANDLE handle = (HANDLE)s.u64[0];
-    ReleaseSemaphore(handle, 1, 0);
+    B32 result = (ReleaseSemaphore(s, 1, 0) != 0);
+    if (!result)
+    {
+        U32 err = GetLastError();
+        mscbl_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
+        Assert(0);
+    }
 }
 
-B8 os_semaphore_take(Semaphore s, U64 end_us)
+B32 os_semaphore_take(Semaphore s, U64 end_us)
 {
     U32 sleep         = win32_sleep_ms_from_us(end_us);
-    HANDLE h          = (HANDLE)s.u64[0];
-    DWORD wait_result = WaitForSingleObject(h, sleep);
-    B8 result         = (wait_result == WAIT_OBJECT_0);
+    DWORD wait_result = WaitForSingleObject(s, sleep);
+    B32 result        = (wait_result == WAIT_OBJECT_0);
     return result;
 }
 
 Thread os_thread_launch(LPTHREAD_START_ROUTINE fn, Worker *worker)
 {
-    Thread t      = {0};
-    HANDLE handle = CreateThread(0, 0, fn, worker, 0, NULL);
-    t.u64[0]      = IntFromPtr(handle);
-    return t;
+    return CreateThread(0, 0, fn, worker, 0, NULL);
 }
 
 void os_thread_detach(Thread t)
 {
-    HANDLE h = (HANDLE)t.u64[0];
-    if (h != 0)
+    if (t != 0)
     {
-        CloseHandle(h);
+        CloseHandle(t);
     }
 }

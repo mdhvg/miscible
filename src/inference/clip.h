@@ -8,9 +8,9 @@
 #include "ggml.h"
 #include "ggml-alloc.h"
 #include "ggml-backend.h"
-#include "gguf.h"
 
 #include "base/base_core.h"
+#include "base/string.h"
 #include "base/arena.h"
 
 struct clip_layer
@@ -114,11 +114,11 @@ struct clip_vocab
     using id    = clip_vocab_id;
     using token = std::string;
 
-    // std::map<token, id> token_to_id;
-    // std::map<id, token> id_to_token;
-    // std::vector<std::string> special_tokens;
+    std::map<token, id> token_to_id;
+    std::map<id, token> id_to_token;
+    std::vector<std::string> special_tokens;
 
-    //    void add_special_token(const std::string & token);
+    void add_special_token(const std::string &token);
 };
 
 struct clip_ctx
@@ -145,14 +145,9 @@ clip_text_hparams *clip_get_text_hparams(struct clip_ctx *ctx);
 struct clip_vision_hparams *clip_get_vision_hparams(struct clip_ctx *ctx);
 
 // TODO: Assuming this works **as intended** for now. Need the check later
-bool clip_tokenize(struct clip_ctx *ctx, std::string &text, struct clip_tokens *tokens);
+bool clip_tokenize(clip_ctx *ctx, String *input, struct clip_tokens *tokens);
 
-bool clip_text_encode(struct clip_ctx *ctx, const int n_threads, const struct clip_tokens *tokens, F32 *vec,
-                      const bool normalize);
-
-void clip_get_text_embedding(clip_ctx *clip, ggml_context *text_ctx, ggml_cgraph *text_graph, F32 *output);
-
-ggml_cgraph *build_text_encode_graph(ggml_context *text_ctx, clip_ctx *clip, clip_tokens *tokens);
+F32 *clip_get_text_embedding(Arena *arena, clip_ctx *ctx, clip_tokens *tokens, bool normalize);
 
 F32 *clip_get_image_embedding(Arena *arena, clip_ctx *clip, struct VisionWorker *vis, F32 *imageData, S32 batch_size);
 

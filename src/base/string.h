@@ -1,7 +1,8 @@
 #pragma once
+#include <stdarg.h>
+
 #include "base/base_core.h"
 #include "base/arena.h"
-#include "base/array.h"
 
 // Reference: https://youtu.be/bUOOaXf9qIM?t=2989
 
@@ -11,7 +12,6 @@ struct String
 {
     U8 *v;
     U64 size;
-    U64 capacity;
 };
 
 struct StringBuilder
@@ -29,144 +29,157 @@ struct WString
 #elif defined WCHAR_UTF32
     U32 *v;
 #endif
-
     U64 size;
-    U64 capacity;
 };
 
-struct StringArray
+#define StringCast(x)  *(String *)(&(x))
+#define WStringCast(x) *(WString *)(&(x))
+#define CStrCast(s)    (const char *)((s).v)
+inline const wchar *WCStrCast(WString s)
 {
-    _DynamicArrayHeader_;
-    String *v;
-};
-
-String string_from_to(String in, U64 start, U64 end);
-
-WString make_string_cwstr(const wchar *s);
-String make_string_cstr(const char *s);
-
-void string_wstr16(Arena *arena, String *in, WString ws);
-void string_wchar16(Arena *arena, String *in, wchar wc);
-void string_cwstr16(Arena *arena, String *in, const wchar *wc);
-void string_wstr32(Arena *arena, String *in, WString ws);
-void string_wchar32(Arena *arena, String *in, wchar wc);
-void string_cwstr32(Arena *arena, String *in, const wchar *wc);
-void string_str(Arena *arena, String *in, String s);
-void string_char(Arena *arena, String *in, char c);
-void string_cstr(Arena *arena, String *in, const char *c);
-
-String cwstr_cpy(Arena *arena, const wchar *c);
-String cstr_cpy(Arena *arena, const char *c);
-String str_cpy(Arena *arena, String c);
-
-char *str_to_cstr(String c);
-wchar *str_to_wcstr(Arena *a, String s);
-
-String string_format(Arena *arena, const char *fmt, ...);
-WString string_formatw(Arena *arena, const wchar *fmt, ...);
-
-StringBuilder string_empty(Arena *arena, U64 size = 1);
-String format_str(StringBuilder *s, const char *fmt, ...);
-const char *format_cstr(StringBuilder *s, const char *fmt, ...);
-
-bool match_end(const char *s, const char *match);
-bool match_front(const char *s, const char *match);
-bool match_end(const wchar *s, const wchar *match);
-bool match_front(const wchar *s, const wchar *match);
-
-#if defined(WCHAR_UTF16)
-#define string_wstr(a, b, s)  string_wstr16(a, b, s)
-#define string_wchar(a, b, s) string_wchar16(a, b, s)
-#define string_cwstr(a, b, s) string_cwstr16(a, b, s)
-#elif defined(WCHAR_UTF32)
-#define string_wstr(a, b, s)  string_wstr32(a, b, s)
-#define string_wchar(a, b, s) string_wchar32(a, b, s)
-#define string_cwstr(a, b, s) string_cwstr32(a, b, s)
-#endif
-
-#if defined(__cplusplus)
-inline void string(Arena *a, String *b, WString x)
-{
-    string_wstr(a, b, x);
+    return (const wchar *)((s).v);
 }
-inline void string(Arena *a, String *b, wchar x)
+wchar *WCStrCast(Arena *a, String s);
+
+MSCBL_API void string_growto(StringBuilder *base, U64 reqcap);
+MSCBL_API inline void string_growby(StringBuilder *base, U64 by)
 {
-    string_wchar(a, b, x);
-}
-inline void string(Arena *a, String *b, const wchar *x)
-{
-    string_cwstr(a, b, x);
-}
-inline void string(Arena *a, String *b, String x)
-{
-    string_str(a, b, x);
-}
-inline void string(Arena *a, String *b, char x)
-{
-    string_char(a, b, x);
-}
-inline void string(Arena *a, String *b, const char *x)
-{
-    string_cstr(a, b, x);
+    string_growto(base, base->size + by);
 }
 
-//inline String s_cpy(Arena *a, WString x)
-//{
-//	return wstr_cpy(a, x);
-//}
-//inline String s_cpy(Arena *a, wchar x)
-//{
-//	return wchar_cpy(a, x);
-//}
-inline String s_cpy(Arena *a, const wchar *x)
+MSCBL_API U64 string_push_wstring(StringBuilder *base, WString push);
+MSCBL_API U64 string_push_wchar(StringBuilder *base, wchar push);
+MSCBL_API U64 string_push_wcstr(StringBuilder *base, const wchar *push);
+MSCBL_API U64 string_push_string(StringBuilder *base, String push);
+MSCBL_API U64 string_push_char(StringBuilder *base, char push);
+MSCBL_API U64 string_push_cstr(StringBuilder *base, const char *push);
+inline U64 string_push(StringBuilder *base, WString push)
 {
-    return cwstr_cpy(a, x);
+    return string_push_wstring(base, push);
 }
-inline String s_cpy(Arena *a, String x)
+inline U64 string_push(StringBuilder *base, wchar push)
 {
-    return str_cpy(a, x);
+    return string_push_wchar(base, push);
 }
-//inline String s_cpy(Arena *a, char x)
-//{
-//	return char_cpy(a, x);
-//}
-inline String s_cpy(Arena *a, const char *x)
+inline U64 string_push(StringBuilder *base, const wchar *push)
 {
-    return cstr_cpy(a, x);
+    return string_push_wcstr(base, push);
+}
+inline U64 string_push(StringBuilder *base, String push)
+{
+    return string_push_string(base, push);
+}
+inline U64 string_push(StringBuilder *base, char push)
+{
+    return string_push_char(base, push);
+}
+inline U64 string_push(StringBuilder *base, const char *push)
+{
+    return string_push_cstr(base, push);
 }
 
-inline WString S(const wchar *x)
+MSCBL_API WString string_view_wcstr(const wchar *c);
+MSCBL_API String string_view_cstr(const char *c);
+inline WString sv(const wchar *x)
 {
-    return make_string_cwstr(x);
+    return string_view_wcstr(x);
 }
-inline String S(const char *x)
+inline String sv(const char *x)
 {
-    return make_string_cstr(x);
+    return string_view_cstr(x);
 }
-#else // __cplusplus
-#define string(arena, in, x)   \
-    _Generic((x),              \
-        WString: string_wstr,  \
-        wchar: string_wchar,   \
-        wchar *: string_cwstr, \
-        String: string_str,    \
-        char: string_char,     \
-        char *: string_cstr,   \
-        default: string_cstr)(arena, in, x)
 
-#define s_cpy(arena, x)     \
-    _Generic((x),           \
-        WString: wstr_cpy,  \
-        wchar: wchar_cpy,   \
-        wchar *: cwstr_cpy, \
-        String: str_cpy,    \
-        char: char_cpy,     \
-        char *: cstr_cpy,   \
-        default: cstr_cpy)(arena, x)
+MSCBL_API WString string_cpy_wcstr(Arena *arena, const wchar *c);
+MSCBL_API String string_cpy_cstr(Arena *arena, const char *c);
+inline WString string_cpy(Arena *arena, const wchar *x)
+{
+    return string_cpy_wcstr(arena, x);
+}
+inline String string_cpy(Arena *arena, const char *x)
+{
+    return string_cpy_cstr(arena, x);
+}
+inline String string_cpy(Arena *arena, const unsigned char *x)
+{
+    return string_cpy_cstr(arena, (const char *)x);
+}
 
-#define S(x)                        \
-    _Generic((x),                   \
-        wchar *: make_string_cwstr, \
-        char *: make_string_cstr,   \
-        default: make_string_cstr)(x)
-#endif // __cplusplus
+#define string_clear(x) ((x).size = 0)
+MSCBL_API StringBuilder string_empty(Arena *arena, U64 size = 1);
+
+MSCBL_API inline String string_from_to(String base, U64 from, U64 to)
+{
+    return {.v = base.v + from, .size = to - from};
+}
+MSCBL_API inline String string_from(String base, U64 from)
+{
+    return string_from_to(base, from, base.size);
+}
+
+MSCBL_API B32 string_cmp_wcstr(WString str, const wchar *match, U64 limit);
+MSCBL_API B32 string_cmp_cstr(String str, const char *match, U64 limit);
+inline B32 string_cmp(WString str, const wchar *match, U64 limit = 1024)
+{
+    return string_cmp_wcstr(str, match, limit);
+}
+inline B32 string_cmp(String str, const char *match, U64 limit = 1024)
+{
+    return string_cmp_cstr(str, match, limit);
+}
+
+void string_formatv(StringBuilder *base, const char *fmt, va_list args);
+MSCBL_API WString string_formatw(StringBuilder *base, const wchar *fmt, ...);
+MSCBL_API String string_format(StringBuilder *base, const char *fmt, ...);
+MSCBL_API inline const char *format_cstr(StringBuilder *base, const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    string_formatv(base, fmt, args);
+    va_end(args);
+    return CStrCast(*base);
+}
+
+/*
+ * Find and replace
+ *
+ * @param base     The StringBuilder to modify (in/out).
+ * @param find     The substring to search for (null-terminated).
+ * @param replace  The replacement string (null-terminated).
+ * @param count    Maximum number of replacements (0 = replace all).
+ * @return         Number of replacements actually performed.
+ */
+MSCBL_API U64 string_replace_cstr(StringBuilder *base, const char *find, const char *replace, U64 count);
+/*
+ * Inline wrapper for string_replace_cstr (uses default count = 0).
+ *
+ * @param base     The StringBuilder to modify.
+ * @param find     Substring to find.
+ * @param replace  Replacement string.
+ * @param count    Max replacements (default 0 = all).
+ * @return         Number of replacements made.
+ */
+inline U64 string_replace(StringBuilder *base, const char *find, const char *replace, U64 count = 0)
+{
+    return string_replace_cstr(base, find, replace, count);
+}
+
+MSCBL_API B32 match_front_wcstr(WString base, const wchar *match);
+MSCBL_API B32 match_end_wcstr(WString base, const wchar *match);
+MSCBL_API B32 match_front_cstr(String base, const char *match);
+MSCBL_API B32 match_end_cstr(String base, const char *match);
+inline B32 match_front(WString base, const wchar *match)
+{
+    return match_front_wcstr(base, match);
+}
+inline B32 match_end(WString base, const wchar *match)
+{
+    return match_end_wcstr(base, match);
+}
+inline B32 match_front(String base, const char *match)
+{
+    return match_front_cstr(base, match);
+}
+inline B32 match_end(String base, const char *match)
+{
+    return match_end_cstr(base, match);
+}

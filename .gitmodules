@@ -1,16 +1,15 @@
 [submodule "deps/imgui"]
 	path = deps/imgui
 	url = https://github.com/ocornut/imgui
-	branch = docking
 [submodule "deps/glfw"]
 	path = deps/glfw
 	url = https://github.com/glfw/glfw
-[submodule "deps/json"]
-	path = deps/json
-	url = https://github.com/nlohmann/json.git
 [submodule "deps/ggml"]
 	path = deps/ggml
 	url = https://github.com/ggml-org/ggml
 [submodule "deps/usearch"]
 	path = deps/usearch
 	url = https://github.com/unum-cloud/usearch
+[submodule "deps/tinyfiledialogs"]
+	path = deps/tinyfiledialogs
+	url = http://git.code.sf.net/p/tinyfiledialogs/code

@@ -1,3 +1,5 @@
+#include "stb_image.h"
+
 #include "gl/gl_core.h"
 #include "base/log.h"
 
@@ -47,4 +49,12 @@ void gl_make_texture(U32 *tex, U8 *data, S32 width, S32 height, S32 channels)
 
     GLCall(glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, format, GL_UNSIGNED_BYTE, data));
     GLCall(glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzle_mask));
+}
+
+void gl_make_texture(U32 *texture, String path)
+{
+    S32 w, h, c;
+    U8 *data = stbi_load(CStrCast(path), &w, &h, &c, 0);
+    gl_make_texture(texture, data, w, h, c);
+    stbi_image_free(data);
 }

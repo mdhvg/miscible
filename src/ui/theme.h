@@ -123,9 +123,8 @@
 //   --sidebar-ring: oklch(0.41 0.159 10.272);
 // }
 
-// Stupid OKLCH conversion took 3 hours (Only if they posted the OKLCH to RGBA
-// conversion formula online)
+// Stupid OKLCH conversion took 3 hours (Only if they posted the OKLCH to RGBA conversion formula online)
 
-#define REM(x)     ((float)(ImGui::GetFontSize() * x))
-#define RADIUS(x)  REM(0.625) * x
-#define SPACING(x) REM(0.25) * x
+#define REM(x)     ((float)(ImGui::GetFontSize() * (x)))
+#define RADIUS(x)  REM(0.625) * (float)(x)
+#define SPACING(x) REM(0.25) * (float)(x)

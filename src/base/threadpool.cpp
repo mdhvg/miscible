@@ -25,7 +25,7 @@ void threadpool_run_tasks(ThreadPool *pool, Worker *worker)
         pool->busy    = task_done != pool->task_count;
         if (!pool->busy)
         {
-            mscbl_log("Elapsed time: %.6f\n", ((double)(clock() - start_t)) / CLOCKS_PER_SEC);
+            mscbl_log("Elapsed time: %.6f", ((double)(clock() - start_t)) / CLOCKS_PER_SEC);
             pool->available = 1;
         }
     }
@@ -51,9 +51,10 @@ OS_THREAD_ROUTINE(async_worker)
     ThreadPool *pool = worker->pool;
     for (; pool->active;)
     {
-        if (os_semaphore_take(pool->task_semaphore, U64_MAX))
+        if (os_semaphore_take(pool->async_semaphore, U64_MAX))
         {
-            pool->pool_func(NULL, 0, worker->id, pool->pool_data);
+            pool->async_busy = 1;
+            pool->async_func(pool->async_arena, 0, 0, pool->async_data);
             pool->async_busy = 0;
         }
     }
@@ -64,7 +65,7 @@ ThreadPool *threadpool_init(Arena *arena, U32 worker_count)
 {
     Semaphore task_semaphore = {0};
 
-    task_semaphore = os_semaphore_alloc(0, U32_MAX);
+    task_semaphore = os_semaphore_alloc(0, S32_MAX);
 
     ThreadPool *pool = push_struct(arena, ThreadPool);
     *pool            = {0};
@@ -75,7 +76,10 @@ ThreadPool *threadpool_init(Arena *arena, U32 worker_count)
     pool->worker_array   = push_array(arena, worker_count, Worker);
     pool->worker_arena   = arena_array_alloc(GB(1), worker_count);
 
-    pool->async_worker = {.id = 0, .pool = pool};
+    arena_alloc(GB(1), pool->async_arena);
+    pool->async_worker        = {.id = 0, .pool = pool};
+    pool->async_worker.handle = os_thread_launch(async_worker, &pool->async_worker);
+    pool->async_semaphore     = os_semaphore_alloc(0, S32_MAX);
 
     pool->available = 1;
 
@@ -86,13 +90,11 @@ ThreadPool *threadpool_init(Arena *arena, U32 worker_count)
         worker->pool   = pool;
     }
 
-    for (U64 i = 1; i < worker_count; i += 1)
+    for (U64 i = 0; i < worker_count; i += 1)
     {
         Worker *worker = &pool->worker_array[i];
         worker->handle = os_thread_launch(threadpool_worker, worker);
     }
-
-    pool->async_worker.handle = os_thread_launch(threadpool_worker, &pool->async_worker);
 
     return pool;
 }
@@ -119,7 +121,7 @@ B32 async_job(ThreadPool *pool, thread_func *func, void *data)
 
     pool->async_func = func;
     pool->async_data = data;
-    pool->async_busy = 1;
+    os_semaphore_drop(pool->async_semaphore);
     return 1;
 }
 

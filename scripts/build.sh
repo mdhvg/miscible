@@ -1,4 +1,5 @@
 #!/bin/bash
+start=$(date +%s%N)
 
 MODE="${1:-debug}"
 if [[ "$MODE" != "debug" && "$MODE" != "release" ]]; then
@@ -84,6 +85,8 @@ if [ ! -e "deps_c.o" ]; then
     ${CC} ${CFLAGS} "${DEFINES[@]}" -c "${INCLUDES[@]}" "${PROJECT_DIR}/src/deps_unity.c" -o deps_c.o
 fi
 
+wait
+
 if [[ $MODE == "release" ]]; then
     printf "Building Miscible\n"
     ${CXX} ${CXXFLAGS} "${DEFINES[@]}" "${INCLUDES[@]}" \
@@ -113,4 +116,7 @@ fi
 popd
 popd
 
-exit 0
+wait
+
+end=$(date +%s%N)
+printf "Time taken: %03d.%ds\n" $(( (end - start) / 1000000000 )) $(( ( (end - start) / 1000000) % 1000 ))

@@ -1,7 +1,7 @@
 Write-Host "Building in $Mode mode"
 
 $ScriptDir = $PSScriptRoot
-pushd (Join-Path $ScriptDir "..")
+pushd (Join-Path $ScriptDir "../..")
 $ProjectDir = $PWD.Path
 
 New-Item -ItemType Directory -Force -Path "build" | Out-Null
@@ -43,7 +43,7 @@ if ($Mode -eq "release") {
                 "/wd4245", "/wd4324", "/wd4068", "/wd4477", "/wd4996", "/wd4701",
                 "/wd4127", "/wd4305", "/wd4005")
     $CXXFLAGS = $CFLAGS + @("/std:c++20")
-    $DEFINES  = @("-DDEBUG=1", "-D_CRT_SECURE_NO_WARNINGS=1", "-DSQLITE_CORE=1", "-DROOT_DIR=`\""$($ProjectDir -replace '\\','/')`\""")
+    $DEFINES  = @("-DDBG=1", "-D_CRT_SECURE_NO_WARNINGS=1", "-DSQLITE_CORE=1", "-DROOT_DIR=`\""$($ProjectDir -replace '\\','/')`\""")
     $LINK_MODE = "hotreload"
 }
 
@@ -91,9 +91,9 @@ $jobs += Start-Job -ScriptBlock {
     $Mode = $using:Mode
     if (-not (Test-Path "ggml.lib")) {
         if ($Mode -eq "release") {
-            cmake -S .. -B . -DCMAKE_BUILD_TYPE=Release
+            cmake -S .. -B . -G Ninja -DCMAKE_BUILD_TYPE=Release
         } else {
-            cmake -S .. -B . -DCMAKE_BUILD_TYPE=Debug
+            cmake -S .. -B . -G Ninja -DCMAKE_BUILD_TYPE=Debug
         }
         cmake --build . -j
     }
@@ -101,19 +101,6 @@ $jobs += Start-Job -ScriptBlock {
         Remove-Item "compile_commands.json"
     }
 } | Out-Null
-
-
-# if (-not (Test-Path "ggml.lib")) {
-#     if ($Mode -eq "release") {
-#         cmake -S .. -B . -DCMAKE_BUILD_TYPE=Release
-#     } else {
-#         cmake -S .. -B . -DCMAKE_BUILD_TYPE=Debug
-#     }
-#     cmake --build . -j
-# }
-# if (Test-Path "compile_commands.json") {
-#     Remove-Item "compile_commands.json"
-# }
 
 if (-not (Test-Path "deps_c.obj")) {
     Write-Host "Building CXX deps"
@@ -130,7 +117,7 @@ $LinkerBase = @("/link", "/LIBPATH:.", "/DEBUG", "-incremental:no")
 if ($Mode -eq "release") {
     Write-Host "Building Miscible"
     & $CXX $CXXFLAGS $DEFINES $INCLUDES `
-        "$ProjectDir/src/main.cpp" deps_c.obj deps_cxx.obj `
+        "$ProjectDir/src/main.cpp" "$ProjectDir/src/miscible.cpp" deps_c.obj deps_cxx.obj `
         $LinkerBase $CommonLibs `
         /OUT:Miscible.exe
 } else {

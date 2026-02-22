@@ -29,6 +29,15 @@ void os_prelaunch()
     os_info.page_size = (U64)getpagesize();
 }
 
+void os_cleanup()
+{
+}
+
+const char *os_select_dir(const char *title, const char *default_path)
+{
+    return tinyfd_selectFolderDialog(title, default_path);
+}
+
 void *os_reserve(void *ptr, U64 size)
 {
     if (!size) return 0;

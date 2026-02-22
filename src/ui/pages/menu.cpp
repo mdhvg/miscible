@@ -1,28 +1,46 @@
-#include "base/base_core.h"
-#include "base/string.h"
+#include "os/win32/os_core_win32.h"
+#include "scan.h"
+#include "index.h"
 #include "imgui.h"
-#include "ui/pages/menu.h"
-#include "ui/components/button.h"
+#include "miscible.h"
+#include "ui/theme.h"
+#include "os/os_inc.h"
+#include "base/tree.h"
 #include "ui/ui_core.h"
+#include "base/string.h"
+#include "ui/ui_utils.h"
+#include "base/base_core.h"
+#include "base/threadpool.h"
+#include "inference/model.h"
+#include "IconsMaterialSymbols.h"
+#include "ui/components/button.h"
 
-local_v const char *orders[] = {
-    "Filename",
-    "Date Added",
-    "Date Modified",
-    "Size",
-};
-local_v S32 selected = 0;
+#define sidebar_collapsed_w SPACING(12)
+#define sidebar_open_w      SPACING(80)
+#define statusbar_h         (REM(1) + SPACING(2))
+#define main_w_ratio        0.9f
 
-local_v const char *zooms[] = {
-    "0.5x",
-    "1x",
-    "2x",
+struct MenuState
+{
+    F32 sidebar_width;
+    U32 sidebar_open;
 };
-local_v F32 zoom_num[] = {
-    0.5,
-    1,
-    2,
-};
+
+MenuState menu_state = {sidebar_collapsed_w};
+
+#define ZOOMS(X) \
+    X(0.5)       \
+    X(1)         \
+    X(2)
+
+#define X(a) #a,
+local_v const char *zooms[] = {ZOOMS(X)};
+#undef X
+
+#define X(a) a,
+local_v F32 zoom_num[] = {ZOOMS(X)};
+#undef X
+
 local_v S32 zoom_level   = 2;
 local_v S32 base_size    = 128;
 local_v F32 grid_spacing = SPACING(0.5);
@@ -33,8 +51,9 @@ local_v const char *dirs[] = {
     "Landscape",
     "2k25",
 };
-local_v S32 dir_len = 4;
-local_v S32 dir_sel = 1;
+local_v S32 dir_len            = 4;
+local_v S32 dir_sel            = 1;
+local_v StringBuilder dir_path = {0};
 
 void sidebar_directories()
 {
@@ -45,7 +64,18 @@ void sidebar_directories()
     ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(ICON_MS_ADD).x - SPACING(2));
 
     BUTTON_GHOST_START;
-    ImGui::Button(ICON_MS_ADD);
+    if (ImGui::Button(ICON_MS_ADD))
+    {
+        if (!dir_path.size)
+            dir_path = string_empty(ui_arena, 512);
+        string_clear(dir_path);
+        os_select_dir(W("Select Directory"), W(ROOT_DIR), &dir_path);
+        if (dir_path.size)
+        {
+            put_dir(dir_path);
+            scan_restart();
+        }
+    }
     BUTTON_GHOST_END;
 
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {SPACING(1), SPACING(1)});
@@ -76,7 +106,8 @@ void menu_sidebar()
 {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {SPACING(2), SPACING(2)});
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0, SPACING(1)});
-    ImGui::BeginChild("Sbar", {menu_state.sidebar_width, win.height}, ImGuiChildFlags_Borders);
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, DARK_SIDEBAR);
+    ImGui::BeginChild("Sbar", {menu_state.sidebar_width, (F32)win.height}, ImGuiChildFlags_Borders);
 
     if (ImGui::Button(menu_state.sidebar_open
                           ? ICON_MS_CHEVRON_LEFT
@@ -87,7 +118,10 @@ void menu_sidebar()
             : (menu_state.sidebar_open = 1, menu_state.sidebar_width = sidebar_open_w);
     }
 
-    if (ImGui::Button(menu_state.sidebar_open ? ICON_MS_CACHED "  Rescan Images" : ICON_MS_CACHED, {ImGui::GetContentRegionAvail().x, 0})) {}
+    if (ImGui::Button(menu_state.sidebar_open ? ICON_MS_CACHED "  Rescan Images" : ICON_MS_CACHED, {ImGui::GetContentRegionAvail().x, 0}))
+    {
+        async_job(os_info.pool, index_fill, NULL);
+    }
 
     if (menu_state.sidebar_open)
         sidebar_directories();
@@ -95,24 +129,23 @@ void menu_sidebar()
     ImGui::EndChild();
     ImGui::PopStyleVar();
     ImGui::PopStyleVar();
+    ImGui::PopStyleColor();
 }
 
 void main_grid()
 {
-    ImVec2 width   = ImGui::GetContentRegionAvail();
+    ImVec2 avail   = ImGui::GetContentRegionAvail();
     S32 cell_width = base_size * zoom_num[zoom_level] + grid_spacing + 2;
-    S32 cols       = (width.x - SPACING(12)) / cell_width;
+    S32 cols       = avail.x / cell_width;
     F32 req_width  = (cell_width * cols) - (grid_spacing);
-    F32 start      = (width.x - req_width) / 2 + SPACING(6);
+    F32 start      = (avail.x - req_width) / 2.0f;
 
-    ImGui::SetCursorPos({ImGui::GetCursorPosX() + start, ImGui::GetCursorPosY() + SPACING(12)});
-
-    ImGui::PushItemWidth(req_width);
-    ImGui::BeginChild("Grid", {req_width, 0});
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + start);
+    ImGui::BeginChild("Grid", {0, 0});
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {grid_spacing, grid_spacing});
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, RADIUS(5));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, RADIUS(10));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {0, 0});
 
     ImGui::PushStyleColor(ImGuiCol_Button, {0, 0, 0, 0});
@@ -121,59 +154,155 @@ void main_grid()
     ImGui::PushStyleColor(ImGuiCol_Border, DARK_BORDER);
     ImGui::PushStyleColor(ImGuiCol_BorderShadow, {0, 0, 0, 0});
 
-    U32 t = 1;
-    for (S32 i = 0; i < 400; i++)
+    if (ui_state.images)
     {
-        if (ImGui::ImageButton(format_cstr(&strbuf, "##%d", i), (ImTextureRef)t, {base_size * zoom_num[zoom_level], base_size * zoom_num[zoom_level]}, {0, 0}, {1, 1}))
+        for (S64 i = 0; i < da_getsize(ui_state.images); i++)
         {
-            ui_state.active = i;
-            ui_state.page   = UIPage_PREVIEW;
+            Image *img = ui_state.images + i;
+            if (!img->atlas_tex)
+            {
+                Atlas_Node *atlas = tree_find(&ui_state.atlas, (Atlas *)&img->atlas_id, Atlas_cmp, Atlas);
+                if (atlas && atlas->v.loaded)
+                    img->atlas_tex = atlas->v.tex;
+            }
+
+            U32 x = img->atlas_idx % 10;
+            U32 y = img->atlas_idx / 10;
+
+            if (ImGui::ImageButton(format_cstr(&strbuf, "##%d", i), img->atlas_tex, {base_size * zoom_num[zoom_level], base_size * zoom_num[zoom_level]}, {(float)x / 10, (float)y / 10}, {(float)(x + 1) / 10, (float)(y + 1) / 10}))
+            {
+                ui_state.active = i;
+                ui_state.page   = UIPage_PREVIEW;
+            }
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_Stationary))
+            {
+                if (img->filename.size)
+                {
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, RADIUS(0.5));
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {SPACING(1), SPACING(1)});
+                    ImGui::PushStyleColor(ImGuiCol_PopupBg, DARK_BACKGROUND_HOVER);
+                    ImGui::SetTooltip("%.*s", (S32)img->filename.size, img->filename.v);
+                    ImGui::PopStyleVar();
+                    ImGui::PopStyleVar();
+                    ImGui::PopStyleColor();
+                }
+                else
+                {
+                    get_filename(img->id, &img->filename);
+                }
+            }
+
+            if ((i + 1) % cols)
+                ImGui::SameLine();
         }
-        if ((i + 1) % cols)
-            ImGui::SameLine();
     }
 
     ImGui::PopStyleVar(4);
     ImGui::PopStyleColor(5);
 
     ImGui::EndChild();
-    ImGui::PopItemWidth();
+    // ImGui::PopItemWidth();
 }
 
-void menu_main()
+S32 grow_buffer(ImGuiInputTextCallbackData *data)
 {
-    ImGui::BeginChild("Main", {0, win.height - statusbar_h});
+    string_growto(&ui_state.search_buffer, data->BufTextLen);
+    ui_state.search_buffer.size = data->BufTextLen;
+    return 1;
+}
 
+void search()
+{
     ImVec2 avail = ImGui::GetContentRegionAvail();
+    ImVec2 pos   = ImGui::GetCursorPos();
+    F32 child_w  = avail.x * main_w_ratio;
+    F32 start    = (avail.x - child_w) / 2.0f;
 
-    if (ImGui::BeginCombo("##order", orders[selected], ImGuiComboFlags_WidthFitPreview))
+    ImGui::SetCursorPos({pos.x + SPACING(2), pos.y + SPACING(2)});
+
+    ImGui::InputTextWithHint("##Search", "Search term", (char *)ui_state.search_buffer.v, ui_state.search_buffer.capacity, ImGuiInputTextFlags_CallbackResize, grow_buffer);
+    ImGui::SameLine();
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + SPACING(1));
+    if (ImGui::Button("Search"))
+        async_job(os_info.pool, embed_text, &ui_state.search_buffer);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + SPACING(2));
+}
+
+void sort_controls()
+{
+    if (ImGui::BeginCombo("##order", "Sort by", ImGuiComboFlags_WidthFitPreview))
     {
-        for (S32 n = 0; n < 4; n++)
+        for (S32 n = 0; n < OrderBy_COUNT; n++)
         {
-            if (ImGui::Selectable(orders[n], selected == n))
+            if (ImGui::Selectable(order_str[n], current_sort.order_by == n))
             {
-                selected = n;
+                current_sort.order_by = (OrderBy)n;
+                refresh_results();
             }
-            if (selected == n)
+            if (current_sort.order_by == n)
                 ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
     }
+}
 
-    ImGui::SameLine();
+void zoom_controls()
+{
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + SPACING(0.8));
+    ImGui::BeginChild("Zoom_Controls", {0, REM(2)});
+
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {SPACING(1), 0});
+    ImGui::AlignTextToFramePadding();
     ImGui::Text(ICON_MS_ZOOM_OUT);
     ImGui::SameLine();
-    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 4);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {0, 0});
-    ImGui::PushItemWidth(150);
+    ImGui::PushItemWidth(200);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + SPACING(1));
     ImGui::SliderInt("##zoom", &zoom_level, 0, 2, zooms[zoom_level]);
     ImGui::PopStyleVar();
     ImGui::PopItemWidth();
     ImGui::SameLine();
-    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 4);
+    ImGui::AlignTextToFramePadding();
     ImGui::Text(ICON_MS_ZOOM_IN);
+    ImGui::PopStyleVar();
 
+    ImGui::EndChild();
+}
+
+void controls()
+{
+    ImVec2 pos = ImGui::GetCursorPos();
+    ImGui::SetCursorPos({pos.x + SPACING(6), pos.y + SPACING(2)});
+    ImGui::BeginChild("Controls", {0, REM(3)});
+
+    sort_controls();
+    ImGui::SameLine();
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + SPACING(2));
+    zoom_controls();
+
+    ImGui::EndChild();
+}
+
+void menu_main()
+{
+    ImGui::BeginChild("Main", {0, (F32)win.height - statusbar_h});
+
+    search();
+
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    F32 child_w  = avail.x * main_w_ratio;
+    F32 start    = (avail.x - child_w) / 2.0f;
+
+    ImVec2 pos = ImGui::GetCursorPos();
+    ImGui::SetCursorPos({pos.x + start, pos.y});
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, DARK_CARD);
+    ImGui::BeginChild("Container", {child_w, 0});
+
+    controls();
     main_grid();
+
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
 
     ImGui::EndChild();
 }
@@ -181,10 +310,10 @@ void menu_main()
 void menu_status()
 {
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + menu_state.sidebar_width);
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + win.height - statusbar_h);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (F32)win.height - statusbar_h);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {SPACING(1), SPACING(1)});
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0, 0});
-    ImGui::BeginChild("Stats", {win.width, statusbar_h}, ImGuiChildFlags_Borders);
+    ImGui::BeginChild("Stats", {(F32)win.width, statusbar_h}, ImGuiChildFlags_Borders);
 
     ImGui::Text("Stats");
 
@@ -193,117 +322,10 @@ void menu_status()
     ImGui::EndChild();
 }
 
-void ui_menu()
+MSCBL_EXP void ui_menu()
 {
-    // ImGui_child_params p = {0};
-    // p.name               = "Sidebar";
-    // p.width              = win.width - menu_state.sidebar_width;
-    // p.height             = win.height - menu_state.statusbar_height;
-    // // ImGui_child(p, {
-    // // BUTTON_GHOST(
-    // if (ImGui::Button(menu_state.sidebar_open
-    //                       ? ICON_MS_CHEVRON_LEFT
-    //                       : ICON_MS_CHEVRON_RIGHT))
-    // {
-    //     menu_state.sidebar_open
-    //         ? (menu_state.sidebar_open = 0, menu_state.sidebar_width = 48)
-    //         : (menu_state.sidebar_open = 1, menu_state.sidebar_width = 320);
-    // }
-    // // );
-    // // });
-    // // SIDEBAR("Sidebar", menu_state.sidebar_width, win.height - menu_state.statusbar_height, ImGuiChildFlags_Borders,
-    // //
-    // ImGui::SameLine();
-
     menu_sidebar();
     ImGui::SameLine();
     menu_main();
     menu_status();
-
-    // MAIN("Main", win.width - menu_state.sidebar_width, win.height - menu_state.statusbar_height, ImGuiChildFlags_Borders,
-    //      GRID("Grid", win.width - menu_state.sidebar_width - 60, win.height - menu_state.statusbar_height - 100, ImGuiChildFlags_Borders,
-    //           {
-    //     // ImGui::InputText("Search", (char *)ui_persist.search_buffer, 2048);
-    //
-    //     // ImGui::PushFont(ui_persist.title_font);
-    //     // ImGui::Text(APP_NAME);
-    //     // ImGui::PopFont();
-    //
-    //     // ImGui::Text("FPS: %.2f", state.fps);
-    //
-    //     // if (ImGui::BeginCombo("##sort_order", "Sort ", ImGuiComboFlags_WidthFitPreview))
-    //     // {
-    //     // 	for (int n = 0; n < SORT_COUNT; n++)
-    //     // 	{
-    //     // 		SortMode val = (SortMode)n;
-    //     // 		bool is_selected = (state.sorting == val);
-    //     // 		if (ImGui::Selectable(SortToString(val), is_selected))
-    //     // 			state.sorting = val;
-    //     // 		if (is_selected)
-    //     // 			ImGui::SetItemDefaultFocus();
-    //     // 	}
-    //     // 	ImGui::EndCombo();
-    //     // }
-    //
-    //     // for (U32 i = 0; i < ui_persist.texture_data.size; i++)
-    //     // {
-    //     // 	ImGui::Image(dyn_array_at(ui_persist.texture_data, i).texture_id, ImVec2(ATLAS_SIZE / 4, ATLAS_SIZE / 4));
-    //     // }
-    //
-    //     float avail   = win.width - ImGui::GetCursorPosX();
-    //     float item_w  = 256.0f;
-    //     float spacing = 2 * (ImGui::GetStyle().ItemSpacing.x);
-    //
-    //     int cells = (int)((avail + spacing) / (item_w + spacing));
-    //     cells     = MAX(cells, 1);
-    //
-    //     float used = cells * item_w + (cells - 1) * spacing;
-    //
-    //     float offset_x = (avail - used) * 0.5f;
-    //     if (offset_x < 0.0f) offset_x = 0.0f;
-    //
-    //     // Apply the offset
-    //     ImGui::SameLine();
-    //
-    //     if (ui_state.display_order)
-    //     {
-    //         U64 idx = 0;
-    //         while (idx < ui_state.image_count)
-    //         {
-    //             // Draw row
-    //             ImGui::Dummy({offset_x, 1});
-    //
-    //             for (int i = 0; i < cells && i + idx < ui_state.image_count; i++)
-    //             {
-    //                 Image *img = ui_state.display_order[idx + i];
-    //                 if (!img->atlas_tex)
-    //                 {
-    //                     Atlas_Node *atlas = tree_find(&ui_state.atlas, (Atlas *)&img->atlas_id, Atlas_cmp, Atlas);
-    //                     if (atlas && atlas->v.loaded)
-    //                         img->atlas_tex = atlas->v.tex;
-    //                 }
-    //                 U32 x = img->atlas_idx % 10;
-    //                 U32 y = img->atlas_idx / 10;
-    //
-    //                 ImGui::SameLine();
-    //                 if (ImGui::ImageButton("##",
-    //                                        img->atlas_tex,
-    //                                        {256, 256},
-    //                                        {(float)x / 10, (float)y / 10},
-    //                                        {(float)(x + 1) / 10, (float)(y + 1) / 10}))
-    //                 {
-    //                     // state.active_image = id;
-    //                     // active_index	   = i;
-    //                     // scroll_y		   = ImGui::GetScrollY();
-    //                     // state.view		   = PREVIEW;
-    //                 }
-    //             }
-    //             idx += cells;
-    //         }
-    //     } }));
-    //
-    // ImGui::SetCursorPos({0, win.height - menu_state.statusbar_height});
-    // ImGui::BeginChild("StatusBar", {(F32)win.width, menu_state.statusbar_height});
-    // ImGui::Text("Status");
-    // ImGui::EndChild();
 }

@@ -1,8 +1,10 @@
 #include "base/base_core.h"
-#include "os_inc.h"
+#include "os/os_inc.h"
 
 #if OS_WINDOWS
-#include "win32/os_core_win32.cpp"
+#include "os/win32/os_core_win32.cpp"
 #elif OS_LINUX
-#include "linux/os_core_linux.cpp"
+#include "os/linux/os_core_linux.cpp"
 #endif
+
+OSInfo os_info = {0};

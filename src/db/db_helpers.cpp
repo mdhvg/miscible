@@ -23,6 +23,14 @@ DB_STMT_CBK(get_count)
     *(U64 *)data = sqlite3_column_int64(stmt, 0);
 }
 
+U64 get_count(const char *query)
+{
+    sqlite3_stmt *stmt = db_prepare(query);
+    U64 result         = 0;
+    db_run_stmt(stmt, 1, get_count, &result);
+    return result;
+}
+
 void db_close()
 {
     std::lock_guard<std::mutex> lock(db_mutex);
@@ -114,26 +122,31 @@ void db_make()
 {
     db_init(DB_PATH, R"(
 		CREATE TABLE IF NOT EXISTS Images (
-			id          INTEGER PRIMARY KEY AUTOINCREMENT,
-			path        TEXT    UNIQUE  NOT NULL,
-			filename    TEXT            NOT NULL,
-			atlas_id    INTEGER DEFAULT NULL,
-			atlas_idx   INTEGER DEFAULT NULL,
-			size        INTEGER DEFAULT 0,
-			mtime       INTEGER DEFAULT 0,
-			ctime       INTEGER DEFAULT 0,
-			width       INTEGER DEFAULT 0,
-			height      INTEGER DEFAULT 0,
-			channels    INTEGER DEFAULT 0,
-			embedding	BLOB 	DEFAULT NULL
+			id          INTEGER     PRIMARY KEY             AUTOINCREMENT,
+			path        TEXT        UNIQUE NOT NULL,
+			filename    TEXT               NOT NULL,
+			atlas_id    INTEGER     REFERENCES ATLAS(id)    DEFAULT NULL,
+			atlas_idx   INTEGER                             DEFAULT NULL,
+			size        INTEGER                             DEFAULT 0,
+			mtime       INTEGER                             DEFAULT 0,
+			ctime       INTEGER                             DEFAULT 0,
+			width       INTEGER                             DEFAULT 0,
+			height      INTEGER                             DEFAULT 0,
+			channels    INTEGER                             DEFAULT 0,
+			embedding	BLOB 	                            DEFAULT NULL,
+            root_dir    INTEGER     REFERENCES Dirs(id)     DEFAULT NULL,
+            parent_dir  INTEGER     REFERENCES Dirs(id)     DEFAULT NULL,
+            modified    INTEGER                             DEFAULT 0
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_imagepath ON Images(path);
 
 		CREATE TABLE IF NOT EXISTS Dirs (
-			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			id          INTEGER PRIMARY KEY         AUTOINCREMENT,
 			path        TEXT    UNIQUE  NOT NULL,
-			image_count INTEGER DEFAULT 0
+            mtime       INTEGER                     DEFAULT 0,
+            root_dir    INTEGER REFERENCES Dirs(id) DEFAULT NULL,
+            parent_dir  INTEGER REFERENCES Dirs(id) DEFAULT NULL
 		);
 
 		CREATE TABLE IF NOT EXISTS Atlas (

@@ -1,6 +1,6 @@
 #pragma once
 #include "base/base_core.h"
-#include "base/threads.h"
+#include "base/string.h"
 
 #if OS_WINDOWS
 #include "os/win32/os_core_win32.h"
@@ -8,12 +8,27 @@
 #include "os/linux/os_core_linux.h"
 #endif
 
-global_v OSInfo os_info = {0};
+#ifndef OSchar
+#error "OSchar not defined"
+#endif
+#ifndef W
+#error "OS char converter not defined"
+#endif
+#ifndef Semaphore
+#error "Semaphore not defined"
+#endif
+#ifndef Thread
+#error "Thread not defined"
+#endif
+
+MSCBL_API OSInfo os_info;
 
 Guid os_make_guid();
 void os_prelaunch();
+void os_cleanup();
 
 void os_loadlib(const char *filename, const char *func_name, void *func);
+MSCBL_API void os_select_dir(const OSchar *title, const wchar *default_path, StringBuilder *sb);
 
 void *os_reserve(void *ptr, U64 size);
 void os_release(void *ptr, U64 size);

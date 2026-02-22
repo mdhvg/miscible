@@ -5,6 +5,8 @@
 #include "base/threadpool.h"
 #include "base/log.h"
 
+#define W(x) #x
+
 typedef void *(OS_THREAD_ROUTINE_T(void *));
 #define OS_THREAD_ROUTINE(name) void *name(void *data)
 #define OSAssert(x)                                                                                      \
@@ -19,10 +21,14 @@ typedef void *(OS_THREAD_ROUTINE_T(void *));
             ((void)0);                                                                                   \
         }                                                                                                \
     }
+#define OSchar    char
+#define Semaphore sem_t
+#define Thread    pthread_t
 
 struct OSInfo
 {
     OS_COMMON;
 };
 
+const char *os_select_dir(const char *title, const char *default_path);
 Thread os_thread_launch(OS_THREAD_ROUTINE_T fn, Worker *worker);

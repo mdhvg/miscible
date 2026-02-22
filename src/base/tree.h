@@ -31,7 +31,7 @@ struct Tree
 };
 
 #define tree_push(t, n, cmp, T) T##_tree_push(t, n, cmp)
-#define tree_find(t, n, cmp, T) T##_tree_find(t, n, cmp)
+#define tree_find(t, n, cmp, T) T##_tree_find(t, (T *)n, cmp)
 #define tree_node(a, v, T)      T##_tree_node(a, v)
 
 #define Tree_t(T)                                                                       \

@@ -1,57 +1,53 @@
-#include <cstdio>
 #include <stdarg.h>
 
 #include "base/string.h"
 #include "base/arena.h"
+#include "base/base_core.h"
 #include "string.h"
 
-String string_from_to(String in, U64 start, U64 end)
+// WString make_string_cwstr(const wchar *s)
+// {
+// #if defined WCHAR_UTF16
+//     if (!s)
+//         return {(U16 *)L"", 0};
+//     U64 len = 0;
+//     while (s[len])
+//         len++;
+//     return {(U16 *)s, len};
+// #elif defined WCHAR_UTF32
+//     if (!s)
+//         return {(U32 *)L"", 0};
+//     U64 len = 0;
+//     while (s[len])
+//         len++;
+//     return {(U32 *)s, len};
+// #endif
+// }
+
+// String make_CStrCast(const char *s)
+// {
+//     if (!s)
+//         return {(U8 *)"", 0};
+//     U64 len = 0;
+//     while (s[len])
+//         len++;
+//     return {(U8 *)s, len};
+// }
+
+void string_growto(StringBuilder *base, U64 reqcap)
 {
-    String r = {0};
-    r.size   = end - start;
-    r.v      = in.v + start;
-    return r;
-}
+    if (reqcap < base->capacity)
+        return;
 
-WString make_string_cwstr(const wchar *s)
-{
+    U64 cap = base->capacity * 2;
+    if (cap < reqcap)
+        cap = reqcap;
 
-#if defined WCHAR_UTF16
-    if (!s) return {(U16 *)L"", 0, 0};
-    U64 ln = 0;
-    while (s[ln]) ln++;
-    return {(U16 *)s, ln, ln};
-#elif defined WCHAR_UTF32
-    if (!s) return {(U32 *)L"", 0, 0};
-    U64 ln = 0;
-    while (s[ln]) ln++;
-    return {(U32 *)s, ln, ln};
-#endif
-}
-
-String make_string_cstr(const char *s)
-{
-    if (!s) return {(U8 *)"", 0, 0};
-    U64 ln = 0;
-    while (s[ln]) ln++;
-    return {(U8 *)s, ln, ln};
-}
-
-void string_grow(Arena *arena, String *in, U64 capacity)
-{
-    if (capacity <= in->capacity) return;
-
-    U64 cap = in->capacity * 2;
-    if (cap < capacity) cap = capacity;
-    if (cap < 256) cap = 256;
-
-    U8 *buffer = push_array(arena, cap, U8);
-    if (in->v)
-    {
-        MemoryCopy(buffer, in->v, in->size);
-    }
-    in->v        = buffer;
-    in->capacity = cap;
+    U8 *buffer = push_array(base->arena, cap + 1, U8);
+    if (base->v)
+        MemoryCopy(buffer, base->v, base->size);
+    base->v        = buffer;
+    base->capacity = cap;
 }
 
 struct UnicodeDecode
@@ -198,298 +194,539 @@ UnicodeDecode utf16_decode(U16 *str, U64 max)
 }
 
 #if defined WCHAR_UTF16
-void string_wstr16(Arena *arena, String *in, WString ws)
+U64 string_push_wstring(StringBuilder *base, WString push)
 {
-    if (ws.size == 0) return;
+    if (push.size == 0)
+        return 0;
 
-    string_grow(arena, in, ws.size * 3 + 1);
-    U8 *b_ptr = in->v + in->size;
+    string_growby(base, push.size * 3 + 1);
+    U8 *b_ptr = base->v + base->size;
 
-    U16 *in_ptr          = ws.v;
-    U16 *in_end          = ws.v + ws.size;
-    U64 out_pos          = 0;
+    U16 *in_ptr = push.v;
+    U16 *in_end = push.v + push.size;
+    U64 out_pos = 0;
+    U64 written = 0;
+
     UnicodeDecode decode = {};
     for (; in_ptr < in_end; in_ptr += decode.size)
     {
         decode = utf16_decode(in_ptr, in_end - in_ptr);
         out_pos += utf8_encode(b_ptr + out_pos, decode.codepoint);
+        written++;
     }
     b_ptr[out_pos] = 0;
+    base->size += out_pos;
+    return written;
 }
 #elif defined WCHAR_UTF32
-void string_wstr32(Arena *arena, String *in, WString ws)
+U64 string_push_wstring(StringBuild *base, WString push)
 {
-    if (ws.size == 0) return;
+    if (push.size == 0)
+        return 0;
 
-    string_grow(arena, in, ws.size * 4 + 1);
-    U8 *b_ptr = in->v + in->size;
+    string_growby(base, push.size * 4 + 1);
+    U8 *b_ptr = base->v + base->size;
 
-    U32 *in_ptr = ws.v;
-    U32 *in_end = ws.v + ws.size;
+    U32 *in_ptr = push.v;
+    U32 *in_end = push.v + push.size;
     U64 out_pos = 0;
+    U64 written = 0;
     for (; in_ptr < in_end; in_ptr += 1)
     {
         out_pos += utf8_encode(b_ptr + out_pos, *in_ptr);
+        written++;
     }
     b_ptr[out_pos] = 0;
+    base->size += out_pos;
+    return written;
 }
 #endif
 
 #if defined WCHAR_UTF16
-void string_wchar16(Arena *arena, String *in, wchar wc)
+U64 string_push_wchar(StringBuilder *base, wchar push)
 {
-    WString ws = {(U16 *)&wc, 1};
-    string_wstr(arena, in, ws);
+    string_growby(base, 3 + 1);
+    U8 *b_ptr = base->v + base->size;
+
+    U16 *in_ptr = (U16 *)&push;
+    U64 out_pos = 0;
+
+    UnicodeDecode decode = utf16_decode(in_ptr, 1);
+    out_pos += utf8_encode(b_ptr + out_pos, decode.codepoint);
+    b_ptr[out_pos] = 0;
+    base->size += out_pos;
+    return 1;
 }
 #elif defined WCHAR_UTF32
+U64 string_push_wchar(StringBuilder *base, wchar push)
+{
+    string_growby(base, 4 + 1);
+    U8 *b_ptr = base->v + base->size;
+
+    U32 *in_ptr = (U32 *)&push;
+    U64 out_pos = 0;
+
+    UnicodeDecode decode = utf32_decode(in_ptr, 1);
+    out_pos += utf8_encode(b_ptr + out_pos, decode.codepoint);
+    b_ptr[out_pos] = 0;
+    base->size += out_pos;
+    return 1;
+}
 #endif
 
 #if defined WCHAR_UTF16
-void string_cwstr16(Arena *arena, String *in, const wchar *wc)
+U64 string_push_wcstr(StringBuilder *base, const wchar *push)
 {
-    if (!wc) return;
-    U64 ln = 0;
-    while (wc[ln]) ln++;
+    if (!push)
+        return 0;
 
-    WString ws = {(U16 *)wc, ln};
-    string(arena, in, ws);
+    U64 len = 0;
+    while (push[len])
+        len++;
+
+    WString ws = {(U16 *)push, len};
+    return string_push_wstring(base, ws);
 }
 #elif defined WCHAR_UTF32
-void string_cwstr32(Arena *arena, String *in, const wchar *wc)
+U64 string_push_wcstr(StringBuilder *base, const wchar *push)
 {
-    if (!wc) return;
-    U64 ln = 0;
-    while (wc[ln]) ln++;
+    if (!push)
+        return 0;
 
-    WString ws = {(U32 *)wc, ln};
-    string(arena, in, ws);
+    U64 len = 0;
+    while (push[len])
+        len++;
+
+    WString ws = {(U32 *)push, len};
+    return string_push_wstring(base, push);
 }
 #endif
 
-void string_str(Arena *arena, String *in, String s)
+U64 string_push_string(StringBuilder *base, String push)
 {
-    if (!s.size) return;
-    string_grow(arena, in, s.size);
-    MemoryCopy(in->v + in->size, s.v, s.size);
-    in->size += s.size;
+    if (!push.size)
+        return 0;
+    string_growby(base, push.size);
+    MemoryCopy(base->v + base->size, push.v, push.size);
+    base->size += push.size;
+    return push.size;
 }
 
-void string_char(Arena *arena, String *in, char c)
+U64 string_push_char(StringBuilder *base, char push)
 {
-    String s = {(U8 *)&c, 1};
-    string(arena, in, s);
+    string_growby(base, 1 + 1);
+
+    base->v[base->size] = push;
+    base->size += 1;
+    return 1;
 }
 
-void string_cstr(Arena *arena, String *in, const char *c)
+U64 string_push_cstr(StringBuilder *base, const char *push)
 {
-    if (!c) return;
-    U64 ln = 0;
-    while (c[ln]) ln++;
+    if (!push)
+        return 0;
 
-    String s = {(U8 *)c, ln};
-    string(arena, in, s);
+    U64 len = 0;
+    while (push[len])
+        len++;
+
+    String s = {(U8 *)push, len};
+    return string_push_string(base, s);
 }
 
-String cstr_cpy(Arena *arena, const char *c)
+WString string_view_wcstr(const wchar *c)
 {
-    String s = {0};
-    string(arena, &s, c);
-    return s;
+    U64 len = 0;
+    while (len[c] != 0)
+        len++;
+    return {(U16 *)c, len};
 }
 
-String cwstr_cpy(Arena *arena, const wchar *c)
+String string_view_cstr(const char *c)
 {
-    String s = {0};
-    string(arena, &s, c);
-    return s;
+    U64 len = 0;
+    while (len[c] != 0)
+        len++;
+    return {(U8 *)c, len};
 }
 
-String str_cpy(Arena *arena, String c)
+WString string_cpy_wcstr(Arena *arena, const wchar *c)
 {
-    String s = {0};
-    string(arena, &s, c);
-    return s;
+    U64 len = 0;
+    while (c[len])
+        len++;
+
+    StringBuilder b = {.arena = arena};
+    string_growby(&b, len * sizeof(wchar) + 1);
+    MemoryCopy(b.v, c, len * sizeof(wchar));
+    b.size                      = len;
+    b.v[b.size * sizeof(wchar)] = 0;
+
+    return WStringCast(b);
 }
 
-char *str_to_cstr(String s)
+String string_cpy_cstr(Arena *arena, const char *c)
 {
-    if (s.capacity > s.size)
-        s.v[s.size] = 0;
-    return (char *)s.v;
+    U64 len = 0;
+    while (c[len])
+        len++;
+
+    StringBuilder b = {.arena = arena};
+    string_growby(&b, len + 1);
+    MemoryCopy(b.v, c, len);
+    b.size      = len;
+    b.v[b.size] = 0;
+    return StringCast(b);
 }
 
-#if defined WCHAR_UTF16
-wchar *str_to_wcstr(Arena *a, String s)
-{
-    wchar *res = NULL;
-    if (s.size)
-    {
-        res = push_array(a, s.size * 2, wchar);
-
-        U8 *in_ptr           = s.v;
-        U8 *in_end           = s.v + s.size;
-        U64 size             = 0;
-        UnicodeDecode decode = {0};
-        for (; in_ptr < in_end; in_ptr += decode.size)
-        {
-            decode = utf8_decode(in_ptr, in_end - in_ptr);
-            size += utf16_encode((U16 *)(res + size), decode.codepoint);
-        }
-        res[size] = 0;
-    }
-    return res;
-}
-#elif defined WCHAR_UTF32
-#endif
-
-String string_formatv(Arena *arena, const char *fmt, va_list args)
-{
-    va_list args2;
-    va_copy(args2, args);
-    U64 size              = vsnprintf(0, 0, fmt, args2) + 1;
-    String result         = {0};
-    result.v              = push_array(arena, size, U8);
-    result.size           = vsnprintf((char *)result.v, size, fmt, args);
-    result.v[result.size] = 0;
-    if (result.capacity < size)
-        result.capacity = size;
-    va_end(args2);
-    return result;
-}
-
-String string_format(Arena *arena, const char *fmt, ...)
-{
-    va_list args;
-    va_start(args, fmt);
-    String result = string_formatv(arena, fmt, args);
-    va_end(args);
-    return result;
-}
-
-WString string_formatw(Arena *arena, const wchar *fmt, ...)
-{
-    va_list args;
-    va_start(args, fmt);
-    U64 size       = vswprintf(0, 0, fmt, args) + 1;
-    WString result = {0};
-#if defined WCHAR_UTF16
-    result.v = push_array(arena, size, U16);
-#elif defined WCHAR_UTF32
-    result.v = push_array(arena, size, U32);
-#endif
-    result.size           = vswprintf((wchar *)result.v, size, fmt, args);
-    result.capacity       = size;
-    result.v[result.size] = 0;
-    va_end(args);
-    return result;
-}
+// String string_cpy_string(String c)
+// {
+//     StringBuilder b = {0};
+//     string_growby(arena, &b, c.size + 1);
+//     MemoryCopy(b.v, c.v, c.size);
+//     b.size      = len;
+//     b.v[b.size] = 0;
+//     return StringCast(b);
+// }
 
 StringBuilder string_empty(Arena *arena, U64 size)
 {
-    StringBuilder s = {0};
-    s.arena         = arena;
-    string_grow(arena, (String *)&s, size);
-    return s;
+    StringBuilder b = {.arena = arena};
+    string_growto(&b, size);
+    return b;
 }
 
-void format_strv(StringBuilder *s, const char *fmt, va_list args)
+B32 string_cmp_wcstr(WString str, const wchar *match, U64 limit)
+{
+    U64 l = 0, r = 0;
+    U64 i = 0;
+    for (U64 i = 0; i < limit && i < str.size && match[i]; i++)
+    {
+        l += str.v[i];
+        r += match[i];
+    }
+    return l - r;
+}
+
+B32 string_cmp_cstr(String str, const char *match, U64 limit)
+{
+    U64 l = 0, r = 0;
+    U64 i = 0;
+    for (U64 i = 0; i < limit && i < str.size && match[i]; i++)
+    {
+        l += str.v[i];
+        r += match[i];
+    }
+    return l - r;
+}
+
+// #if defined WCHAR_UTF16
+// wchar *str_to_wcstr(Arena *a, String s)
+// {
+//     wchar *res = NULL;
+//     if (s.size)
+//     {
+//         res = push_array(a, s.size * 2, wchar);
+//
+//         U8 *in_ptr           = s.v;
+//         U8 *in_end           = s.v + s.size;
+//         U64 size             = 0;
+//         UnicodeDecode decode = {0};
+//         for (; in_ptr < in_end; in_ptr += decode.size)
+//         {
+//             decode = utf8_decode(in_ptr, in_end - in_ptr);
+//             size += utf16_encode((U16 *)(res + size), decode.codepoint);
+//         }
+//         res[size] = 0;
+//     }
+//     return res;
+// }
+// #elif defined WCHAR_UTF32
+// #endif
+
+void string_formatv(StringBuilder *base, const char *fmt, va_list args)
 {
     va_list args2;
     va_copy(args2, args);
 
     U64 size = vsnprintf(0, 0, fmt, args2) + 1;
-    if (s->capacity < size)
-        string_grow(s->arena, (String *)s, size);
-    s->size       = vsnprintf((char *)s->v, size, fmt, args);
-    s->v[s->size] = 0;
+    string_clear(*base);
+    string_growto(base, size);
+
+    base->size    = vsnprintf((char *)base->v, size, fmt, args);
+    base->v[size] = 0;
 
     va_end(args2);
 }
 
-String format_str(StringBuilder *s, const char *fmt, ...)
+WString string_formatw(StringBuilder *base, const wchar *fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    format_strv(s, fmt, args);
+
+    U64 size = vswprintf(0, 0, fmt, args) + 1;
+    string_clear(*base);
+    string_growto(base, size * sizeof(wchar));
+
+    base->size                    = vswprintf((wchar *)base->v, size, fmt, args);
+    base->v[size * sizeof(wchar)] = 0;
     va_end(args);
-    return *(String *)s;
+
+    return WStringCast(*base);
 }
 
-const char *format_cstr(StringBuilder *s, const char *fmt, ...)
+String string_format(StringBuilder *base, const char *fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    format_strv(s, fmt, args);
+    string_formatv(base, fmt, args);
     va_end(args);
-    return str_to_cstr(*(String *)s);
+
+    String result = StringCast(*base);
+    return result;
 }
 
-bool match_end(const char *s, const char *match)
+// void format_strv(StringBuilder *s, const char *fmt, va_list args)
+// {
+//     va_list args2;
+//     va_copy(args2, args);
+//
+//     U64 size = vsnprintf(0, 0, fmt, args2) + 1;
+//     string_growto(s, size);
+//     s->size       = vsnprintf((char *)s->v, size, fmt, args);
+//     s->v[s->size] = 0;
+//
+//     va_end(args2);
+// }
+
+// String format_str(StringBuilder *s, const char *fmt, ...)
+// {
+//     va_list args;
+//     va_start(args, fmt);
+//     format_strv(s, fmt, args);
+//     va_end(args);
+//     return *(String *)s;
+// }
+
+// const char *format_cstr(StringBuilder *s, const char *fmt, ...)
+// {
+//     va_list args;
+//     va_start(args, fmt);
+//     format_strv(s, fmt, args);
+//     va_end(args);
+//     return CStrCast(StringCast(s));
+// }
+
+U64 string_replace_string(StringBuilder *base, String find, String replace, U64 count)
 {
-    if (!s || !match) return false;
-    S64 ln_s = 0;
-    while (s[ln_s]) ln_s++;
-    S64 ln_match = 0;
-    while (match[ln_match]) ln_match++;
-    if (ln_match > ln_s) return false;
-    while (ln_match >= 0)
+    U64 replaced  = 0;
+    U64 instances = 0;
+
+    if (find.size == replace.size)
+        goto FAST_PATH;
+    else if (find.size > replace.size)
+        goto MOVE_PATH;
+    else
+        goto GROW_PATH;
+
+FAST_PATH:
+    for (U64 i = 0; i < base->size - find.size + 1;)
     {
-        if (s[ln_s] != match[ln_match]) return false;
-        ln_match--;
-        ln_s--;
+        if (count && replaced >= count)
+            break;
+
+        U64 found = 0;
+        for (U64 j = 0; j < find.size; j++)
+        {
+            if (base->v[i + j] != find.v[j])
+                break;
+            found++;
+        }
+        if (find.size == found)
+        {
+            MemoryCopy(base->v + i, replace.v, find.size);
+            i += find.size;
+            replaced++;
+        }
+        else
+        {
+            i++;
+        }
     }
-    return true;
+    goto RES;
+
+MOVE_PATH:
+    for (U64 i = 0; i < base->size - find.size + 1;)
+    {
+        if (count && replaced >= count)
+            break;
+
+        U64 found = 0;
+        for (U64 j = 0; j < find.size; j++)
+        {
+            if (base->v[i + j] != find.v[j])
+                break;
+            found++;
+        }
+        if (find.size == found)
+        {
+            MemoryCopy(base->v + i, replace.v, replace.size);
+            MemoryCopy(base->v + i + replace.size, base->v + i + find.size, base->size - i - replace.size);
+            i += replace.size;
+            replaced++;
+        }
+        else
+        {
+            i++;
+        }
+    }
+    base->size -= replaced * (find.size - replace.size);
+    goto RES;
+
+GROW_PATH:
+    for (U64 i = 0; i < base->size - find.size + 1;)
+    {
+        if (count && instances >= count)
+            break;
+
+        U64 found = 0;
+        for (U64 j = 0; j < find.size; j++)
+        {
+            if (base->v[i + j] != find.v[j])
+                break;
+            found++;
+        }
+        if (find.size == found)
+        {
+            instances += 1;
+            i += find.size;
+        }
+        else
+        {
+            i++;
+        }
+    }
+
+    string_growby(base, instances * (replace.size - find.size));
+    base->size += instances * (replace.size - find.size);
+
+    for (U64 i = 0; i < base->size - find.size;)
+    {
+        if (count && replaced >= count)
+            break;
+
+        U64 found = 0;
+        for (U64 j = 0; j < find.size; j++)
+        {
+            if (base->v[i + j] != find.v[j])
+                break;
+            found++;
+        }
+        if (find.size == found)
+        {
+            MemoryCopy(base->v + i + replace.size, base->v + i + find.size, base->size - i - find.size + 1);
+            MemoryCopy(base->v + i, replace.v, replace.size);
+            i += replace.size;
+            replaced++;
+        }
+        else
+        {
+            i++;
+        }
+    }
+    goto RES;
+
+RES:
+    base->v[base->size] = 0;
+    return replaced;
 }
 
-bool match_front(const char *s, const char *match)
+U64 string_replace_cstr(StringBuilder *base, const char *find, const char *replace, U64 count)
 {
-    if (!s || !match) return false;
-    S64 ln_s = 0;
-    while (s[ln_s]) ln_s++;
-    S64 ln_match = 0;
-    while (match[ln_match]) ln_match++;
-    if (ln_match > ln_s) return false;
-    S64 cur = 0;
-    while (match[cur])
-    {
-        if (s[cur] != match[cur])
-            return false;
-        cur++;
-    }
-    return true;
+    if (!find || !replace || !*find)
+        return 0;
+
+    return string_replace_string(base, sv(find), sv(replace), count);
 }
 
-bool match_end(const wchar *s, const wchar *match)
+B32 match_front_wcstr(WString base, const wchar *match)
 {
-    if (!s || !match) return false;
-    S64 ln_s = 0;
-    while (s[ln_s]) ln_s++;
-    S64 ln_match = 0;
-    while (match[ln_match]) ln_match++;
-    if (ln_match > ln_s) return false;
-    while (ln_match >= 0)
+    if (!match)
+        return 0;
+
+    U64 len_match = 0;
+    while (match[len_match])
+        len_match++;
+
+    if (len_match > base.size)
+        return false;
+
+    for (U64 i = 0; i < len_match; i++)
     {
-        if (s[ln_s] != match[ln_match]) return false;
-        ln_match--;
-        ln_s--;
+        if (base.v[i] != match[i])
+            return 0;
     }
-    return true;
+
+    return 1;
 }
 
-bool match_front(const wchar *s, const wchar *match)
+B32 match_end_wcstr(WString base, const wchar *match)
 {
-    if (!s || !match) return false;
-    S64 ln_s = 0;
-    while (s[ln_s]) ln_s++;
-    S64 ln_match = 0;
-    while (match[ln_match]) ln_match++;
-    if (ln_match > ln_s) return false;
-    S64 cur = 0;
-    while (match[cur])
+    if (!match)
+        return 0;
+
+    U64 len_match = 0;
+    while (match[len_match])
+        len_match++;
+
+    if (len_match > base.size)
+        return 0;
+
+    for (S64 i = base.size, j = len_match; j >= 0; i--, j--)
     {
-        if (s[cur] != match[cur])
-            return false;
-        cur++;
+        if (base.v[i] != match[j])
+            return 0;
     }
-    return true;
+    return 1;
+}
+
+B32 match_front_cstr(String base, const char *match)
+{
+    if (!match)
+        return 0;
+
+    U64 len_match = 0;
+    while (match[len_match])
+        len_match++;
+
+    if (len_match > base.size)
+        return false;
+
+    for (U64 i = 0; i < len_match; i++)
+    {
+        if (base.v[i] != match[i])
+            return 0;
+    }
+
+    return 1;
+}
+
+B32 match_end_cstr(String base, const char *match)
+{
+    if (!match)
+        return 0;
+
+    U64 len_match = 0;
+    while (match[len_match])
+        len_match++;
+
+    if (len_match > base.size)
+        return 0;
+
+    for (S64 i = base.size - 1, j = len_match - 1; j >= 0; i--, j--)
+    {
+        if (base.v[i] != match[j])
+            return 0;
+    }
+    return 1;
 }

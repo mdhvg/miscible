@@ -1,2 +1,2 @@
 CompileFlags:
-	Add: [-std=c++17, -Wno-missing-field-initializers, -Wno-missing-braces -DROOT_DIR="."]
+	Add: [-std=c++17, -Wno-missing-field-initializers, -Wno-missing-braces -DROOT_DIR="." -DDBG=1]

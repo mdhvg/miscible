@@ -92,6 +92,9 @@
 #define MemoryZero(p, s)    memset((p), 0, (s))
 #define MemoryZeroStruct(A) MemoryZero((A), sizeof(*(A)))
 
+#define _glue(a, b) a##b
+#define Glue(A, B)  _glue(A, B)
+
 #define Stringify_(S) #S
 #define Stringify(S)  Stringify_(S)
 
@@ -128,6 +131,8 @@ typedef S64 B64;
 typedef wchar_t wchar;
 typedef float F32;
 typedef double F64;
+
+#define S32_MAX 0x7FFFFFFFul
 
 #define U32_MAX 0xFFFFFFFFul
 #define U64_MAX 0xFFFFFFFFFFFFFFFFull
@@ -189,32 +194,30 @@ typedef double F64;
 #error Missing pointer-to-integer cast for this architecture.
 #endif
 
-#define OS_COMMON         \
-    struct                \
-    {                     \
-        ThreadPool *pool; \
-        U64 worker_count; \
-        U64 page_size;    \
+#if DBG
+#if OS_WINDOWS
+#if MSCBL_CORE
+#define MSCBL_API extern "C" __declspec(dllexport)
+#else
+#define MSCBL_API extern "C" __declspec(dllimport)
+#define MSCBL_EXP extern "C" __declspec(dllexport)
+#endif
+#elif OS_LINUX
+#define MSCBL_API extern "C"
+#define MSCBL_EXP extern "C"
+#endif
+#else
+#define MSCBL_API extern
+#define MSCBL_EXP extern
+#endif
+
+#define OS_COMMON                \
+    struct                       \
+    {                            \
+        struct ThreadPool *pool; \
+        U64 worker_count;        \
+        U64 page_size;           \
     }
-
-//using json = nlohmann::json;
-
-#define ATLAS_RENDER_VARS                 \
-    struct                                \
-    {                                     \
-        struct Arena *lifetime_arena;     \
-        struct Arena *scratch;            \
-        struct Thumbnail *thumbnail_data; \
-    }
-
-struct Application
-{
-    struct Arena *persistent_arena;
-    struct Arena *scratch;
-    // ATLAS_RENDER_VARS atlas_render_system;
-};
-
-global_v Application mscbl;
 
 union Guid {
     struct
@@ -234,7 +237,7 @@ void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
 #define ATLAS_DIR  ROOT_DIR "/.atlas"
 #define DB_PATH    ROOT_DIR "/miscible.sqlite"
 #define INDEX_PATH ROOT_DIR "/index.usearch"
-#define MODEL_PATH ROOT_DIR "/CLIP-ViT-B-32-laion2B-s34B-b79K_ggml-model-f16.gguf"
+#define MODEL_PATH ROOT_DIR "/CLIP-ViT-B-32-laion2B-s34B-b79K.gguf"
 
 #define APP_NAME "Miscible"
 
