@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "doctest.h"
 
 #include "base/arena.h"

@@ -36,12 +36,12 @@ CXX="g++"
 if [[ $MODE == "release" ]]; then
     CFLAGS="-O2 -march=native -ldl -lm -lpthread"
     CXXFLAGS="${CFLAGS} -std=c++17"
-    DEFINES=(-DSQLITE_CORE=1 "-DROOT_DIR=\"${PROJECT_DIR}\"")
+    DEFINES=(-DSQLITE_CORE=1)
     LINK_MODE="static"
 else
     CFLAGS="-O0 -g -ggdb -ldl -lm -lpthread -fPIC"
     CXXFLAGS="${CFLAGS} -std=c++17"
-    DEFINES=(-DDEBUG=1 -DSQLITE_CORE=1 "-DROOT_DIR=\"${PROJECT_DIR}\"")
+    DEFINES=(-DDEBUG=1 -DSQLITE_CORE=1)
     LINK_MODE="hotreload"
 fi
 

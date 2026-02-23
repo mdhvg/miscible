@@ -11,8 +11,6 @@ Write-Host "CWD: $PWD"
 $CC  = "cl"
 $CXX = "cl"
 
-Write-Host "Using compiler: $CC, $CXX"
-
 # warning C4244: '=': conversion from 'float' to 'int', possible loss of data
 # warning C4477: 'printf' : format string '%.*s' requires an argument of type
 # warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead.
@@ -34,7 +32,7 @@ if ($Mode -eq "release") {
                 "/wd4245", "/wd4324", "/wd4068", "/wd4477", "/wd4996", "/wd4701",
                 "/wd4127", "/wd4305", "/wd4005")
     $CXXFLAGS = $CFLAGS + @("/std:c++20")
-    $DEFINES  = @("-D_CRT_SECURE_NO_WARNINGS=1", "-DSQLITE_CORE=1", "-DROOT_DIR=`\""$($ProjectDir -replace '\\','/')`\""")
+    $DEFINES  = @("-D_CRT_SECURE_NO_WARNINGS=1", "-DSQLITE_CORE=1")
     $LINK_MODE = "static"
 } else {
     $CFLAGS = @("/nologo", "/Od", "/Oi", "/GR", "/EHa", "/MDd", "/Zi", "/FC", "/W4",
@@ -64,6 +62,7 @@ $INCLUDES = @(
     "-I$ProjectDir/deps/ggml/src"
     "-I$ProjectDir/deps/ggml/src/ggml-cpu"
     "-I$ProjectDir/deps/ggml/include"
+    "-I$ProjectDir/deps/libfyaml/include"
     "-I$ProjectDir/deps/usearch/include"
     "-I$ProjectDir/deps/usearch/fp16/include"
     "-I$ProjectDir/deps/usearch/stringzilla/include"
@@ -71,6 +70,7 @@ $INCLUDES = @(
 )
 
 $CommonLibs = @(
+    "fyaml.lib",
     "glfw3.lib",
     "ggml.lib",
     "ggml-cpu.lib",
@@ -91,9 +91,9 @@ $jobs += Start-Job -ScriptBlock {
     $Mode = $using:Mode
     if (-not (Test-Path "ggml.lib")) {
         if ($Mode -eq "release") {
-            cmake -S .. -B . -G Ninja -DCMAKE_BUILD_TYPE=Release
+            cmake -S .. -B . -DCMAKE_BUILD_TYPE=Release
         } else {
-            cmake -S .. -B . -G Ninja -DCMAKE_BUILD_TYPE=Debug
+            cmake -S .. -B . -DCMAKE_BUILD_TYPE=Debug
         }
         cmake --build . -j
     }

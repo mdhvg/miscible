@@ -1,6 +1,7 @@
 #include <ShObjIdl.h>
 
-#include "os/win32/os_core_win32.h"
+#include "base/string.h"
+#include "os/os_inc.h"
 #include "base/log.h"
 #include "base/base_core.h"
 
@@ -22,18 +23,11 @@ Guid os_make_guid()
 
 void os_prelaunch()
 {
-    DWORD dwAttrib = GetFileAttributesA(ATLAS_DIR);
-    if (dwAttrib == INVALID_FILE_ATTRIBUTES)
+    os_info.microsecond_resolution = 1;
+    LARGE_INTEGER large_int_resolution;
+    if (QueryPerformanceFrequency(&large_int_resolution))
     {
-        Assert(CreateDirectoryA(ATLAS_DIR, NULL) || GetLastError() == ERROR_ALREADY_EXISTS);
-    }
-    {
-        os_info.microsecond_resolution = 1;
-        LARGE_INTEGER large_int_resolution;
-        if (QueryPerformanceFrequency(&large_int_resolution))
-        {
-            os_info.microsecond_resolution = large_int_resolution.QuadPart;
-        }
+        os_info.microsecond_resolution = large_int_resolution.QuadPart;
     }
 
     SYSTEM_INFO sysinfo = {0};
@@ -51,6 +45,16 @@ void os_prelaunch()
 void os_cleanup()
 {
     CoUninitialize();
+}
+
+const char *os_gethome()
+{
+    return getenv("USERPROFILE");
+}
+
+void os_mkdir(String path)
+{
+    Assert(CreateDirectoryA(CStrCast(path), NULL) || GetLastError() == ERROR_ALREADY_EXISTS);
 }
 
 void os_loadlib(const char *filename, const char *func_name, void *func)

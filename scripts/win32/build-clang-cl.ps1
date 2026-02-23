@@ -1,4 +1,4 @@
-Write-Host "Building $Mode"
+Write-Host "Building in $Mode mode"
 
 $ScriptDir = $PSScriptRoot
 pushd (Join-Path $ScriptDir "../..")
@@ -8,8 +8,8 @@ New-Item -ItemType Directory -Force -Path "build" | Out-Null
 pushd "build"
 Write-Host "CWD: $PWD"
 
-$CC  = "cl"
-$CXX = "cl"
+$CC  = "clang-cl"
+$CXX = "clang-cl"
 
 # warning C4244: '=': conversion from 'float' to 'int', possible loss of data
 # warning C4477: 'printf' : format string '%.*s' requires an argument of type
@@ -25,13 +25,25 @@ $CXX = "cl"
 # warning C4127: conditional expression is constant
 # warning C4305: 'argument': truncation from 'double' to 'float'
 # warning C4005: 'APIENTRY': macro redefinition
-$CFLAGS = @("/nologo", "/Od", "/Oi", "/GR", "/EHa", "/MDd", "/Zi", "/FC", "/W4",
-            "/wd4244", "/wd4201", "/wd4100", "/wd4505", "/wd4189", "/wd4457",
-            "/wd4456", "/wd4819", "/wd5287", "/wd4458", "/wd4267", "/wd4702",
-            "/wd4245", "/wd4324", "/wd4068", "/wd4477", "/wd4996", "/wd4701",
-            "/wd4127", "/wd4305", "/wd4005")
-$CXXFLAGS = $CFLAGS + @("/std:c++20")
-$DEFINES  = @("-D_CRT_SECURE_NO_WARNINGS=1", "-DSQLITE_CORE=1")
+if ($Mode -eq "release") {
+    $CFLAGS = @("/nologo", "/O2", "/Oi", "/GR", "/EHa", "/MD", "/FC", "/W4",
+                "/wd4244", "/wd4201", "/wd4100", "/wd4505", "/wd4189", "/wd4457",
+                "/wd4456", "/wd4819", "/wd5287", "/wd4458", "/wd4267", "/wd4702",
+                "/wd4245", "/wd4324", "/wd4068", "/wd4477", "/wd4996", "/wd4701",
+                "/wd4127", "/wd4305", "/wd4005")
+    $CXXFLAGS = $CFLAGS + @("/std:c++20")
+    $DEFINES  = @("-D_CRT_SECURE_NO_WARNINGS=1", "-DSQLITE_CORE=1")
+    $LINK_MODE = "static"
+} else {
+    $CFLAGS = @("/nologo", "/Od", "/Oi", "/GR", "/EHa", "/MDd", "/Zi", "/FC", "/W4",
+                "/wd4244", "/wd4201", "/wd4100", "/wd4505", "/wd4189", "/wd4457",
+                "/wd4456", "/wd4819", "/wd5287", "/wd4458", "/wd4267", "/wd4702",
+                "/wd4245", "/wd4324", "/wd4068", "/wd4477", "/wd4996", "/wd4701",
+                "/wd4127", "/wd4305", "/wd4005")
+    $CXXFLAGS = $CFLAGS + @("/std:c++20")
+    $DEFINES  = @("-DDBG=1", "-D_CRT_SECURE_NO_WARNINGS=1", "-DSQLITE_CORE=1", "-DROOT_DIR=`\""$($ProjectDir -replace '\\','/')`\""")
+    $LINK_MODE = "hotreload"
+}
 
 $DEFINES += '-DIMGUI_USER_CONFIG=\"mscbl_imconfig.h\"'
 
@@ -55,7 +67,6 @@ $INCLUDES = @(
     "-I$ProjectDir/deps/usearch/fp16/include"
     "-I$ProjectDir/deps/usearch/stringzilla/include"
     "-I$ProjectDir/deps/usearch/sqlite"
-    "-I$ProjectDir/deps/doctest"
 )
 
 $CommonLibs = @(
@@ -79,14 +90,17 @@ $jobs += Start-Job -ScriptBlock {
     Set-Location $using:PWD
     $Mode = $using:Mode
     if (-not (Test-Path "ggml.lib")) {
-        cmake -S .. -B . -DCMAKE_BUILD_TYPE=Debug
+        if ($Mode -eq "release") {
+            cmake -S .. -B . -DCMAKE_BUILD_TYPE=Release
+        } else {
+            cmake -S .. -B . -DCMAKE_BUILD_TYPE=Debug
+        }
         cmake --build . -j
     }
     if (Test-Path "compile_commands.json") {
         Remove-Item "compile_commands.json"
     }
 } | Out-Null
-
 
 if (-not (Test-Path "deps_c.obj")) {
     Write-Host "Building CXX deps"
@@ -100,20 +114,38 @@ Get-Job | Wait-Job | Receive-Job
 
 $LinkerBase = @("/link", "/LIBPATH:.", "/DEBUG", "-incremental:no")
 
-Write-Host ""
+if ($Mode -eq "release") {
+    Write-Host "Building Miscible"
+    & $CXX $CXXFLAGS $DEFINES $INCLUDES `
+        "$ProjectDir/src/main.cpp" "$ProjectDir/src/miscible.cpp" deps_c.obj deps_cxx.obj `
+        $LinkerBase $CommonLibs `
+        /OUT:Miscible.exe
+} else {
+    Write-Host "Building libmiscible.dll"
+    & $CXX -LD $CXXFLAGS $DEFINES $INCLUDES -DMSCBL_CORE=1 `
+        "$ProjectDir/src/miscible.cpp" deps_c.obj deps_cxx.obj `
+        $LinkerBase $CommonLibs `
+        /OUT:libmiscible.dll /IMPLIB:libmiscible.lib
 
-$outputPath = Format-AnsiString -Text "tests.exe" -R 210 -G 200 -B 20 -Bold
-$testFiles = Get-ChildItem "$ProjectDir/tests" -Recurse -Filter *.cpp | ForEach-Object { $_.FullName }
-& $CXX $CXXFLAGS $DEFINES $INCLUDES `
-    @testFiles "$ProjectDir/src/miscible.cpp" deps_c.obj deps_cxx.obj `
-    $LinkerBase $CommonLibs `
-    /OUT:./tests.exe
+    Write-Host "Building pages.dll"
+    & $CXX -LD $CXXFLAGS $DEFINES $INCLUDES `
+        $ProjectDir/src/ui/pages/menu.cpp `
+        $ProjectDir/src/ui/pages/preview.cpp `
+        $ProjectDir/src/ui/pages/style.cpp `
+        $LinkerBase libmiscible.lib `
+        /OUT:pages.dll
+
+    Write-Host "Building Miscible"
+    & $CXX $CXXFLAGS $DEFINES $INCLUDES `
+        "$ProjectDir/src/main.cpp" `
+        $LinkerBase libmiscible.lib `
+        /OUT:Miscible.exe
+}
 
 Get-Job | Wait-Job | Receive-Job
 
 popd
 popd
 
-Write-Host ""
 $end = Get-Date
 Write-Host "Build time: $($end - $start)"

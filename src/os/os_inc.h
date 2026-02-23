@@ -2,6 +2,25 @@
 #include "base/base_core.h"
 #include "base/string.h"
 
+#define OS_COMMON                \
+    struct                       \
+    {                            \
+        struct ThreadPool *pool; \
+        U64 worker_count;        \
+        U64 page_size;           \
+    }
+
+union Guid {
+    struct
+    {
+        U32 data1;
+        U16 data2;
+        U16 data3;
+        U8 data4[8];
+    };
+    U8 v[16];
+};
+
 #if OS_WINDOWS
 #include "os/win32/os_core_win32.h"
 #elif OS_LINUX
@@ -26,6 +45,8 @@ MSCBL_API OSInfo os_info;
 Guid os_make_guid();
 void os_prelaunch();
 void os_cleanup();
+const char *os_gethome();
+void os_mkdir(String path);
 
 void os_loadlib(const char *filename, const char *func_name, void *func);
 MSCBL_API void os_select_dir(const OSchar *title, const wchar *default_path, StringBuilder *sb);

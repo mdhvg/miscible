@@ -4,9 +4,13 @@
 #include "arena.h"
 #include "base_core.h"
 
-Arena *head = NULL;
+Arena *arena_head = NULL;
 
-Arena *arena_alloc(U64 capacity)
+#if ARENA_DBG
+void _arena_alloc(U64 capacity, Arena **arena, const char *name)
+#else
+void _arena_alloc(U64 capacity, Arena **arena)
+#endif
 {
     void *base = os_reserve(NULL, capacity);
     Assert(base);
@@ -16,31 +20,29 @@ Arena *arena_alloc(U64 capacity)
     Arena *a    = (Arena *)base;
     a->base     = (U8 *)(a + 1);
     a->used     = 0;
+    a->min_use  = 0;
     a->capacity = capacity;
+    a->min_cmt  = os_info.page_size;
     a->cmt_size = cmt_size;
 
-    // TODO: Arena chain for debug/memory usage view
+#if ARENA_DBG
     a->next = NULL;
+    a->name = name;
 
-    // if (persistent_arena == NULL)
-    // {
-    // 	persistent_arena = a;
-    // }
-    // if (head == NULL)
-    // {
-    // 	head = a;
-    // }
-    // else
-    // {
-    // 	Arena *cur = head;
-    // 	while (cur->next)
-    // 	{
-    // 		cur = cur->next;
-    // 	}
-    // 	cur->next = a;
-    // }
+    if (arena_head == NULL)
+    {
+        arena_head = a;
+    }
+    else
+    {
+        Arena *cur = arena_head;
+        while (cur->next)
+            cur = cur->next;
+        cur->next = a;
+    }
+#endif
 
-    return a;
+    *arena = a;
 }
 
 void *arena_push(Arena *a, U64 size, U8 zero, U64 align)
@@ -89,12 +91,12 @@ void *arena_realloc(Arena *a, void *ptr, U64 old_size, U64 new_size)
 
 void arena_pop(Arena *a, U64 pos)
 {
-    U64 decmt_pos  = AlignOf((U64)a->base + pos, os_info.page_size);
+    U64 decmt_pos  = MAX(a->min_cmt, AlignOf((U64)a->base + pos, os_info.page_size));
     U64 decmt_size = a->cmt_size - (decmt_pos - (U64)a);
 
     os_decommit((void *)decmt_pos, decmt_size);
     a->cmt_size -= decmt_size;
-    a->used = pos;
+    a->used = MAX(a->min_use, pos);
 }
 
 void arena_free(Arena *a)
@@ -117,19 +119,26 @@ void temp_end(Temp temp)
 
 ArenaArray arena_array_alloc(U64 capacity, U64 size)
 {
+    Arena *first = NULL;
+    arena_alloc(capacity, first);
+
     ArenaArray aa = {0};
     aa.size       = size;
-    aa.v          = push_array(mscbl.persistent_arena, size, Arena *);
-    for (U64 i = 0; i < size; i++)
+    aa.v          = push_array(first, size, Arena *);
+
+    arena_setmin(first, arena_get(first));
+
+    aa.v[0] = first;
+    for (U64 i = 1; i < size; i++)
     {
-        aa.v[i] = arena_alloc(capacity);
+        arena_alloc(capacity, aa.v[i]);
     }
     return aa;
 }
 
 void arena_array_free(ArenaArray aa)
 {
-    for (U64 i = 0; i < aa.size; i++)
+    for (U64 i = aa.size - 1; i >= 0; i--)
     {
         arena_free(aa.v[i]);
         aa.v[i] = NULL;

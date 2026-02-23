@@ -1,6 +1,7 @@
 #include "sqlite3.c"
 
 #include "glad.c"
+#include "tinyfiledialogs.c"
 
 // STB libs
 #define STBI_WINDOWS_UTF8 1

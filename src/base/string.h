@@ -91,6 +91,7 @@ inline String sv(const char *x)
 
 MSCBL_API WString string_cpy_wcstr(Arena *arena, const wchar *c);
 MSCBL_API String string_cpy_cstr(Arena *arena, const char *c);
+MSCBL_API String string_cpy_str(Arena *arena, String s);
 inline WString string_cpy(Arena *arena, const wchar *x)
 {
     return string_cpy_wcstr(arena, x);
@@ -103,9 +104,14 @@ inline String string_cpy(Arena *arena, const unsigned char *x)
 {
     return string_cpy_cstr(arena, (const char *)x);
 }
+inline String string_cpy(Arena *arena, String x)
+{
+    return string_cpy_str(arena, x);
+}
 
 #define string_clear(x) ((x).size = 0)
 MSCBL_API StringBuilder string_empty(Arena *arena, U64 size = 1);
+MSCBL_API void string_pop_to(StringBuilder *base, U64 size);
 
 MSCBL_API inline String string_from_to(String base, U64 from, U64 to)
 {

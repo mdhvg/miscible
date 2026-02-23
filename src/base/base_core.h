@@ -3,9 +3,7 @@
 
 // #include <filesystem>
 #include <stdint.h>
-#include <string.h>
 #include <wchar.h>
-#include <stdio.h>
 
 //#include "nlohmann/json.hpp"
 
@@ -211,35 +209,16 @@ typedef double F64;
 #define MSCBL_EXP extern
 #endif
 
-#define OS_COMMON                \
-    struct                       \
-    {                            \
-        struct ThreadPool *pool; \
-        U64 worker_count;        \
-        U64 page_size;           \
-    }
-
-union Guid {
-    struct
-    {
-        U32 data1;
-        U16 data2;
-        U16 data3;
-        U8 data4[8];
-    };
-    U8 v[16];
-};
-
 void bytes_as_hex_lower(U8 *data, U64 start, U64 len, char *out);
 void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
 
 // TODO: Move these to some other place
-#define ATLAS_DIR  ROOT_DIR "/.atlas"
-#define DB_PATH    ROOT_DIR "/miscible.sqlite"
-#define INDEX_PATH ROOT_DIR "/index.usearch"
-#define MODEL_PATH ROOT_DIR "/CLIP-ViT-B-32-laion2B-s34B-b79K.gguf"
-
 #define APP_NAME "Miscible"
+
+// #define MODEL_PATH  ROOT_DIR "/CLIP-ViT-B-32-laion2B-s34B-b79K.gguf"
+#define ATLAS_DIR   "atlas"
+#define DB_FILE     "miscible.db"
+#define CONFIG_FILE "miscible.yaml"
 
 #define ATLAS_CAPACITY 100
 #define ATLAS_SIZE     2560

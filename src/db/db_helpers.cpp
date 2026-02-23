@@ -3,6 +3,7 @@
 
 #include "base/base_core.h"
 #include "db/db_helpers.h"
+#include "config.h"
 
 local_v sqlite3 *dbP = NULL;
 local_v std::mutex db_mutex;
@@ -103,10 +104,10 @@ U64 db_run_stmt(sqlite3_stmt *stmt, U8 finalize, db_stmt_callback callback, void
     return rows;
 }
 
-void db_init(const char *filename, const char *command)
+void db_init(String path, const char *command)
 {
     std::unique_lock<std::mutex> lock(db_mutex);
-    Assert(sqlite3_open(filename, &dbP) == SQLITE_OK && "Couldn't load database");
+    Assert(sqlite3_open(CStrCast(path), &dbP) == SQLITE_OK && "Couldn't load database");
     char *err = NULL;
     if (init_sqlite(dbP, &err, NULL) != SQLITE_OK)
     {
@@ -120,7 +121,7 @@ void db_init(const char *filename, const char *command)
 // TODO: Can make a config parser and have db path come from it
 void db_make()
 {
-    db_init(DB_PATH, R"(
+    db_init(mscbl_config.db_path, R"(
 		CREATE TABLE IF NOT EXISTS Images (
 			id          INTEGER     PRIMARY KEY             AUTOINCREMENT,
 			path        TEXT        UNIQUE NOT NULL,

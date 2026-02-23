@@ -5,7 +5,7 @@
 #include <errno.h>
 #include <unistd.h>
 
-#include "os/linux/os_core_linux.h"
+#include "os/os_inc.h"
 
 Guid os_make_guid()
 {
@@ -20,17 +20,25 @@ Guid os_make_guid()
 
 void os_prelaunch()
 {
-    struct stat st = {};
-    if (stat(ATLAS_DIR, &st) == -1)
-    {
-        Assert(mkdir(ATLAS_DIR, 0755) != -1);
-    }
-
     os_info.page_size = (U64)getpagesize();
+}
+
+const char *os_gethome()
+{
+    return getenv("HOME");
 }
 
 void os_cleanup()
 {
+}
+
+void os_mkdir(String path)
+{
+    struct stat st = {};
+    if (stat(CStrCast(path), &st) == -1)
+    {
+        Assert(mkdir(CStrCast(path), 0755) != -1);
+    }
 }
 
 const char *os_select_dir(const char *title, const char *default_path)

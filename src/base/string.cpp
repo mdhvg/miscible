@@ -379,21 +379,27 @@ String string_cpy_cstr(Arena *arena, const char *c)
     return StringCast(b);
 }
 
-// String string_cpy_string(String c)
-// {
-//     StringBuilder b = {0};
-//     string_growby(arena, &b, c.size + 1);
-//     MemoryCopy(b.v, c.v, c.size);
-//     b.size      = len;
-//     b.v[b.size] = 0;
-//     return StringCast(b);
-// }
+String string_cpy_str(Arena *arena, String s)
+{
+    StringBuilder base = {.arena = arena};
+    string_growby(&base, s.size + 1);
+    MemoryCopy(base.v, s.v, s.size);
+    base.size         = s.size;
+    base.v[base.size] = 0;
+    return StringCast(base);
+}
 
 StringBuilder string_empty(Arena *arena, U64 size)
 {
     StringBuilder b = {.arena = arena};
     string_growto(&b, size);
     return b;
+}
+
+void string_pop_to(StringBuilder *base, U64 size)
+{
+    base->size    = size;
+    base->v[size] = 0;
 }
 
 B32 string_cmp_wcstr(WString str, const wchar *match, U64 limit)

@@ -8,8 +8,8 @@ New-Item -ItemType Directory -Force -Path "build" | Out-Null
 pushd "build"
 Write-Host "CWD: $PWD"
 
-$CC  = "cl"
-$CXX = "cl"
+$CC  = "clang-cl"
+$CXX = "clang-cl"
 
 # warning C4244: '=': conversion from 'float' to 'int', possible loss of data
 # warning C4477: 'printf' : format string '%.*s' requires an argument of type
