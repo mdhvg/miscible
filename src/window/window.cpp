@@ -6,7 +6,7 @@
 
 local_v void glfw_error_callback(S32 error, const char *description)
 {
-    mscbl_log_error(GLFW, "0x%X: %s", error, description);
+    mscbl_log_error("0x%X: %s", error, description);
 }
 
 local_v void win_close_callback(GLFWwindow *handle)
@@ -17,32 +17,32 @@ local_v void win_close_callback(GLFWwindow *handle)
 B32 window_init()
 {
     glfwSetErrorCallback(glfw_error_callback);
-    Assert(glfwInit() && "Failed to initialize GLFW");
+    Assert(glfwInit(), "Failed to initialize GLFW");
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-    win.handle = glfwCreateWindow(WIN_WIDTH, WIN_HEIGHT, APP_NAME, NULL, NULL);
+    win.handle = glfwCreateWindow(WIN_WIDTH, WIN_HEIGHT, Stringify(APP_NAME), NULL, NULL);
     if (!win.handle) return 0;
     glfwSetWindowCloseCallback(win.handle, win_close_callback);
     glfwMakeContextCurrent(win.handle);
     glfwSwapInterval(1); // Enable vsync
 
-    Assert(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress) && "Failed to initialize OpenGL loader!");
+    Assert(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress), "Failed to initialize OpenGL loader!");
     win.begint = glfwGetTime();
 
-    mscbl_log_dbg(window_init, "OpenGL Version: %s", (char *)glGetString(GL_VERSION));
-    mscbl_log_dbg(window_init, "GLSL Version: %s", (char *)glGetString(GL_SHADING_LANGUAGE_VERSION));
-    mscbl_log_dbg(window_init, "GPU Vendor: %s", (char *)glGetString(GL_VENDOR));
-    mscbl_log_dbg(window_init, "Renderer: %s", (char *)glGetString(GL_RENDERER));
+    mscbl_log_dbg("OpenGL Version: %s", (char *)glGetString(GL_VERSION));
+    mscbl_log_dbg("GLSL Version: %s", (char *)glGetString(GL_SHADING_LANGUAGE_VERSION));
+    mscbl_log_dbg("GPU Vendor: %s", (char *)glGetString(GL_VENDOR));
+    mscbl_log_dbg("Renderer: %s", (char *)glGetString(GL_RENDERER));
     S32 maxTextureUnits = 0;
     glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxTextureUnits);
-    mscbl_log_dbg(window_init, "Maximum texture units: %d", maxTextureUnits);
+    mscbl_log_dbg("Maximum texture units: %d", maxTextureUnits);
     S32 maxLayers;
     glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &maxLayers);
-    mscbl_log_dbg(window_init, "Maximum texture array layers supported: %d", maxLayers);
+    mscbl_log_dbg("Maximum texture array layers supported: %d", maxLayers);
     win.active = 1;
     return 1;
 }

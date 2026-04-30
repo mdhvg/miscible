@@ -1,11 +1,8 @@
 #pragma once
 // A lot of it comes from: https://github.com/EpicGamesExt/raddebugger
 
-// #include <filesystem>
 #include <stdint.h>
 #include <wchar.h>
-
-//#include "nlohmann/json.hpp"
 
 #define global_v static
 #define local_v  static
@@ -76,9 +73,9 @@
 #define Mil(A) ((U64)(A) * 1000000)
 #define Bil(A) ((U64)(A) * 1000000000)
 
-#define AlignOf(A, B) (((A) + (B) - 1) & (~((B) - 1)))
-
-#define ToCeilInt(A, B) (((A) + (B - 1)) / (B))
+#define AlignOf(A, B)    (((A) + (B) - 1) & (~((B) - 1)))
+#define ToCeilInt(A, B)  (((A) + (B - 1)) / (B))
+#define StaticArrSize(A) (sizeof(A) / sizeof((A)[0]))
 
 // #define SetBit(bitset, idx)	  (bitset[(idx) / 64] |= (1ull << ((idx) % 64)))
 // #define ClearBit(bitset, idx) (bitset[(idx) / 64] &= ~(1ull << ((idx) % 64)))
@@ -108,12 +105,6 @@
 #define TRAP() __builtin_trap()
 #endif
 
-#define Assert(x)             \
-    do                        \
-    {                         \
-        if (!(x)) { TRAP(); } \
-    } while (0)
-
 typedef uint8_t U8;
 typedef uint16_t U16;
 typedef uint32_t U32;
@@ -134,8 +125,6 @@ typedef double F64;
 
 #define U32_MAX 0xFFFFFFFFul
 #define U64_MAX 0xFFFFFFFFFFFFFFFFull
-
-#define StaticArraySize(a) (sizeof((a)) / sizeof((a)[0]))
 
 #if COMPILER_MSVC
 #include <intrin.h>
@@ -194,30 +183,34 @@ typedef double F64;
 
 #if DBG
 #if OS_WINDOWS
+
 #if MSCBL_CORE
 #define MSCBL_API extern "C" __declspec(dllexport)
-#else
+#else // MSCBL_CORE
 #define MSCBL_API extern "C" __declspec(dllimport)
+#endif // MSCBL_CORE
+
 #define MSCBL_EXP extern "C" __declspec(dllexport)
-#endif
 #elif OS_LINUX
+
 #define MSCBL_API extern "C"
 #define MSCBL_EXP extern "C"
-#endif
-#else
+
+#endif // OS
+#else  // DBG
 #define MSCBL_API extern
 #define MSCBL_EXP extern
-#endif
+#endif // DBG
 
 void bytes_as_hex_lower(U8 *data, U64 start, U64 len, char *out);
 void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
 
 // TODO: Move these to some other place
-#define APP_NAME "Miscible"
+#define APP_NAME Miscible
 
 // #define MODEL_PATH  ROOT_DIR "/CLIP-ViT-B-32-laion2B-s34B-b79K.gguf"
 #define ATLAS_DIR   "atlas"
-#define DB_FILE     "miscible.db"
+#define DB_FILE     "miscible.sqlite"
 #define CONFIG_FILE "miscible.yaml"
 
 #define ATLAS_CAPACITY 100

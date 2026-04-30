@@ -32,12 +32,21 @@ struct WString
     U64 size;
 };
 
+#if OS_WINDOWS
+typedef struct WString OSString;
+#elif OS_LINUX
+typedef struct String OSString;
+#endif
+
+#define StringSpr(s)  (s).size, (s).v
+#define WStringSpr(s) (s).size, (s).v
+
 #define StringCast(x)  *(String *)(&(x))
 #define WStringCast(x) *(WString *)(&(x))
-#define CStrCast(s)    (const char *)((s).v)
+#define CStrCast(s)    (char *)((s).v)
 inline const wchar *WCStrCast(WString s)
 {
-    return (const wchar *)((s).v);
+    return (wchar *)((s).v);
 }
 wchar *WCStrCast(Arena *a, String s);
 
@@ -78,6 +87,12 @@ inline U64 string_push(StringBuilder *base, const char *push)
     return string_push_cstr(base, push);
 }
 
+MSCBL_API U64 string_assign_string(StringBuilder *base, String push);
+inline U64 string_assign(StringBuilder *base, String x)
+{
+    return string_assign_string(base, x);
+}
+
 MSCBL_API WString string_view_wcstr(const wchar *c);
 MSCBL_API String string_view_cstr(const char *c);
 inline WString sv(const wchar *x)
@@ -91,6 +106,7 @@ inline String sv(const char *x)
 
 MSCBL_API WString string_cpy_wcstr(Arena *arena, const wchar *c);
 MSCBL_API String string_cpy_cstr(Arena *arena, const char *c);
+MSCBL_API WString string_cpy_wstr(Arena *arena, WString s);
 MSCBL_API String string_cpy_str(Arena *arena, String s);
 inline WString string_cpy(Arena *arena, const wchar *x)
 {
@@ -103,6 +119,10 @@ inline String string_cpy(Arena *arena, const char *x)
 inline String string_cpy(Arena *arena, const unsigned char *x)
 {
     return string_cpy_cstr(arena, (const char *)x);
+}
+inline WString string_cpy(Arena *arena, WString x)
+{
+    return string_cpy_wstr(arena, x);
 }
 inline String string_cpy(Arena *arena, String x)
 {
@@ -124,6 +144,7 @@ MSCBL_API inline String string_from(String base, U64 from)
 
 MSCBL_API B32 string_cmp_wcstr(WString str, const wchar *match, U64 limit);
 MSCBL_API B32 string_cmp_cstr(String str, const char *match, U64 limit);
+MSCBL_API B32 string_cmp_string(String str, String match);
 inline B32 string_cmp(WString str, const wchar *match, U64 limit = 1024)
 {
     return string_cmp_wcstr(str, match, limit);
@@ -131,6 +152,10 @@ inline B32 string_cmp(WString str, const wchar *match, U64 limit = 1024)
 inline B32 string_cmp(String str, const char *match, U64 limit = 1024)
 {
     return string_cmp_cstr(str, match, limit);
+}
+inline B32 string_cmp(String str, String match)
+{
+    return string_cmp_string(str, match);
 }
 
 void string_formatv(StringBuilder *base, const char *fmt, va_list args);
@@ -145,6 +170,11 @@ MSCBL_API inline const char *format_cstr(StringBuilder *base, const char *fmt, .
     return CStrCast(*base);
 }
 
+MSCBL_API S64 string_rfind_wstr(WString s, wchar f);
+inline S64 string_rfind(WString s, wchar f)
+{
+    return string_rfind_wstr(s, f);
+}
 /*
  * Find and replace
  *
@@ -155,6 +185,16 @@ MSCBL_API inline const char *format_cstr(StringBuilder *base, const char *fmt, .
  * @return         Number of replacements actually performed.
  */
 MSCBL_API U64 string_replace_cstr(StringBuilder *base, const char *find, const char *replace, U64 count);
+/*
+ * Find and replace
+ *
+ * @param base     The WString to modify (in/out).
+ * @param find     The substring to search for (null-terminated).
+ * @param replace  The replacement string (null-terminated).
+ * @param count    Maximum number of replacements (0 = replace all).
+ * @return         Number of replacements actually performed.
+ */
+MSCBL_API U64 string_replace_wcstr(WString base, const wchar *find, const wchar *replace, U64 count);
 /*
  * Inline wrapper for string_replace_cstr (uses default count = 0).
  *
@@ -167,6 +207,10 @@ MSCBL_API U64 string_replace_cstr(StringBuilder *base, const char *find, const c
 inline U64 string_replace(StringBuilder *base, const char *find, const char *replace, U64 count = 0)
 {
     return string_replace_cstr(base, find, replace, count);
+}
+inline U64 string_replace(WString base, const wchar *find, const wchar *replace, U64 count = 0)
+{
+    return string_replace_wcstr(base, find, replace, count);
 }
 
 MSCBL_API B32 match_front_wcstr(WString base, const wchar *match);

@@ -1,4 +1,5 @@
 #include <ShObjIdl.h>
+#include <wchar.h>
 
 #include "base/string.h"
 #include "os/os_inc.h"
@@ -54,7 +55,7 @@ const char *os_gethome()
 
 void os_mkdir(String path)
 {
-    Assert(CreateDirectoryA(CStrCast(path), NULL) || GetLastError() == ERROR_ALREADY_EXISTS);
+    Assert(CreateDirectoryA(CStrCast(path), NULL) || GetLastError() == ERROR_ALREADY_EXISTS, "Failed to create directory (%.*s)", path.size, path.v);
 }
 
 void os_loadlib(const char *filename, const char *func_name, void *func)
@@ -88,7 +89,7 @@ local_v U32 win32_sleep_ms_from_us(U64 end_us)
     return sleep_ms;
 }
 
-void os_select_dir(const wchar *title, const wchar *default_path, StringBuilder *sb)
+OSString os_select_dir(const wchar *title, const wchar *default_path)
 {
     PWSTR path           = NULL;
     IShellItem *res_psi  = NULL;
@@ -96,7 +97,7 @@ void os_select_dir(const wchar *title, const wchar *default_path, StringBuilder 
     IFileOpenDialog *pfd = NULL;
     HRESULT hr           = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, (void **)&pfd);
 
-    Assert(SUCCEEDED(hr) && "CoCreateInstance failed");
+    Assert(SUCCEEDED(hr), "CoCreateInstance failed");
     pfd->SetOptions(FOS_PICKFOLDERS | FOS_PATHMUSTEXIST);
     pfd->SetTitle(title);
 
@@ -107,15 +108,18 @@ void os_select_dir(const wchar *title, const wchar *default_path, StringBuilder 
         def_psi->Release();
     }
 
-    Assert(SUCCEEDED(pfd->Show(NULL)));
-    Assert(SUCCEEDED(pfd->GetResult(&res_psi)));
+    if (FAILED(pfd->Show(NULL)))
+        return {0};
+    Assert(SUCCEEDED(pfd->GetResult(&res_psi)), "selection box GetResult() failed");
     res_psi->GetDisplayName(SIGDN_FILESYSPATH, &path);
 
-    string_push(sb, path);
+    MemoryCopy(scratch, path, (wcslen(path) + 1) * sizeof(wchar));
+    WString res = sv(scratch);
 
     CoTaskMemFree(path);
     res_psi->Release();
     pfd->Release();
+    return res;
 }
 
 void win32_format_path(StringBuilder *dir)
@@ -131,8 +135,7 @@ void *os_reserve(void *ptr, U64 size)
     if (!result)
     {
         U32 err = GetLastError();
-        mscbl_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
-        Assert(0);
+        Assert(0, "Error Code: 0x%X (%u)\n", err, err);
     }
     return result;
 }
@@ -144,8 +147,7 @@ void os_release(void *ptr, U64 size)
     if (!result)
     {
         U32 err = GetLastError();
-        mscbl_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
-        Assert(0);
+        Assert(0, "Error Code: 0x%X (%u)\n", err, err);
     }
 }
 
@@ -157,8 +159,7 @@ void os_commit(void *ptr, U64 size)
     if (!result)
     {
         U32 err = GetLastError();
-        mscbl_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
-        Assert(0);
+        Assert(0, "Error Code: 0x%X (%u)\n", err, err);
     }
 }
 
@@ -170,19 +171,17 @@ void os_decommit(void *ptr, U64 size)
     if (!result)
     {
         U32 err = GetLastError();
-        mscbl_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
-        Assert(0);
+        Assert(0, "Error Code: 0x%X (%u)\n", err, err);
     }
 }
 
-Semaphore os_semaphore_alloc(U32 initial, U32 max)
+Semaphore os_semaphore_alloc(S32 initial, S32 max)
 {
     HANDLE h = CreateSemaphore(0, initial, max, NULL);
     if (!h)
     {
         U32 err = GetLastError();
-        mscbl_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
-        Assert(0);
+        Assert(0, "Error Code: 0x%X (%u)\n", err, err);
     }
     return h;
 }
@@ -193,8 +192,7 @@ void os_semaphore_release(Semaphore s)
     if (!result)
     {
         U32 err = GetLastError();
-        mscbl_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
-        Assert(0);
+        Assert(0, "Error Code: 0x%X (%u)\n", err, err);
     }
 }
 
@@ -204,8 +202,7 @@ void os_semaphore_drop(Semaphore s)
     if (!result)
     {
         U32 err = GetLastError();
-        mscbl_log_error(OS_WIN32, "Error Code: 0x%X (%lu)\n", err, err);
-        Assert(0);
+        Assert(0, "Error Code: 0x%X (%u)\n", err, err);
     }
 }
 

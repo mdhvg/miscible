@@ -1,3 +1,4 @@
+#define SQLITE_ENABLE_FTS5 1
 #include "sqlite3.c"
 
 #include "glad.c"

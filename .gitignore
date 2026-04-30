@@ -18,5 +18,8 @@ imgui.ini
 clip-load
 Testing
 *.ttf
+*.gguf
+*.vhs
+*.vim
 
 .vs

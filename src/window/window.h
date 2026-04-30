@@ -2,8 +2,8 @@
 #include "base/base_core.h"
 #include "gl/gl_core.h"
 
-#define WIN_WIDTH  1280
-#define WIN_HEIGHT 720
+#define WIN_WIDTH  1600
+#define WIN_HEIGHT 900
 
 struct Window
 {

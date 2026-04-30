@@ -1,10 +1,11 @@
 #include "base/base_core.h"
 #include "os/os_inc.h"
 
-#if OS_WINDOWS
-#include "os/win32/os_core_win32.cpp"
-#elif OS_LINUX
-#include "os/linux/os_core_linux.cpp"
-#endif
-
 OSInfo os_info = {0};
+local_v OSchar scratch[KB(16)] = {0};
+
+#if OS_WINDOWS
+#include "os/win32/win32_core.cpp"
+#elif OS_LINUX
+#include "os/linux/linux_core.cpp"
+#endif

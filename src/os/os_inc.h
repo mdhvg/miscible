@@ -1,13 +1,11 @@
 #pragma once
-#include "base/base_core.h"
 #include "base/string.h"
 
-#define OS_COMMON                \
-    struct                       \
-    {                            \
-        struct ThreadPool *pool; \
-        U64 worker_count;        \
-        U64 page_size;           \
+#define OS_COMMON         \
+    struct                \
+    {                     \
+        U64 worker_count; \
+        U64 page_size;    \
     }
 
 union Guid {
@@ -22,9 +20,9 @@ union Guid {
 };
 
 #if OS_WINDOWS
-#include "os/win32/os_core_win32.h"
+#include "os/win32/win32_core.h"
 #elif OS_LINUX
-#include "os/linux/os_core_linux.h"
+#include "os/linux/linux_core.h"
 #endif
 
 #ifndef OSchar
@@ -36,8 +34,17 @@ union Guid {
 #ifndef Semaphore
 #error "Semaphore not defined"
 #endif
+#ifndef Mutex
+#error "Mutex not defined"
+#endif
 #ifndef Thread
 #error "Thread not defined"
+#endif
+#if !defined(LibHandle) || !defined(LibAddress)
+#error "dll types not defined"
+#endif
+#ifndef LibExt
+#error "LibExt not defined"
 #endif
 
 MSCBL_API OSInfo os_info;
@@ -48,15 +55,17 @@ void os_cleanup();
 const char *os_gethome();
 void os_mkdir(String path);
 
-void os_loadlib(const char *filename, const char *func_name, void *func);
-MSCBL_API void os_select_dir(const OSchar *title, const wchar *default_path, StringBuilder *sb);
+LibHandle os_loadlib(const char *filename);
+LibAddress os_libfunc(LibHandle lib, const char *symbol);
+void os_closelib(LibHandle lib);
+MSCBL_API OSString os_select_dir(const OSchar *title, const OSchar *default_path);
 
-void *os_reserve(void *ptr, U64 size);
-void os_release(void *ptr, U64 size);
-void os_commit(void *ptr, U64 size);
-void os_decommit(void *ptr, U64 size);
+MSCBL_API void *os_reserve(void *ptr, U64 size);
+MSCBL_API void os_release(void *ptr, U64 size);
+MSCBL_API void os_commit(void *ptr, U64 size);
+MSCBL_API void os_decommit(void *ptr, U64 size);
 
-Semaphore os_semaphore_alloc(U32 initial, U32 max);
+Semaphore os_semaphore_alloc(S32 initial, S32 max);
 void os_semaphore_release(Semaphore s);
 void os_semaphore_drop(Semaphore s);
 B32 os_semaphore_take(Semaphore s, U64 end_us);

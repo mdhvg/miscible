@@ -1,9 +1,8 @@
 #include <stdarg.h>
 
-#include "base/string.h"
 #include "base/arena.h"
+#include "base/string.h"
 #include "base/base_core.h"
-#include "string.h"
 
 // WString make_string_cwstr(const wchar *s)
 // {
@@ -309,6 +308,7 @@ U64 string_push_string(StringBuilder *base, String push)
     string_growby(base, push.size);
     MemoryCopy(base->v + base->size, push.v, push.size);
     base->size += push.size;
+    base->v[base->size] = 0;
     return push.size;
 }
 
@@ -318,6 +318,7 @@ U64 string_push_char(StringBuilder *base, char push)
 
     base->v[base->size] = push;
     base->size += 1;
+    base->v[base->size] = 0;
     return 1;
 }
 
@@ -332,6 +333,18 @@ U64 string_push_cstr(StringBuilder *base, const char *push)
 
     String s = {(U8 *)push, len};
     return string_push_string(base, s);
+}
+
+U64 string_assign_string(StringBuilder *base, String push)
+{
+    if (!push.size)
+        return 0;
+    string_pop_to(base, 0);
+    string_growto(base, push.size);
+    MemoryCopy(base->v, push.v, push.size);
+    base->size          = push.size;
+    base->v[base->size] = 0;
+    return base->size;
 }
 
 WString string_view_wcstr(const wchar *c)
@@ -357,10 +370,10 @@ WString string_cpy_wcstr(Arena *arena, const wchar *c)
         len++;
 
     StringBuilder b = {.arena = arena};
-    string_growby(&b, len * sizeof(wchar) + 1);
+    string_growby(&b, (len + 1) * sizeof(wchar));
     MemoryCopy(b.v, c, len * sizeof(wchar));
-    b.size                      = len;
-    b.v[b.size * sizeof(wchar)] = 0;
+    b.size               = len;
+    ((U16 *)b.v)[b.size] = 0;
 
     return WStringCast(b);
 }
@@ -379,14 +392,24 @@ String string_cpy_cstr(Arena *arena, const char *c)
     return StringCast(b);
 }
 
+WString string_cpy_wstr(Arena *arena, WString c)
+{
+    StringBuilder b = {.arena = arena};
+    string_growby(&b, (c.size + 1) * sizeof(wchar));
+    MemoryCopy(b.v, c.v, c.size * sizeof(wchar));
+    b.size               = c.size;
+    ((U16 *)b.v)[b.size] = 0;
+    return WStringCast(b);
+}
+
 String string_cpy_str(Arena *arena, String s)
 {
-    StringBuilder base = {.arena = arena};
-    string_growby(&base, s.size + 1);
-    MemoryCopy(base.v, s.v, s.size);
-    base.size         = s.size;
-    base.v[base.size] = 0;
-    return StringCast(base);
+    StringBuilder b = {.arena = arena};
+    string_growby(&b, s.size + 1);
+    MemoryCopy(b.v, s.v, s.size);
+    b.size      = s.size;
+    b.v[b.size] = 0;
+    return StringCast(b);
 }
 
 StringBuilder string_empty(Arena *arena, U64 size)
@@ -422,6 +445,20 @@ B32 string_cmp_cstr(String str, const char *match, U64 limit)
     {
         l += str.v[i];
         r += match[i];
+    }
+    return l - r;
+}
+
+B32 string_cmp_string(String str, String match)
+{
+    if (str.size != match.size)
+        return str.size - match.size;
+    U64 l = 0, r = 0;
+    U64 i = 0;
+    for (U64 i = 0; i < str.size && i < match.size; i++)
+    {
+        l += str.v[i];
+        r += match.v[i];
     }
     return l - r;
 }
@@ -522,6 +559,16 @@ String string_format(StringBuilder *base, const char *fmt, ...)
 //     va_end(args);
 //     return CStrCast(StringCast(s));
 // }
+
+S64 string_rfind_wstr(WString s, wchar f)
+{
+    for (U64 i = s.size; i >= 0; i--)
+    {
+        if (s.v[i] == f)
+            return i;
+    }
+    return -1;
+}
 
 U64 string_replace_string(StringBuilder *base, String find, String replace, U64 count)
 {
@@ -647,12 +694,52 @@ RES:
     return replaced;
 }
 
+U64 string_replace_wstring(WString base, WString find, WString replace, U64 count)
+{
+    Assert(find.size == replace.size, "find and replace size should be same for string view replace");
+    U64 replaced  = 0;
+    U64 instances = 0;
+
+    for (U64 i = 0; i < base.size - find.size + 1;)
+    {
+        if (count && replaced >= count)
+            break;
+
+        U64 found = 0;
+        for (U64 j = 0; j < find.size; j++)
+        {
+            if (base.v[i + j] != find.v[j])
+                break;
+            found++;
+        }
+        if (find.size == found)
+        {
+            MemoryCopy(base.v + i, replace.v, find.size);
+            i += find.size;
+            replaced++;
+        }
+        else
+        {
+            i++;
+        }
+    }
+    return replaced;
+}
+
 U64 string_replace_cstr(StringBuilder *base, const char *find, const char *replace, U64 count)
 {
     if (!find || !replace || !*find)
         return 0;
 
     return string_replace_string(base, sv(find), sv(replace), count);
+}
+
+U64 string_replace_wcstr(WString base, const wchar *find, const wchar *replace, U64 count)
+{
+    if (!find || !replace || !*find)
+        return 0;
+
+    return string_replace_wstring(base, sv(find), sv(replace), count);
 }
 
 B32 match_front_wcstr(WString base, const wchar *match)

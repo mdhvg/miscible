@@ -13,7 +13,7 @@ void _arena_alloc(U64 capacity, Arena **arena)
 #endif
 {
     void *base = os_reserve(NULL, capacity);
-    Assert(base);
+    Assert(base, "alloc failed");
     U64 cmt_size = os_info.page_size;
     os_commit(base, cmt_size);
 
@@ -49,7 +49,7 @@ void *arena_push(Arena *a, U64 size, U8 zero, U64 align)
 {
     if (size == 0)
         return NULL;
-    Assert(a);
+    Assert(a, "arena not allocated");
 
     align     = MAX(align, 8);
     U64 start = AlignOf(((U64)a->base + a->used), align);
@@ -58,11 +58,7 @@ void *arena_push(Arena *a, U64 size, U8 zero, U64 align)
     U64 req_size = end - (U64)a;
     U64 cmt_size = AlignOf(req_size, os_info.page_size);
 
-    if (end > a->capacity + (U64)a->base)
-    {
-        mscbl_log_error(Arena, "(Out of memory) Used: %zu/%zu, Need: %zu (%zu more)\n", a->used, a->capacity, req_size, req_size - a->capacity);
-        Assert(0);
-    }
+    Assert(end <= a->capacity + (U64)a->base, "(Out of memory) Used: %zu/%zu, Need: %zu (%zu more)\n", a->used, a->capacity, req_size, req_size - a->capacity);
 
     if (cmt_size > a->cmt_size)
     {
@@ -83,7 +79,7 @@ void *arena_push(Arena *a, U64 size, U8 zero, U64 align)
 void *arena_realloc(Arena *a, void *ptr, U64 old_size, U64 new_size)
 {
     if (new_size <= old_size) return ptr;
-    Assert(a);
+    Assert(a, "arena is NULL");
     void *new_ptr = arena_push(a, new_size);
     MemoryCopy(new_ptr, ptr, old_size);
     return new_ptr;
@@ -91,6 +87,7 @@ void *arena_realloc(Arena *a, void *ptr, U64 old_size, U64 new_size)
 
 void arena_pop(Arena *a, U64 pos)
 {
+    Assert(a, "arena is NULL");
     U64 decmt_pos  = MAX(a->min_cmt, AlignOf((U64)a->base + pos, os_info.page_size));
     U64 decmt_size = a->cmt_size - (decmt_pos - (U64)a);
 
@@ -153,28 +150,28 @@ void arena_array_clear(ArenaArray aa)
     }
 }
 
-void arena_db_alloc(ArenaDoubleBuffer *arena, U64 capacity)
-{
-    arena->buffer[0] = arena_alloc(capacity);
-    arena->buffer[1] = arena_alloc(capacity);
-    arena->front     = arena->buffer[0];
-    arena->back      = arena->buffer[1];
-    arena->active    = 0;
-}
-
-void arena_db_switch(ArenaDoubleBuffer *arena)
-{
-    if (arena->active == 1)
-    {
-        arena->front  = arena->buffer[0];
-        arena->back   = arena->buffer[1];
-        arena->active = 0;
-    }
-    else
-    {
-        arena->front  = arena->buffer[1];
-        arena->back   = arena->buffer[0];
-        arena->active = 1;
-    }
-    arena_clear(arena->front);
-}
+// void arena_db_alloc(ArenaDoubleBuffer *arena, U64 capacity)
+// {
+//     arena_alloc(capacity, arena->buffer[0]);
+//     arena_alloc(capacity, arena->buffer[1]);
+//     arena->front  = arena->buffer[0];
+//     arena->back   = arena->buffer[1];
+//     arena->active = 0;
+// }
+//
+// void arena_db_switch(ArenaDoubleBuffer *arena)
+// {
+//     if (arena->active == 1)
+//     {
+//         arena->front  = arena->buffer[0];
+//         arena->back   = arena->buffer[1];
+//         arena->active = 0;
+//     }
+//     else
+//     {
+//         arena->front  = arena->buffer[1];
+//         arena->back   = arena->buffer[0];
+//         arena->active = 1;
+//     }
+//     arena_clear(arena->front);
+// }

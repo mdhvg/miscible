@@ -1,3 +1,5 @@
+#include "config.h"
+
 #define RGBA255(r, g, b, a) ImVec4((r) / 255.0f, (g) / 255.0f, (b) / 255.0f, (a) / 255.0f)
 
 // https://ui.shadcn.com/themes - Rose theme
@@ -125,6 +127,6 @@
 
 // Stupid OKLCH conversion took 3 hours (Only if they posted the OKLCH to RGBA conversion formula online)
 
-#define REM(x)     ((float)(ImGui::GetFontSize() * (x)))
+#define REM(x)     ((float)(mscbl_config.settings.font_size * (x)))
 #define RADIUS(x)  REM(0.625) * (float)(x)
 #define SPACING(x) REM(0.25) * (float)(x)

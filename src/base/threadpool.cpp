@@ -1,93 +1,74 @@
 #include <time.h>
 
 #include "arena.h"
-#include "base/log.h"
-#include "os/os_inc.h"
+#include "base/ringbuf.h"
+// #include "mscbl/task_graph.h"
+// #include "mscbl/tp_task.h"
+#include "os/win32/win32_core.h"
 #include "base/threadpool.h"
 
-static U64 start_t = 0;
+local_v ThreadPool *pool        = NULL;
+local_v Arena *threadpool_arena = NULL;
 
-void threadpool_run_tasks(ThreadPool *pool, Worker *worker)
+ThreadFunc(clear_arena)
 {
-    for (;;)
+    arena_clear(arena);
+}
+
+void threadpool_run_tasks(Worker *worker)
+{
+    if (!pool || !pool->active || !rb_getsize(pool->tasks))
+        return;
+
+    Arena *arena = pool->worker_arena.v[worker->id];
+    // S64 todo       = ins_atomic_u64_inc_eval(&pool->task_done);
+    // AsyncTask task = pool->tasks[todo - 1];
+
+    EnterCriticalSection(&pool->task_mutex);
+    AsyncTask task = rb_pop(pool->tasks);
+    LeaveCriticalSection(&pool->task_mutex);
+
+    task.func(arena, worker->id, task.data);
+
+    if (task.batch_size)
     {
-        S64 task_left = ins_atomic_u64_dec_eval(&pool->task_left);
-
-        if (task_left < 0)
-        {
-            break;
-        }
-
-        Arena *arena = pool->worker_arena.v[worker->id];
-        pool->pool_func(arena, task_left, worker->id, pool->pool_data);
-
-        U64 task_done = ins_atomic_u64_inc_eval(&pool->task_done);
-        pool->busy    = task_done != pool->task_count;
-        if (!pool->busy)
-        {
-            mscbl_log("Elapsed time: %.6f", ((double)(clock() - start_t)) / CLOCKS_PER_SEC);
-            pool->available = 1;
-        }
+        U64 left = ins_atomic_u64_dec_eval(task.batch_size);
+        if (!left)
+            os_semaphore_drop(task.batch_complete);
     }
 }
 
 OS_THREAD_ROUTINE(threadpool_worker)
 {
-    Worker *worker   = (Worker *)data;
-    ThreadPool *pool = worker->pool;
-    for (; pool->active;)
+    Worker *worker = (Worker *)data;
+    for (; pool && pool->active;)
     {
         if (os_semaphore_take(pool->task_semaphore, U64_MAX))
-        {
-            threadpool_run_tasks(pool, worker);
-        }
+            threadpool_run_tasks(worker);
     }
     return 0;
 }
 
-OS_THREAD_ROUTINE(async_worker)
+void threadpool_init(U32 worker_count)
 {
-    Worker *worker   = (Worker *)data;
-    ThreadPool *pool = worker->pool;
-    for (; pool->active;)
-    {
-        if (os_semaphore_take(pool->async_semaphore, U64_MAX))
-        {
-            pool->async_busy = 1;
-            pool->async_func(pool->async_arena, 0, 0, pool->async_data);
-            pool->async_busy = 0;
-        }
-    }
-    return 0;
-}
+    arena_alloc(KB(200), threadpool_arena);
+    pool = push_struct0(threadpool_arena, ThreadPool);
 
-ThreadPool *threadpool_init(Arena *arena, U32 worker_count)
-{
-    Semaphore task_semaphore = {0};
+    pool->active = 1;
 
-    task_semaphore = os_semaphore_alloc(0, S32_MAX);
+    pool->task_semaphore = os_semaphore_alloc(0, S32_MAX);
+    // pool->graph_semaphore = os_semaphore_alloc(0, S32_MAX);
+    InitializeCriticalSection(&pool->task_mutex);
+    pool->tasks = {0};
 
-    ThreadPool *pool = push_struct(arena, ThreadPool);
-    *pool            = {0};
-
-    pool->task_semaphore = task_semaphore;
-    pool->active         = 1;
-    pool->worker_count   = worker_count;
-    pool->worker_array   = push_array(arena, worker_count, Worker);
-    pool->worker_arena   = arena_array_alloc(GB(1), worker_count);
-
-    arena_alloc(GB(1), pool->async_arena);
-    pool->async_worker        = {.id = 0, .pool = pool};
-    pool->async_worker.handle = os_thread_launch(async_worker, &pool->async_worker);
-    pool->async_semaphore     = os_semaphore_alloc(0, S32_MAX);
-
-    pool->available = 1;
+    pool->worker_count = worker_count;
+    pool->worker_array = push_array(threadpool_arena, worker_count, Worker);
+    pool->worker_arena = arena_array_alloc(MB(50), worker_count);
 
     for (U64 i = 0; i < worker_count; i++)
     {
         Worker *worker = &pool->worker_array[i];
         worker->id     = i;
-        worker->pool   = pool;
     }
 
     for (U64 i = 0; i < worker_count; i += 1)
@@ -95,57 +76,44 @@ ThreadPool *threadpool_init(Arena *arena, U32 worker_count)
         Worker *worker = &pool->worker_array[i];
         worker->handle = os_thread_launch(threadpool_worker, worker);
     }
-
-    return pool;
 }
 
-void threadpool_free(ThreadPool *pool)
+void threadpool_enqueue(AsyncTask task)
 {
-    pool->active = 0;
+    EnterCriticalSection(&pool->task_mutex);
+    rb_push(pool->tasks, task);
+    LeaveCriticalSection(&pool->task_mutex);
+
+    os_semaphore_drop(pool->task_semaphore);
+}
+
+void _threadpool_free()
+{
+    (pool)->active = 0;
+
     for (U64 i = 0; i < pool->worker_count; ++i)
-    {
         os_semaphore_drop(pool->task_semaphore);
-    }
     for (U64 i = 1; i < pool->worker_count; i += 1)
-    {
         os_thread_detach(pool->worker_array[i].handle);
-    }
+
     os_semaphore_release(pool->task_semaphore);
+    DeleteCriticalSection(&pool->task_mutex);
     MemoryZeroStruct(pool);
+    pool = NULL;
+    arena_free(threadpool_arena);
 }
+#define threadpool_free() _threadpool_free()
 
-B32 async_job(ThreadPool *pool, thread_func *func, void *data)
+// TODO: This is just a temporary fix. It can fail to clear all thread arenas.
+void threadpool_clear_arenas()
 {
-    if (pool->async_busy)
-        return 0;
-
-    pool->async_func = func;
-    pool->async_data = data;
-    os_semaphore_drop(pool->async_semaphore);
-    return 1;
-}
-
-B32 parallel_for(ThreadPool *pool, U64 task_count, thread_func *func, void *data)
-{
-    start_t = clock();
-    if (task_count <= 0)
-        return 0;
-    if (ins_atomic_u64_eval(&pool->task_done) != pool->task_count)
-        return 0;
-
-    pool->pool_func  = func;
-    pool->pool_data  = data;
-    pool->task_count = task_count;
-    pool->task_done  = 0;
-    pool->available  = 0;
-    pool->busy       = 1;
-    ins_atomic_u64_eval_assign(&pool->task_left, task_count);
-
-    U64 drop_count = MIN(task_count, pool->worker_count);
-
-    for (U64 i = 0; i < drop_count; i++)
-    {
-        os_semaphore_drop(pool->task_semaphore);
-    }
-    return 1;
+    Semaphore batch = os_semaphore_alloc(0, S32_MAX);
+    if (!pool)
+        return;
+    U64 jobs    = pool->worker_count * 2;
+    TPData args = {.kind = TPData_ANY, .any = NULL};
+    for (U64 i = 0; i < pool->worker_count * 2; i++)
+        threadpool_enqueue({clear_arena, args, &jobs, batch});
+    os_semaphore_take(batch, U64_MAX);
+    os_semaphore_drop(batch);
 }

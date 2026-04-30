@@ -1,132 +1,130 @@
 #pragma once
-#include "base/base_core.h"
 #include "base/arena.h"
-
-#define _DynamicArrayHeader_ \
-    struct                   \
-    {                        \
-        U64 size;            \
-        U64 capacity;        \
-    }
-
-#define DynamicArray(T, name) \
-    struct                    \
-    {                         \
-        _DynamicArrayHeader_; \
-        T *v;                 \
-    } name
-
-#define DynamicArray_t(T)     \
-    struct                    \
-    {                         \
-        _DynamicArrayHeader_; \
-        T *v;                 \
-    }
+#include "base/base_core.h"
+#include "os/os_inc.h"
 
 struct ArrayHeader
 {
     S64 size;
-    U64 used;
     U64 capacity;
 };
 
-#define da_getheader(arr) ((arr) ? ((ArrayHeader *)(arr) - 1) : (0))
-#define da_getsize(arr)   ((arr) ? (((ArrayHeader *)(arr) - 1)->size) : (0))
-#define da_getcap(arr)    ((arr) ? (((ArrayHeader *)(arr) - 1)->size) : (0))
-#define da_clear(arr)     da_setsize(arr, 0)
+#define getheader(arr) ((arr) ? ((ArrayHeader *)(arr) - 1) : (0))
 
-#define da_setsize(arr, sz)                            \
-    do                                                 \
-    {                                                  \
-        if (arr)                                       \
-        {                                              \
-            ArrayHeader *h = (ArrayHeader *)(arr) - 1; \
-            h->size        = sz;                       \
-            h->used        = sizeof(arr[0]) * sz;      \
-        }                                              \
+#define da_getsize(arr)   ((arr) ? (getheader(arr)->size) : (0))
+#define da_getcap(arr)    ((arr) ? (getheader(arr)->capacity) : (0))
+#define da_clear(arr)     da_setsize((arr), 0)
+#define da_setsize(arr, sz)                     \
+    do                                          \
+    {                                           \
+        if (arr)                                \
+        {                                       \
+            ArrayHeader *h = getheader(arr); \
+            h->size        = sz;                \
+        }                                       \
     } while (0)
-#define _da_setcap(arena, arr, cap, T)                                                        \
-    do                                                                                        \
-    {                                                                                         \
-        if (!*arr)                                                                            \
-        {                                                                                     \
-            void *base     = arena_push(arena, sizeof(ArrayHeader) + (cap) * sizeof(T));      \
-            ArrayHeader *h = (ArrayHeader *)base;                                             \
-            h->capacity    = (cap) * sizeof(T);                                               \
-            h->size        = 0;                                                               \
-            h->used        = 0;                                                               \
-            *arr           = (T *)(h + 1);                                                    \
-        }                                                                                     \
-        else                                                                                  \
-        {                                                                                     \
-            ArrayHeader *h = (ArrayHeader *)(*arr) - 1;                                       \
-            if (h->capacity < (cap))                                                          \
-            {                                                                                 \
-                void *base      = arena_push(arena, sizeof(ArrayHeader) + (cap) * sizeof(T)); \
-                ArrayHeader *h2 = (ArrayHeader *)base;                                        \
-                MemoryCopy(h2 + 1, *arr, h->used);                                            \
-                h2->capacity = (cap) * sizeof(T);                                             \
-                h2->size     = h->size;                                                       \
-                h2->used     = h->used;                                                       \
-                *arr         = (T *)(h2 + 1);                                                 \
-            }                                                                                 \
-        }                                                                                     \
-    } while (0)
-#define da_setcap(arena, arr, capacity, T) _da_setcap(arena, &arr, capacity, T)
 
-#define _da_push(arena, arr, val, T)                                                 \
-    do                                                                               \
-    {                                                                                \
-        if (!*arr)                                                                   \
-        {                                                                            \
-            void *base      = arena_push(arena, os_info.page_size);                  \
-            ArrayHeader *h0 = (ArrayHeader *)base;                                   \
-            h0->capacity    = os_info.page_size - sizeof(ArrayHeader);               \
-            h0->size        = 0;                                                     \
-            h0->used        = 0;                                                     \
-            *arr            = (T *)(h0 + 1);                                         \
-        }                                                                            \
-        else                                                                         \
-        {                                                                            \
-            ArrayHeader *h0 = (ArrayHeader *)(*arr) - 1;                             \
-            U64 req         = h0->used + sizeof(val);                                \
-            if (h0->capacity < req)                                                  \
-            {                                                                        \
-                U64 capacity = h0->capacity * 2;                                     \
-                if (capacity < req)                                                  \
-                    capacity = req;                                                  \
-                void *base      = arena_push(arena, sizeof(ArrayHeader) + capacity); \
-                ArrayHeader *h1 = (ArrayHeader *)base;                               \
-                T *dest         = (T *)(h1 + 1);                                     \
-                MemoryCopy((U8 *)dest, (U8 *)(*arr), h0->used);                      \
-                h1->capacity = capacity;                                             \
-                h1->size     = h0->size;                                             \
-                h1->used     = h0->used;                                             \
-                *arr         = dest;                                                 \
-            }                                                                        \
-        }                                                                            \
-                                                                                     \
-        ArrayHeader *h    = (ArrayHeader *)(*arr) - 1;                               \
-        (*arr)[h->size++] = val;                                                     \
-        h->used += sizeof(val);                                                      \
-    } while (0)
-#define da_push(arena, arr, val, T) _da_push(arena, &arr, val, T)
+template <typename T>
+void _da_setcap(Arena *arena, T **arr, U64 cap)
+{
+    if (!*arr)
+    {
+        void *base     = arena_push(arena, sizeof(ArrayHeader) + (cap) * sizeof(T));
+        ArrayHeader *h = (ArrayHeader *)base;
+        h->capacity    = cap;
+        h->size        = 0;
+        *arr           = (T *)(h + 1);
+    }
+    else
+    {
+        ArrayHeader *h = getheader(*arr);
+        if (h->capacity < (cap))
+        {
+            void *base      = arena_push(arena, sizeof(ArrayHeader) + (cap) * sizeof(T));
+            ArrayHeader *h2 = (ArrayHeader *)base;
+            MemoryCopy(h2 + 1, *arr, h->size * sizeof(T));
+            h2->size     = h->size;
+            h2->capacity = cap;
+            *arr         = (T *)(h2 + 1);
+        }
+    }
+}
+#define da_setcap(arena, arr, capacity) _da_setcap(arena, &(arr), capacity)
 
-void *dyn_array_grow(Arena *arena, ArrayHeader *header, void *array, U64 item_size, U64 size, B32 clear_to_zero);
+template <typename T>
+void _da_push(Arena *arena, T **arr, T val)
+{
+    if (!*arr)
+    {
+        void *base      = arena_push(arena, os_info.page_size);
+        ArrayHeader *h0 = (ArrayHeader *)base;
+        h0->capacity    = (os_info.page_size - sizeof(ArrayHeader)) / sizeof(T);
+        h0->size        = 0;
+        *arr            = (T *)(h0 + 1);
+    }
+    else
+    {
+        ArrayHeader *h0 = getheader(*arr);
+        U64 req         = h0->size + 1;
+        if (h0->capacity < req)
+        {
+            U64 capacity = h0->capacity * 2;
+            if (capacity < req)
+                capacity = req;
+            void *base      = arena_push(arena, sizeof(ArrayHeader) + capacity * sizeof(T));
+            ArrayHeader *h1 = (ArrayHeader *)base;
+            T *dest         = (T *)(h1 + 1);
+            MemoryCopy((U8 *)dest, (U8 *)(*arr), h0->size * sizeof(T));
+            h1->capacity = capacity;
+            h1->size     = h0->size;
+            *arr         = dest;
+        }
+    }
 
-#define dyn_array_item_size(a)  (sizeof(&(a).v))
-#define dyn_array_get_header(a) ((ArrayHeader *)&(a))
-#define dyn_array_init(a, c, T) {0, c, push_array(a, c, T)}
-#define dyn_array_at(a, i)      ((a).v + (i))
-#define dyn_array_clear(a)      ((a).size = 0)
-#define dyn_array_push(arena, a, value)                                                                                  \
-    (*((void **)&(a).v) = dyn_array_grow((arena), dyn_array_get_header((a)), (a).v, dyn_array_item_size((a)), 1, false), \
-     (a).v[(a).size++]  = (value))
+    ArrayHeader *h    = getheader(*arr);
+    (*arr)[h->size++] = val;
+}
+#define da_push(arena, arr, val) (_da_push(arena, &arr, val), da_getsize(arr) - 1)
 
-#define StaticArray(T, name) \
-    struct                   \
-    {                        \
-        T *v;                \
-        U64 size;            \
-        U64 max;             \
-    } name
+/*******************************************************************************
+* Virtual memory array (VA)
+*******************************************************************************/
+#define va_free(arr) ((arr)                                                        \
+                          ? (os_release(                                           \
+                                getheader(arr),                                 \
+                                sizeof(ArrayHeader) +                              \
+                                    sizeof(arr[0]) * getheader(arr)->capacity)) \
+                          : (0))
+#define va_getcap(arr)  ((arr) ? (getheader(arr)->capacity) : (0))
+#define va_getsize(arr) ((arr) ? (getheader(arr)->size) : (0))
+
+template <typename T>
+void _va_push(T **arr, T val)
+{
+    if (!*arr)
+    {
+        void *base = os_reserve(NULL, MB(10));
+        os_commit(base, os_info.page_size); // Commit 1 page
+        ArrayHeader *h = (ArrayHeader *)base;
+        h->capacity    = (os_info.page_size - sizeof(ArrayHeader)) / sizeof(T);
+        h->size        = 0;
+        *arr           = (T *)(h + 1);
+    }
+    else
+    {
+        ArrayHeader *h0 = getheader(*arr);
+        U64 req         = (h0->size + 1) * sizeof(T);
+        if (h0->capacity * sizeof(T) < req)
+        {
+            U64 capacity = h0->capacity * 2;
+            if (capacity * sizeof(T) < req)
+                capacity = req;
+            os_commit(h0, AlignOf(sizeof(ArrayHeader) + capacity * sizeof(T), os_info.page_size));
+            h0->capacity = capacity;
+        }
+    }
+
+    ArrayHeader *h    = getheader(*arr);
+    (*arr)[h->size++] = val;
+}
+#define va_push(arr, val) (_va_push(&arr, val), va_getsize(arr) - 1)

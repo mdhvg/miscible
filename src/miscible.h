@@ -1,11 +1,3 @@
-#include "base/arena.h"
-#include "base/tree.h"
-#include "scan.h"
-// #include "base/task_runner.h"
-#include "base/threadpool.h"
-#include "os/os_inc.h"
-#include "db/db_helpers.h"
-// #include "Images/dir_walker.h"
-#include "window/window.h"
-#include "ui/ui_core.h"
-// #include "atlas/atlas_render.h"
+#include "base/base_core.h"
+
+MSCBL_API S32 mscbl_start(S32 argc, char **argv);

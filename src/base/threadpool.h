@@ -1,43 +1,65 @@
 #pragma once
 #include "os/os_inc.h"
 #include "base/arena.h"
-#include "base/base_core.h"
+#include "base/ringbuf.h"
 
-#define THREAD_FUNC(name) void name(Arena *arena, U64 n, U64 id, void *data)
-typedef THREAD_FUNC(thread_func);
+#define ThreadFunc(name) void name(Arena *arena, U64 id, struct TPData data)
+typedef ThreadFunc(thread_func);
 
 struct Worker
 {
     U64 id;
-    struct ThreadPool *pool;
     Thread handle;
+};
+
+enum TPData_
+{
+    TPData_ANY,
+    TPData_String,
+    TPData_OSString,
+    TPData_COUNT
+};
+
+struct TPData
+{
+    TPData_ kind;
+    union {
+        void *any;
+        String str;
+        OSString os_str;
+    };
+};
+
+struct AsyncTask
+{
+    thread_func *func;
+    TPData data;
+
+    volatile U64 *batch_size;
+    Semaphore batch_complete;
 };
 
 struct ThreadPool
 {
     B32 active;
-    B32 busy;
 
-    U64 task_count;
-    U64 task_done;
-    S64 task_left;
-    B32 available;
-    U32 worker_count;
     Semaphore task_semaphore;
+    Mutex task_mutex;
+
+    // U64 task_done;
+
+    U32 worker_count;
     Worker *worker_array;
     ArenaArray worker_arena;
-    thread_func *pool_func;
-    void *pool_data;
 
-    Worker async_worker;
-    Arena *async_arena;
-    thread_func *async_func;
-    void *async_data;
-    B32 async_busy;
-    Semaphore async_semaphore;
+    // U64 pop_pos;
+
+    // TaskGraph graph;
+    // Semaphore graph_semaphore;
+    RingBuffer(AsyncTask, tasks, KB(4));
 };
 
-ThreadPool *threadpool_init(Arena *arena, U32 worker_count);
-void threadpool_free(ThreadPool *pool);
-MSCBL_API B32 async_job(ThreadPool *pool, thread_func *func, void *data);
-B32 parallel_for(ThreadPool *pool, U64 task_count, thread_func *func, void *data);
+void threadpool_init(U32 worker_count);
+void threadpool_free();
+void threadpool_clear_arenas();
+MSCBL_API void threadpool_enqueue(AsyncTask task);

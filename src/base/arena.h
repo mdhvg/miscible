@@ -29,13 +29,13 @@ struct Temp
     U64 pos;
 };
 
-struct ArenaDoubleBuffer
-{
-    Arena *buffer[2];
-    Arena *front;
-    Arena *back;
-    U8 active;
-};
+// struct ArenaDoubleBuffer
+// {
+//     Arena *buffer[2];
+//     Arena *front;
+//     Arena *back;
+//     U8 active;
+// };
 
 MSCBL_API Arena *arena_head;
 
@@ -75,12 +75,14 @@ inline void arena_setcmt(Arena *a, U64 cmt)
     a->min_cmt = cmt;
 }
 
-Temp temp_begin(Arena *arena);
-void temp_end(Temp temp);
+MSCBL_API Temp temp_begin(Arena *arena);
+MSCBL_API void temp_end(Temp temp);
 
 ArenaArray arena_array_alloc(U64 capacity, U64 size);
 void arena_array_free(ArenaArray aa);
 void arena_array_clear(ArenaArray aa);
 
-void arena_db_alloc(ArenaDoubleBuffer *arena, U64 capacity);
-void arena_db_switch(ArenaDoubleBuffer *arena);
+#define check_arena(a) ((!a) && (arena_alloc(Glue(a, _DEFAULT), a)))
+
+// void arena_db_alloc(ArenaDoubleBuffer *arena, U64 capacity);
+// void arena_db_switch(ArenaDoubleBuffer *arena);

@@ -60,6 +60,9 @@ TEST_CASE("string_push char")
     string_push(&sb, 'X');
     CHECK(sb.size == 1);
     CHECK(sb.v[0] == 'X');
+    string_pop_to(&sb, 0);
+    string_push(&sb, "がんばてください"); // I know little bit of Hiragana :)
+    CHECK(sb.size > 0);
 }
 
 TEST_CASE("string_push cstr")

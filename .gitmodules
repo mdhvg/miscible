@@ -13,3 +13,6 @@
 [submodule "deps/tinyfiledialogs"]
 	path = deps/tinyfiledialogs
 	url = http://git.code.sf.net/p/tinyfiledialogs/code
+[submodule "deps/libfyaml"]
+	path = deps/libfyaml
+	url = https://github.com/pantoniou/libfyaml
