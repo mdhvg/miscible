@@ -5,6 +5,11 @@
 #include "base/arena.h"
 #include "base/base_core.h"
 
+#include "os/os_inc.cpp"
+#include "base/arena.cpp"
+#include "base/base_core.cpp"
+#include "base/ringbuf.cpp"
+
 Arena *test_arena;
 
 int main(int argc, char **argv)

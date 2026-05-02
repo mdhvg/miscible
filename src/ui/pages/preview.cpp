@@ -1,10 +1,10 @@
 #include "IconsMaterialSymbols.h"
 #include "base/array.h"
-#include "db/db_helpers.h"
 #include "gl/gl_core.h"
+#include "window/window.h"
+#include "db/fetch.h"
 #include "imgui.h"
 
-#include "sqlite3.h"
 #include "ui/components/button.h"
 #include "base/string.h"
 #include "ui/ui_core.h"
@@ -114,18 +114,18 @@ MSCBL_EXP void ui_preview()
 {
     if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
     {
-        ui_state.active = MAX(0, ui_state.active - 1);
+        // ui_state.active = MAX(0, ui_state.active - 1);
     }
     if (ImGui::IsKeyPressed(ImGuiKey_RightArrow))
     {
-        ui_state.active = MIN((S64)ui_state.active + 1, da_getsize(ui_state.images) - 1);
+        // ui_state.active = MIN((S64)ui_state.active + 1, da_getsize(ui_state.images) - 1);
     }
 
-    preview_state.cur = &ui_state.images[ui_state.active];
+    // preview_state.cur = &ui_state.images[ui_state.active];
     if (preview_state.cur->width == 0 || preview_state.cur->height == 0)
     {
-        get_info(preview_state.cur->id, preview_state.cur);
-        gl_make_texture(&preview_state.texture, preview_state.cur->path);
+        // get_info(preview_state.cur->id, preview_state.cur);
+        // gl_make_texture(&preview_state.texture, preview_state.cur->path);
     }
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape))

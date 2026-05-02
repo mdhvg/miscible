@@ -5,7 +5,6 @@ LineEnding: LF
 
 AlignTrailingComments: true
 AlignConsecutiveMacros: true
-AlignConsecutiveAssignments: true
 
 SortIncludes: false
 ReflowComments: false

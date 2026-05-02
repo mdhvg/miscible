@@ -1,6 +1,9 @@
 #pragma once
 #include "base/string.h"
 
+// NOTE: for an os layer to be compatible with this application, it
+// needs implementation for all of this...
+
 #define OS_COMMON         \
     struct                \
     {                     \

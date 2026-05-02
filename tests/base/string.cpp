@@ -1,9 +1,13 @@
+#include <wchar.h>
 #include <string.h>
 
 #include "doctest.h"
 
+#include "base/log.h"
 #include "base/arena.h"
 #include "base/string.h"
+
+#include "base/string.cpp"
 
 extern Arena *test_arena;
 
@@ -12,6 +16,55 @@ TEST_CASE("String empty")
     StringBuilder s = string_empty(test_arena);
     CHECK(s.size == 0);
     CHECK(strcmp(CStrCast(s), "") == 0);
+}
+
+TEST_CASE("String copy")
+{
+    const char *src   = "सत्यमेवजयते";
+    const wchar *wsrc = L"माधव 😊"; // That's my name :)
+    String s1         = string_cpy(test_arena, src);
+    WString s2        = string_cpy(test_arena, wsrc);
+
+    SUBCASE("strlen")
+    {
+        CHECK(strlen(CStrCast(s1)) == s1.size);
+        CHECK(wcslen(WCStrCast(s2)) == s2.size);
+    }
+}
+
+TEST_CASE("String push")
+{
+    StringBuilder s1 = string_empty(test_arena);
+
+    WString p1 = sv(L"The only way");
+    string_push(&s1, p1);
+    string_push(&s1, L' ');
+    string_push(&s1, L"humans have ");
+
+    String p2 = sv("ever figured out");
+    string_push(&s1, p2);
+    string_push(&s1, ' ');
+    string_push(&s1, "of getting somewhere");
+
+    StringBuilder s2 = string_empty(test_arena);
+    string_push(&s2, " ");
+    string_push(&s2, "is to leave something behind");
+
+    string_push(&s1, StringCast(s2));
+
+    const char *res = "The only way humans have ever figured out of getting somewhere is to leave something behind";
+
+    SUBCASE("match")
+    {
+        CHECK(match_front(StringCast(s1), res));
+        CHECK(match_end(StringCast(s1), res));
+    }
+
+    SUBCASE("strlen")
+    {
+        CHECK(strlen(res) == s1.size);
+        CHECK(strlen(CStrCast(s1)) == s1.size);
+    }
 }
 
 TEST_CASE("make_string_cwstr basic")

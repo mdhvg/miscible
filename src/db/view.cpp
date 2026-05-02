@@ -5,6 +5,7 @@
 #include "base/ringbuf.h"
 #include "base/string.h"
 #include "base/threadpool.h"
+#include "ui/ui_core.h"
 
 ViewManager view = {0};
 
@@ -36,22 +37,26 @@ void view_update_search(String query)
         string_assign(sq, query);
 }
 
-void view_push_filters(ViewFilter *filters)
+void view_push_filters(UIFilter *filters)
 {
-    for (ViewFilter *f = filters; f != NULL; f = f->next)
+    for (S64 i = 1; i < da_getsize(filters); i++)
     {
-        ViewFilter f1 = {.type = f->type, .exclude = f->exclude};
-        switch (f->type)
+        UIFilter f0 = filters[i];
+        ViewFilter f1 = {.type = f0.type, .exclude = f0.exclude};
+        switch (f0.type)
         {
-        case FilterType_Path:
-        case FilterType_Filename:
-            f1.val_str = string_cpy(view.state.arena, f->val_str);
+        case FilterType_SizeGreater:
+            f1.val_bytes = f0.val_bytes;
             break;
 
-        case FilterType_SizeGreater:
+        case FilterType_Path:
+        case FilterType_Filename:
+            f1.val_str = string_cpy(view.state.arena, StringCast(f0.val_str));
+            break;
+
         case FilterType_DateCreatedAfter:
         case FilterType_DateModifiedAfter:
-            f1.val_int = f->val_int;
+            f1.val_date = f0.val_date;
             break;
 
         default:
@@ -59,6 +64,11 @@ void view_push_filters(ViewFilter *filters)
         }
         da_push(view.state.arena, view.state.query.filters, f1);
     }
+}
+
+ViewFilter **view_get_filters()
+{
+    return &view.state.query.filters;
 }
 
 SortType view_get_order()
@@ -80,18 +90,18 @@ String *view_serialize_filters(Arena *arena, ViewFilter *filters)
         ViewFilter f0 = filters[i];
         switch (f0.type)
         {
+        case FilterType_SizeGreater:
+            if (!f0.exclude)
+                da_push(arena, f1, sv(" AND size >= ?"));
+            else
+                da_push(arena, f1, sv(" AND size < ?"));
+            break;
         case FilterType_Path:
         case FilterType_Filename:
             da_push(arena, f1, sv(" AND id"));
             if (f0.exclude)
                 da_push(arena, f1, sv(" NOT"));
             da_push(arena, f1, sv(" in (SELECT rowid FROM Image_FTS WHERE Image_FTS MATCH ?)"));
-            break;
-        case FilterType_SizeGreater:
-            if (!f0.exclude)
-                da_push(arena, f1, sv(" AND size >= ?"));
-            else
-                da_push(arena, f1, sv(" AND size < ?"));
             break;
         case FilterType_DateCreatedAfter:
             if (!f0.exclude)
@@ -121,19 +131,28 @@ String *view_serialize_filters(Arena *arena, ViewFilter *filters)
 
 String view_build_query(ViewRequest request)
 {
-    Arena *arena    = request.arena;
+    Arena *arena = request.arena;
     String *queries = NULL;
 
     String *filters = view_serialize_filters(arena, request.query.filters);
 
+    da_push(arena, queries, sv("SELECT id, 0 as source FROM Images WHERE"));
     // TODO: Make code for getting embedding and creating `distance` variable
-    da_push(arena, queries, sv("SELECT id, 0 as source FROM Images WHERE embedding IS NOT NULL"));
+    if (request.query.search_query.size)
+        da_push(arena, queries, sv(" id IN (SELECT rowid FROM Images_FTS WHERE Images_FTS MATCH ?)"));
+    else
+        da_push(arena, queries, sv(" 1=1"));
     for (S64 i = 0; i < da_getsize(filters); i++)
         da_push(arena, queries, filters[i]);
 
-    da_push(arena, queries, sv(" UNION ALL "));
+    da_push(arena, queries, sv(" UNION ALL"));
 
-    da_push(arena, queries, sv("SELECT id, 1 as source FROM Images WHERE id IN (SELECT rowid FROM Images_FTS WHERE Images_FTS MATCH ?)"));
+    da_push(arena, queries, sv(" SELECT id, 1 as source FROM Images WHERE"));
+
+    if (request.query.search_query.size)
+        da_push(arena, queries, sv(" id IN (SELECT rowid FROM Images_FTS WHERE Images_FTS MATCH ?)"));
+    else
+        da_push(arena, queries, sv(" 1=1"));
     for (U32 i = 0; i < da_getsize(filters); i++)
         da_push(arena, queries, filters[i]);
 
@@ -205,7 +224,7 @@ void view_reload()
 }
 
 Arena *view_arena = NULL;
-S64 *view_order   = NULL;
+S64 *view_order = NULL;
 
 DBStmtCbk(push_id)
 {
@@ -218,7 +237,7 @@ void view_fetch()
         arena_alloc(MB(1), view_arena);
     arena_clear(view_arena);
 
-    view_order         = NULL;
+    view_order = NULL;
     sqlite3_stmt *stmt = db_prepare("SELECT id FROM Images ORDER BY path ASC;");
     db_run_stmt(stmt, 1, push_id);
 }
