@@ -12,24 +12,24 @@
 #include "sqlite3.h"
 
 Arena *fetch_arena = NULL;
-Image *images      = NULL;
-Atlas *atlases     = NULL;
-DirTree *dir_tree  = NULL;
+Image *images = NULL;
+Atlas *atlases = NULL;
+DirTree *dir_tree = NULL;
 
 DBStmtCbk(push_image)
 {
-    S64 id        = sqlite3_column_int64(stmt, 0);
-    S64 atlas_id  = sqlite3_column_int64(stmt, 1);
+    S64 id = sqlite3_column_int64(stmt, 0);
+    S64 atlas_id = sqlite3_column_int64(stmt, 1);
     U32 atlas_idx = (U32)sqlite3_column_int(stmt, 2);
     S64 parent_id = sqlite3_column_int64(stmt, 3);
-    S64 root_id   = sqlite3_column_int64(stmt, 4);
+    S64 root_id = sqlite3_column_int64(stmt, 4);
 
     Image img;
-    img.id        = id;
-    img.atlas_id  = atlas_id;
+    img.id = id;
+    img.atlas_id = atlas_id;
     img.atlas_idx = atlas_idx;
     img.parent_id = parent_id;
-    img.root_id   = root_id;
+    img.root_id = root_id;
 
     while (va_getsize(images) < id + 1)
         va_push(images, {0});
@@ -40,7 +40,7 @@ DBStmtCbk(push_image)
 
 DBStmtCbk(push_atlas)
 {
-    S64 id      = sqlite3_column_int64(stmt, 0);
+    S64 id = sqlite3_column_int64(stmt, 0);
     String path = string_cpy(fetch_arena, sqlite3_column_text(stmt, 1));
 
     Atlas atl = {id};
@@ -52,9 +52,9 @@ DBStmtCbk(push_atlas)
         atlases[id] = atl;
 
         gl_args_path *params = push_struct(fetch_arena, gl_args_path);
-        params->texture      = &atlases[id].tex;
-        params->path         = path;
-        TPData args          = {.kind = TPData_ANY, .any = params};
+        params->texture = &atlases[id].tex;
+        params->path = path;
+        TPData args = {.kind = TPData_ANY, .any = params};
         threadpool_enqueue({gl_tex_path, args});
     }
     else
@@ -63,18 +63,18 @@ DBStmtCbk(push_atlas)
 
 DBStmtCbk(push_dirs)
 {
-    S64 id      = sqlite3_column_int64(stmt, 0);
-    U64 level   = (U64)sqlite3_column_int64(stmt, 1);
+    S64 id = sqlite3_column_int64(stmt, 0);
+    U64 level = (U64)sqlite3_column_int64(stmt, 1);
     String name = string_cpy(fetch_arena, sqlite3_column_text(stmt, 2));
 
-    DirTree node   = {id, level, name};
+    DirTree node = {id, level, name};
     DirKey new_idx = va_push(dir_tree, node);
 
     if (new_idx > 1)
     {
         if (sqlite3_column_type(stmt, 3) != SQLITE_NULL)
         {
-            S64 parent_id     = sqlite3_column_int64(stmt, 3);
+            S64 parent_id = sqlite3_column_int64(stmt, 3);
             DirKey parent_idx = 0;
             for (S64 i = 1; i < va_getsize(dir_tree); i++)
             {
@@ -87,7 +87,7 @@ DBStmtCbk(push_dirs)
             Assert(parent_idx, "shouldn't be possible");
 
             DirKey child_idx = dir_tree[parent_idx].child_idx;
-            DirKey last_idx  = child_idx;
+            DirKey last_idx = child_idx;
             if (child_idx)
             {
                 while (dir_tree[last_idx].next_idx)
@@ -112,14 +112,14 @@ DBStmtCbk(push_dirs)
 DBStmtCbk(push_pending)
 {
     String **paths = (String **)data;
-    String path    = string_cpy(arena, sqlite3_column_text(stmt, 0));
+    String path = string_cpy(arena, sqlite3_column_text(stmt, 0));
     da_push(arena, *paths, path);
 }
 
 DBStmtCbk(push_pending16)
 {
     WString **paths = (WString **)data;
-    WString path    = string_cpy(arena, (wchar *)sqlite3_column_text16(stmt, 0));
+    WString path = string_cpy(arena, (wchar *)sqlite3_column_text16(stmt, 0));
     da_push(arena, *paths, path);
 }
 
@@ -145,7 +145,7 @@ void db_fetch_dirtree()
 
 OSString *db_fetch_pending()
 {
-    OSString *paths    = NULL;
+    OSString *paths = NULL;
     sqlite3_stmt *stmt = db_prepare("SELECT path FROM DirSelect WHERE indexed = 0;");
 #if OS_WINDOWS
     db_run_stmt(stmt, 1, push_pending16, &paths, fetch_arena);

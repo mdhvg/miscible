@@ -17,12 +17,12 @@ void _arena_alloc(U64 capacity, Arena **arena)
     U64 cmt_size = os_info.page_size;
     os_commit(base, cmt_size);
 
-    Arena *a    = (Arena *)base;
-    a->base     = (U8 *)(a + 1);
-    a->used     = 0;
-    a->min_use  = 0;
+    Arena *a = (Arena *)base;
+    a->base = (U8 *)(a + 1);
+    a->used = 0;
+    a->min_use = 0;
     a->capacity = capacity;
-    a->min_cmt  = os_info.page_size;
+    a->min_cmt = os_info.page_size;
     a->cmt_size = cmt_size;
 
 #if ARENA_DBG
@@ -51,9 +51,9 @@ void *arena_push(Arena *a, U64 size, U8 zero, U64 align)
         return NULL;
     Assert(a, "arena not allocated");
 
-    align     = MAX(align, 8);
+    align = MAX(align, 8);
     U64 start = AlignOf(((U64)a->base + a->used), align);
-    U64 end   = start + size;
+    U64 end = start + size;
     // NOTE: cmt_size is arena aligned NOT base aligned
     U64 req_size = end - (U64)a;
     U64 cmt_size = AlignOf(req_size, os_info.page_size);
@@ -69,7 +69,7 @@ void *arena_push(Arena *a, U64 size, U8 zero, U64 align)
 
     void *result = (void *)(start);
 
-    a->used     = req_size;
+    a->used = req_size;
     a->cmt_size = cmt_size;
 
     if (zero) MemoryZero(result, size);
@@ -88,7 +88,7 @@ void *arena_realloc(Arena *a, void *ptr, U64 old_size, U64 new_size)
 void arena_pop(Arena *a, U64 pos)
 {
     Assert(a, "arena is NULL");
-    U64 decmt_pos  = MAX(a->min_cmt, AlignOf((U64)a->base + pos, os_info.page_size));
+    U64 decmt_pos = MAX(a->min_cmt, AlignOf((U64)a->base + pos, os_info.page_size));
     U64 decmt_size = a->cmt_size - (decmt_pos - (U64)a);
 
     os_decommit((void *)decmt_pos, decmt_size);
@@ -104,7 +104,7 @@ void arena_free(Arena *a)
 Temp temp_begin(Arena *arena)
 {
     U64 pos = arena_get(arena);
-    Temp t  = {arena, pos};
+    Temp t = {arena, pos};
     return t;
 }
 
@@ -120,8 +120,8 @@ ArenaArray arena_array_alloc(U64 capacity, U64 size)
     arena_alloc(capacity, first);
 
     ArenaArray aa = {0};
-    aa.size       = size;
-    aa.v          = push_array(first, size, Arena *);
+    aa.size = size;
+    aa.v = push_array(first, size, Arena *);
 
     arena_setmin(first, arena_get(first));
 

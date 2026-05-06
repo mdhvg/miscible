@@ -103,6 +103,10 @@ inline String sv(const char *x)
 {
     return string_view_cstr(x);
 }
+inline String sv(const unsigned char *x)
+{
+    return string_view_cstr((char *)x);
+}
 
 MSCBL_API WString string_cpy_wcstr(Arena *arena, const wchar *c);
 MSCBL_API String string_cpy_cstr(Arena *arena, const char *c);

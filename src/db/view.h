@@ -1,7 +1,5 @@
 #pragma once
 #include "base/string.h"
-#include "base/ringbuf.h"
-#include "os/os_inc.h"
 
 enum SortType
 {
@@ -89,30 +87,28 @@ struct ViewFilter
 
 struct ViewQuery
 {
+    Arena *arena;
+    String search_query;
+
     SortType sort_basis;
     B32 descending;
 
     ViewFilter *filters;
-
-    StringBuilder search_query;
 };
 
-struct ViewRequest
+enum Source
 {
-    Arena *arena;
-    ViewQuery query;
-
-    F32 *search_embedding;
-    U32 embedding_dim;
-
-    U32 ticket;
+    Source_None,
+    Source_Embedding,
+    Source_FTS,
+    Source_COUNT
 };
 
 struct ViewResultGroup
 {
-    String title;
     S64 start_index;
     U64 count;
+    Source source;
 };
 
 struct ViewResult
@@ -124,12 +120,7 @@ struct ViewResult
 
 struct ViewManager
 {
-    Mutex queue_mutex;
-    RingBuffer(ViewRequest, request_queue, 16);
-
-    ViewRequest state;
-    U32 ticket_counter;
-
+    ViewQuery state;
     ViewResult main;
     ViewResult back;
 };
@@ -139,10 +130,8 @@ MSCBL_API void view_init();
 MSCBL_API void view_fetch();
 MSCBL_API void view_reload();
 
+MSCBL_API void view_clear_state();
+MSCBL_API void view_set_state(struct UIViewQuery ui_query);
 MSCBL_API void view_update_search(String query);
 MSCBL_API void view_push_filters(struct UIFilter *filters);
 MSCBL_API ViewFilter **view_get_filters();
-
-MSCBL_API SortType view_get_order();
-MSCBL_API void view_set_order(SortType sort);
-// MSCBL_API void view_set_order(ViewOrder order);

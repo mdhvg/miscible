@@ -16,7 +16,7 @@ extern int init_sqlite(sqlite3 *db, char **error_message, sqlite3_api_routines c
 DB_CALLBACK(get_count)
 {
     U64 *count = (U64 *)data;
-    *count     = strtoull(argv[0], NULL, 10);
+    *count = strtoull(argv[0], NULL, 10);
     return 0;
 }
 
@@ -33,7 +33,7 @@ DBStmtCbk(get_id)
 U64 get_count(const char *query)
 {
     sqlite3_stmt *stmt = db_prepare(query);
-    U64 result         = 0;
+    U64 result = 0;
     db_run_stmt(stmt, 1, get_count, &result);
     return result;
 }
@@ -75,7 +75,7 @@ sqlite3_stmt *db_prepare(const char *sql)
     db_cv.wait(lock, []() { return db_initialized; });
 
     sqlite3_stmt *stmt = NULL;
-    const char *err    = NULL;
+    const char *err = NULL;
     if (sqlite3_prepare_v2(dbP, sql, -1, &stmt, &err) != SQLITE_OK)
     {
         Assert(0, "%s\n%s", (err ? err : "Unknown error"), sql);
@@ -104,6 +104,19 @@ U64 db_run_stmt(sqlite3_stmt *stmt, U8 finalize, DBStCbk callback, void *data, A
     return rows;
 }
 
+int trace_callback(unsigned int type, void *context, void *p, void *x)
+{
+    if (type == SQLITE_TRACE_STMT)
+    {
+        sqlite3_stmt *stmt = (sqlite3_stmt *)p;
+        char *sql = sqlite3_expanded_sql(stmt);
+        mscbl_log_dbg("STMT: %s", sql);
+        sqlite3_free(sql);
+    }
+
+    return SQLITE_OK;
+}
+
 void db_init(String path, const char *command)
 {
     std::unique_lock<std::mutex> lock(db_mutex);
@@ -111,6 +124,7 @@ void db_init(String path, const char *command)
     char *err = NULL;
     Assert(init_sqlite(dbP, &err, NULL) == SQLITE_OK, "%s", err);
     _db_run_bypass(command, true);
+    sqlite3_trace_v2(dbP, SQLITE_TRACE_STMT, trace_callback, NULL);
     db_initialized = true;
     db_cv.notify_all();
 }

@@ -316,8 +316,8 @@ void search()
 
     // ImGui::SetCursorPos({pos.x + SPACING(2), pos.y + SPACING(2)});
 
-    StringBuilder *buf_p = &ui_state.filter_list.search_query;
-    do_search |= (ImGui::InputTextWithHint("##Search", "Search term", CStrCast(ui_state.filter_list.search_query), 4096, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackEdit, text_callback, &buf_p) ? 1 : 0);
+    StringBuilder *buf_p = &ui_state.view_query.search_query;
+    do_search |= (ImGui::InputTextWithHint("##Search", "Search term", CStrCast(ui_state.view_query.search_query), 4096, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackEdit, text_callback, &buf_p) ? 1 : 0);
 
     ImGui::SameLine();
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + SPACING(1));
@@ -326,11 +326,8 @@ void search()
 
     if (do_search)
     {
-        view_update_search(StringCast(ui_state.filter_list.search_query));
-
-        // TODO: Temp only
-        view_push_filters(ui_state.filter_list.filters);
-
+        view_clear_state();
+        view_set_state(ui_state.view_query);
         view_reload();
     }
 }
@@ -342,8 +339,8 @@ void sort_controls()
         for (S32 n = 0; n < StaticArrSize(sort_options); n++)
         {
             if (ImGui::Selectable(sort_options[n].text, 1))
-                view_set_order(sort_options[n].kind);
-            if (sort_options[n].kind == view_get_order())
+                ui_state.view_query.sort_basis = (SortType)n;
+            if (sort_options[n].kind == ui_state.view_query.sort_basis)
                 ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
@@ -421,9 +418,9 @@ void filters()
     if (ImGui::Button(ICON_MS_FILTER_LIST))
     {
         U64 f1 = 0;
-        for (U32 i = 1; i < da_getsize(ui_state.filter_list.filters); i++)
+        for (U32 i = 1; i < da_getsize(ui_state.view_query.filters); i++)
         {
-            if (!ui_state.filter_list.filters[i].active)
+            if (!ui_state.view_query.filters[i].active)
             {
                 f1 = i;
                 break;
@@ -431,20 +428,20 @@ void filters()
         }
         if (f1 == 0)
         {
-            da_push(ui_state.filter_list.arena, ui_state.filter_list.filters, {0});
-            f1 = da_getsize(ui_state.filter_list.filters) - 1;
+            da_push(ui_state.view_query.arena, ui_state.view_query.filters, {0});
+            f1 = da_getsize(ui_state.view_query.filters) - 1;
         }
-        ui_state.filter_list.filters[f1] = {.active = 1, .next = 0, .type = FilterType_SizeGreater};
-        ui_state.filter_list.filters[ui_state.filter_list.last].next = f1;
-        ui_state.filter_list.last = f1;
+        ui_state.view_query.filters[f1] = {.active = 1, .next = 0, .type = FilterType_SizeGreater};
+        ui_state.view_query.filters[ui_state.view_query.last].next = f1;
+        ui_state.view_query.last = f1;
     }
 
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
 
-    for (S64 fl = 1; fl != 0; fl = ui_state.filter_list.filters[fl].next)
+    for (S64 fl = 1; fl != 0; fl = ui_state.view_query.filters[fl].next)
     {
         // ImGui::SameLine(0, 10.0f);
-        UIFilter *filters = ui_state.filter_list.filters;
+        UIFilter *filters = ui_state.view_query.filters;
         if (!filters[fl].active)
             continue;
 
@@ -467,11 +464,11 @@ void filters()
                         break;
                     case FilterType_Path:
                     case FilterType_Filename:
-                        filters[fl].val_str = string_empty(ui_state.filter_list.arena, 4096);
+                        filters[fl].val_str = string_empty(ui_state.view_query.arena, 4096);
                         break;
                     case FilterType_DateCreatedAfter:
                     case FilterType_DateModifiedAfter:
-                        filters[fl].val_date = {1, Jan, 2000};
+                        filters[fl].val_date = {22, Apr, 2025};
                         break;
                     default: break;
                     }
@@ -486,13 +483,12 @@ void filters()
 
         ImGui::SameLine();
 
-        StringBuilder buf = filters[fl].val_str;
-        StringBuilder *buf_p = &buf;
+        StringBuilder *buf_p = &filters[fl].val_str;
         switch (filters[fl].type)
         {
         case FilterType_Path:
         case FilterType_Filename:
-            ImGui::InputTextMultiline("##Input", CStrCast(buf), KB(4), {320, 30}, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_WordWrap | ImGuiInputTextFlags_EscapeClearsAll | ImGuiInputTextFlags_CtrlEnterForNewLine, text_callback, &buf_p);
+            ImGui::InputTextMultiline("##Input", CStrCast(filters[fl].val_str), KB(4), {320, 30}, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_WordWrap | ImGuiInputTextFlags_EscapeClearsAll | ImGuiInputTextFlags_CtrlEnterForNewLine, text_callback, &buf_p);
             break;
         case FilterType_SizeGreater:
             input_bytesize(&filters[fl].val_bytes);

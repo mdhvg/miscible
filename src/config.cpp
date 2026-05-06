@@ -10,8 +10,8 @@ Arena *config_arena = NULL;
 
 void default_config()
 {
-    Settings def   = {0};
-    def.font_size  = 16.0f;
+    Settings def = {0};
+    def.font_size = 16.0f;
     def.scan_depth = 15;
 
     mscbl_config.settings = def;

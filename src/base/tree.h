@@ -54,7 +54,7 @@ struct Tree
     local_v T##_Node *T##_tree_node(Arena *a, T v)                                      \
     {                                                                                   \
         T##_Node *n = push_struct0(a, T##_Node);                                        \
-        n->v        = v;                                                                \
+        n->v = v;                                                                       \
         return n;                                                                       \
     }                                                                                   \
                                                                                         \
@@ -64,7 +64,7 @@ struct Tree
         T##_Node *par = NULL;                                                           \
         while (cur)                                                                     \
         {                                                                               \
-            par     = cur;                                                              \
+            par = cur;                                                                  \
             S64 res = cmp(&n->v, &cur->v);                                              \
             if (res == 0) { return cur; }                                               \
             else if (res > 0)                                                           \
@@ -77,7 +77,7 @@ struct Tree
             }                                                                           \
         }                                                                               \
         n->parent = par;                                                                \
-        n->color  = NODE_RED;                                                           \
+        n->color = NODE_RED;                                                            \
         if (!par)                                                                       \
         {                                                                               \
             t->root = n;                                                                \

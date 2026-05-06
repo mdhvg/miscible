@@ -45,7 +45,7 @@ void string_growto(StringBuilder *base, U64 reqcap)
     U8 *buffer = push_array(base->arena, cap + 1, U8);
     if (base->v)
         MemoryCopy(buffer, base->v, base->size);
-    base->v        = buffer;
+    base->v = buffer;
     base->capacity = cap;
 }
 
@@ -103,8 +103,8 @@ U8 utf8_class[32] = {
 UnicodeDecode utf8_decode(U8 *str, U64 max)
 {
     UnicodeDecode result = {1, UTF_INVALID};
-    U8 byte              = str[0];
-    U8 byte_class        = utf8_class[byte >> 3];
+    U8 byte = str[0];
+    U8 byte_class = utf8_class[byte >> 3];
 
     switch (byte_class)
     {
@@ -171,10 +171,10 @@ U64 utf16_encode(U16 *str, U32 codepoint)
     }
     else
     {
-        U32 v  = codepoint - 0x10000;
+        U32 v = codepoint - 0x10000;
         str[0] = (U16)(0xd800 + (v >> 10));
         str[1] = (U16)(0xdc00 + (v & 0x3ff));
-        inc    = 2;
+        inc = 2;
     }
     return inc;
 }
@@ -182,12 +182,12 @@ U64 utf16_encode(U16 *str, U32 codepoint)
 UnicodeDecode utf16_decode(U16 *str, U64 max)
 {
     UnicodeDecode decode = {1, UTF_INVALID};
-    decode.codepoint     = str[0];
-    decode.size          = 1;
+    decode.codepoint = str[0];
+    decode.size = 1;
     if (max > 1 && str[0] >= 0xD800 && str[0] < 0xDC00 && 0xDC00 <= str[1] && str[1] <= 0xDFFF)
     {
         decode.codepoint = ((str[0] & 0x3FF) << 10) | (str[1] & 0x3FF) + 0x10000;
-        decode.size      = 2;
+        decode.size = 2;
     }
     return decode;
 }
@@ -337,12 +337,10 @@ U64 string_push_cstr(StringBuilder *base, const char *push)
 
 U64 string_assign_string(StringBuilder *base, String push)
 {
-    if (!push.size)
-        return 0;
     string_pop_to(base, 0);
     string_growto(base, push.size);
     MemoryCopy(base->v, push.v, push.size);
-    base->size          = push.size;
+    base->size = push.size;
     base->v[base->size] = 0;
     return base->size;
 }
@@ -372,7 +370,7 @@ WString string_cpy_wcstr(Arena *arena, const wchar *c)
     StringBuilder b = {.arena = arena};
     string_growby(&b, (len + 1) * sizeof(wchar));
     MemoryCopy(b.v, c, len * sizeof(wchar));
-    b.size               = len;
+    b.size = len;
     ((U16 *)b.v)[b.size] = 0;
 
     return WStringCast(b);
@@ -387,7 +385,7 @@ String string_cpy_cstr(Arena *arena, const char *c)
     StringBuilder b = {.arena = arena};
     string_growby(&b, len + 1);
     MemoryCopy(b.v, c, len);
-    b.size      = len;
+    b.size = len;
     b.v[b.size] = 0;
     return StringCast(b);
 }
@@ -397,7 +395,7 @@ WString string_cpy_wstr(Arena *arena, WString c)
     StringBuilder b = {.arena = arena};
     string_growby(&b, (c.size + 1) * sizeof(wchar));
     MemoryCopy(b.v, c.v, c.size * sizeof(wchar));
-    b.size               = c.size;
+    b.size = c.size;
     ((U16 *)b.v)[b.size] = 0;
     return WStringCast(b);
 }
@@ -407,7 +405,7 @@ String string_cpy_str(Arena *arena, String s)
     StringBuilder b = {.arena = arena};
     string_growby(&b, s.size + 1);
     MemoryCopy(b.v, s.v, s.size);
-    b.size      = s.size;
+    b.size = s.size;
     b.v[b.size] = 0;
     return StringCast(b);
 }
@@ -421,7 +419,7 @@ StringBuilder string_empty(Arena *arena, U64 size)
 
 void string_pop_to(StringBuilder *base, U64 size)
 {
-    base->size    = size;
+    base->size = size;
     base->v[size] = 0;
 }
 
@@ -496,7 +494,7 @@ void string_formatv(StringBuilder *base, const char *fmt, va_list args)
     string_clear(*base);
     string_growto(base, size);
 
-    base->size    = vsnprintf((char *)base->v, size, fmt, args);
+    base->size = vsnprintf((char *)base->v, size, fmt, args);
     base->v[size] = 0;
 
     va_end(args2);
@@ -511,7 +509,7 @@ WString string_formatw(StringBuilder *base, const wchar *fmt, ...)
     string_clear(*base);
     string_growto(base, size * sizeof(wchar));
 
-    base->size                    = vswprintf((wchar *)base->v, size, fmt, args);
+    base->size = vswprintf((wchar *)base->v, size, fmt, args);
     base->v[size * sizeof(wchar)] = 0;
     va_end(args);
 
@@ -572,7 +570,7 @@ S64 string_rfind_wstr(WString s, wchar f)
 
 U64 string_replace_string(StringBuilder *base, String find, String replace, U64 count)
 {
-    U64 replaced  = 0;
+    U64 replaced = 0;
     U64 instances = 0;
 
     if (find.size == replace.size)
@@ -697,7 +695,7 @@ RES:
 U64 string_replace_wstring(WString base, WString find, WString replace, U64 count)
 {
     Assert(find.size == replace.size, "find and replace size should be same for string view replace");
-    U64 replaced  = 0;
+    U64 replaced = 0;
     U64 instances = 0;
 
     for (U64 i = 0; i < base.size - find.size + 1;)

@@ -6,7 +6,6 @@
 #include <stdlib.h>
 
 #include <algorithm>
-#include <cassert>
 #include <cmath>
 #include <regex>
 #include <vector>
@@ -19,7 +18,8 @@
 #include "gguf.h"
 #include "inference/clip.h"
 #include "base/base_core.h"
-#include "scan.h"
+#include "base/log.h"
+#include "scan/scan.h"
 
 //
 // key constants
@@ -72,7 +72,7 @@
 int get_key_idx(const gguf_context *ctx, const char *key)
 {
     int i = gguf_find_key(ctx, key);
-    Assert(i != -1);
+    Assert(i != -1, "key not found");
     return i;
 }
 
@@ -93,12 +93,7 @@ float get_f32(const gguf_context *ctx, std::string key)
 ggml_tensor *get_tensor(ggml_context *ctx, std::string name)
 {
     ggml_tensor *cur = ggml_get_tensor(ctx, name.c_str());
-    if (!cur)
-    {
-        printf("unable to find tensor %s\n", name.c_str());
-        Assert(0);
-    }
-
+    Assert(cur, "unable to find tensor %s", name.c_str());
     return cur;
 }
 
@@ -128,8 +123,7 @@ const char *get_ftype(int ftype)
         return "q8_0";
         break;
     default:
-        printf("Unrecognized file type: %d\n", ftype);
-        Assert(0);
+        Assert(0, "Unrecognized file type: %d\n", ftype);
         return NULL;
     }
 }
@@ -137,22 +131,22 @@ const char *get_ftype(int ftype)
 // read and create ggml_context containing the tensors and their data
 void clip_model_load(Arena *arena, clip_ctx *clip, const char *fname)
 {
-    ggml_context *temp_ctx  = NULL;
+    ggml_context *temp_ctx = NULL;
     gguf_init_params params = {
         false,
         &temp_ctx,
     };
 
     gguf_context *gguf_ctx = gguf_init_from_file(fname, params);
-    Assert(gguf_ctx);
+    Assert(gguf_ctx, "gguf_ctx is NULL");
 
-    int n_tensors           = gguf_get_n_tensors(gguf_ctx);
-    int n_kv                = gguf_get_n_kv(gguf_ctx);
-    int ftype               = get_u32(gguf_ctx, KEY_FTYPE);
-    const char *ftype_str   = get_ftype(ftype);
-    int idx_desc            = get_key_idx(gguf_ctx, KEY_DESCRIPTION);
+    int n_tensors = gguf_get_n_tensors(gguf_ctx);
+    int n_kv = gguf_get_n_kv(gguf_ctx);
+    int ftype = get_u32(gguf_ctx, KEY_FTYPE);
+    const char *ftype_str = get_ftype(ftype);
+    int idx_desc = get_key_idx(gguf_ctx, KEY_DESCRIPTION);
     const char *description = gguf_get_val_str(gguf_ctx, idx_desc);
-    int idx_name            = gguf_find_key(gguf_ctx, KEY_NAME);
+    int idx_name = gguf_find_key(gguf_ctx, KEY_NAME);
     if (idx_name != -1)
     {
         const char *name = gguf_get_val_str(gguf_ctx, idx_name);
@@ -183,31 +177,31 @@ void clip_model_load(Arena *arena, clip_ctx *clip, const char *fname)
     {
         for (int i = 0; i < n_tensors; ++i)
         {
-            const char *name    = gguf_get_tensor_name(gguf_ctx, i);
+            const char *name = gguf_get_tensor_name(gguf_ctx, i);
             const size_t offset = gguf_get_tensor_offset(gguf_ctx, i);
 
             printf("%s: tensor[%d]: name = %s, offset=%zu\n", __func__, i, name, offset);
         }
     }
 
-    U64 mem_size     = ggml_tensor_overhead() * n_tensors;
-    void *mem_buffer = arena_push(model_arena, mem_size, 0, GGML_MEM_ALIGN);
+    U64 mem_size = ggml_tensor_overhead() * n_tensors;
+    void *mem_buffer = arena_push(arena, mem_size, 0, GGML_MEM_ALIGN);
 
     ggml_init_params model_ctx_params = {mem_size, mem_buffer, true};
-    ggml_context *model_ctx           = ggml_init(model_ctx_params);
+    ggml_context *model_ctx = ggml_init(model_ctx_params);
 
     clip->backend = ggml_backend_init_best();
-    Assert(clip->backend);
+    Assert(clip->backend, "ggml_backend_init_best failed");
 
     // model size and capabilities
     {
-        int idx                = get_key_idx(gguf_ctx, KEY_HAS_TEXT_ENC);
+        int idx = get_key_idx(gguf_ctx, KEY_HAS_TEXT_ENC);
         clip->has_text_encoder = gguf_get_val_bool(gguf_ctx, idx);
 
-        idx                      = get_key_idx(gguf_ctx, KEY_HAS_VIS_ENC);
+        idx = get_key_idx(gguf_ctx, KEY_HAS_VIS_ENC);
         clip->has_vision_encoder = gguf_get_val_bool(gguf_ctx, idx);
 
-        idx            = get_key_idx(gguf_ctx, KEY_USE_GELU);
+        idx = get_key_idx(gguf_ctx, KEY_USE_GELU);
         clip->use_gelu = gguf_get_val_bool(gguf_ctx, idx);
 
         printf("%s: text_encoder:   %d\n", __func__, clip->has_text_encoder);
@@ -218,7 +212,7 @@ void clip_model_load(Arena *arena, clip_ctx *clip, const char *fname)
 
     // load tensors
     {
-        Assert(model_ctx);
+        Assert(model_ctx, "model_ctx is NULL");
         // if (!model_ctx)
         // {
         // 	fprintf(stderr, "%s: ggml_init() failed\n", __func__);
@@ -237,7 +231,7 @@ void clip_model_load(Arena *arena, clip_ctx *clip, const char *fname)
         for (ggml_tensor *cur = ggml_get_first_tensor(model_ctx); cur != NULL; cur = ggml_get_next_tensor(model_ctx, cur))
         {
             ggml_tensor *src = ggml_get_tensor(temp_ctx, ggml_get_name(cur));
-            size_t n_size    = ggml_nbytes(src);
+            size_t n_size = ggml_nbytes(src);
             ggml_backend_tensor_set(cur, ggml_get_data(src), 0, n_size);
         }
     }
@@ -246,32 +240,31 @@ void clip_model_load(Arena *arena, clip_ctx *clip, const char *fname)
     printf("Used mem: %zu\n", ggml_used_mem(temp_ctx));
     printf("Backend Size: %zu\n", ggml_backend_buffer_get_size(clip->backend_buf));
 
-    Temp scratch       = temp_begin(arena);
-    StringBuilder keys = string_empty(scratch.arena, 512);
+    StringBuilder keys = string_empty(arena, 512);
 
     // text model
     if (clip->has_text_encoder)
     {
         // load text model
         clip_text_model *text_model = &clip->text_model;
-        clip_text_hparams *hparams  = &text_model->hparams;
-        hparams->hidden_size        = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_EMBD, "text"));
-        hparams->n_head             = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_HEAD, "text"));
-        hparams->n_intermediate     = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_FF, "text"));
-        hparams->n_layer            = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_BLOCK, "text"));
-        hparams->num_positions      = get_u32(gguf_ctx, KEY_N_POSITIONS);
-        hparams->projection_dim     = get_u32(gguf_ctx, format_cstr(&keys, KEY_PROJ_DIM, "text"));
-        hparams->eps                = get_f32(gguf_ctx, format_cstr(&keys, KEY_LAYER_NORM_EPS, "text"));
+        clip_text_hparams *hparams = &text_model->hparams;
+        hparams->hidden_size = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_EMBD, "text"));
+        hparams->n_head = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_HEAD, "text"));
+        hparams->n_intermediate = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_FF, "text"));
+        hparams->n_layer = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_BLOCK, "text"));
+        hparams->num_positions = get_u32(gguf_ctx, KEY_N_POSITIONS);
+        hparams->projection_dim = get_u32(gguf_ctx, format_cstr(&keys, KEY_PROJ_DIM, "text"));
+        hparams->eps = get_f32(gguf_ctx, format_cstr(&keys, KEY_LAYER_NORM_EPS, "text"));
 
         const int idx_tokens = get_key_idx(gguf_ctx, KEY_TOKENS);
-        hparams->n_vocab     = gguf_get_arr_n(gguf_ctx, idx_tokens);
-        clip_vocab *vocab    = &clip->vocab;
+        hparams->n_vocab = gguf_get_arr_n(gguf_ctx, idx_tokens);
+        clip_vocab *vocab = &clip->vocab;
         new (&clip->vocab) clip_vocab();
 
         for (S32 id = 0; id < hparams->n_vocab; ++id)
         {
-            const char *token         = gguf_get_arr_str(gguf_ctx, idx_tokens, id);
-            vocab->id_to_token[id]    = token;
+            const char *token = gguf_get_arr_str(gguf_ctx, idx_tokens, id);
+            vocab->id_to_token[id] = token;
             vocab->token_to_id[token] = id;
         }
 
@@ -284,32 +277,32 @@ void clip_model_load(Arena *arena, clip_ctx *clip, const char *fname)
         printf("t_n_head           %d\n", hparams->n_head);
         printf("t_n_layer          %d\n", hparams->n_layer);
 
-        text_model->token_embeddings    = get_tensor(model_ctx, format_cstr(&keys, TN_TOKEN_EMBD, "t"));
+        text_model->token_embeddings = get_tensor(model_ctx, format_cstr(&keys, TN_TOKEN_EMBD, "t"));
         text_model->position_embeddings = get_tensor(model_ctx, format_cstr(&keys, TN_POS_EMBD, "t"));
-        text_model->post_ln_w           = get_tensor(model_ctx, format_cstr(&keys, TN_LN_POST, "t", "weight"));
-        text_model->post_ln_b           = get_tensor(model_ctx, format_cstr(&keys, TN_LN_POST, "t", "bias"));
-        text_model->projection          = get_tensor(model_ctx, TN_TEXT_PROJ);
+        text_model->post_ln_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_POST, "t", "weight"));
+        text_model->post_ln_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_POST, "t", "bias"));
+        text_model->projection = get_tensor(model_ctx, TN_TEXT_PROJ);
 
-        text_model->layers = push_array(model_arena, hparams->n_layer, clip_layer);
+        text_model->layers = push_array(arena, hparams->n_layer, clip_layer);
         for (S32 il = 0; il < hparams->n_layer; ++il)
         {
             clip_layer *layer = text_model->layers + il;
-            layer->k_w        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_K, "t", il, "weight"));
-            layer->q_w        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_Q, "t", il, "weight"));
-            layer->v_w        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_V, "t", il, "weight"));
-            layer->o_w        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_OUTPUT, "t", il, "weight"));
-            layer->ln_1_w     = get_tensor(model_ctx, format_cstr(&keys, TN_LN_1, "t", il, "weight"));
-            layer->ln_2_w     = get_tensor(model_ctx, format_cstr(&keys, TN_LN_2, "t", il, "weight"));
-            layer->ff_i_w     = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_DOWN, "t", il, "weight"));
-            layer->ff_o_w     = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "t", il, "weight"));
-            layer->k_b        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_K, "t", il, "bias"));
-            layer->q_b        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_Q, "t", il, "bias"));
-            layer->v_b        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_V, "t", il, "bias"));
-            layer->o_b        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_OUTPUT, "t", il, "bias"));
-            layer->ln_1_b     = get_tensor(model_ctx, format_cstr(&keys, TN_LN_1, "t", il, "bias"));
-            layer->ln_2_b     = get_tensor(model_ctx, format_cstr(&keys, TN_LN_2, "t", il, "bias"));
-            layer->ff_i_b     = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_DOWN, "t", il, "bias"));
-            layer->ff_o_b     = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "t", il, "bias"));
+            layer->k_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_K, "t", il, "weight"));
+            layer->q_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_Q, "t", il, "weight"));
+            layer->v_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_V, "t", il, "weight"));
+            layer->o_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_OUTPUT, "t", il, "weight"));
+            layer->ln_1_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_1, "t", il, "weight"));
+            layer->ln_2_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_2, "t", il, "weight"));
+            layer->ff_i_w = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_DOWN, "t", il, "weight"));
+            layer->ff_o_w = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "t", il, "weight"));
+            layer->k_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_K, "t", il, "bias"));
+            layer->q_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_Q, "t", il, "bias"));
+            layer->v_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_V, "t", il, "bias"));
+            layer->o_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_OUTPUT, "t", il, "bias"));
+            layer->ln_1_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_1, "t", il, "bias"));
+            layer->ln_2_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_2, "t", il, "bias"));
+            layer->ff_i_b = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_DOWN, "t", il, "bias"));
+            layer->ff_o_b = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "t", il, "bias"));
         }
     }
 
@@ -320,21 +313,21 @@ void clip_model_load(Arena *arena, clip_ctx *clip, const char *fname)
         clip_vision_model *vision_model = &clip->vision_model;
 
         clip_vision_hparams *hparams = &vision_model->hparams;
-        hparams->hidden_size         = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_EMBD, "vision"));
-        hparams->n_head              = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_HEAD, "vision"));
-        hparams->n_intermediate      = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_FF, "vision"));
-        hparams->n_layer             = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_BLOCK, "vision"));
-        hparams->image_size          = get_u32(gguf_ctx, KEY_IMAGE_SIZE);
-        hparams->patch_size          = get_u32(gguf_ctx, KEY_PATCH_SIZE);
-        hparams->projection_dim      = get_u32(gguf_ctx, format_cstr(&keys, KEY_PROJ_DIM, "vision"));
-        hparams->eps                 = get_f32(gguf_ctx, format_cstr(&keys, KEY_LAYER_NORM_EPS, "vision"));
+        hparams->hidden_size = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_EMBD, "vision"));
+        hparams->n_head = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_HEAD, "vision"));
+        hparams->n_intermediate = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_FF, "vision"));
+        hparams->n_layer = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_BLOCK, "vision"));
+        hparams->image_size = get_u32(gguf_ctx, KEY_IMAGE_SIZE);
+        hparams->patch_size = get_u32(gguf_ctx, KEY_PATCH_SIZE);
+        hparams->projection_dim = get_u32(gguf_ctx, format_cstr(&keys, KEY_PROJ_DIM, "vision"));
+        hparams->eps = get_f32(gguf_ctx, format_cstr(&keys, KEY_LAYER_NORM_EPS, "vision"));
 
         S32 idx_mean = get_key_idx(gguf_ctx, KEY_IMAGE_MEAN);
-        S32 idx_std  = get_key_idx(gguf_ctx, KEY_IMAGE_STD);
+        S32 idx_std = get_key_idx(gguf_ctx, KEY_IMAGE_STD);
         for (S32 i = 0; i < 3; ++i)
         {
             clip->image_mean[i] = ((F32 *)gguf_get_arr_data(gguf_ctx, idx_mean))[i];
-            clip->image_std[i]  = ((F32 *)gguf_get_arr_data(gguf_ctx, idx_std))[i];
+            clip->image_std[i] = ((F32 *)gguf_get_arr_data(gguf_ctx, idx_std))[i];
         }
 
         printf("\n%s: vision model hparams\n", __func__);
@@ -346,39 +339,37 @@ void clip_model_load(Arena *arena, clip_ctx *clip, const char *fname)
         printf("v_n_head           %d\n", hparams->n_head);
         printf("v_n_layer          %d\n", hparams->n_layer);
 
-        vision_model->patch_embeddings    = get_tensor(model_ctx, TN_PATCH_EMBD);
-        vision_model->class_embedding     = get_tensor(model_ctx, TN_CLASS_EMBD);
+        vision_model->patch_embeddings = get_tensor(model_ctx, TN_PATCH_EMBD);
+        vision_model->class_embedding = get_tensor(model_ctx, TN_CLASS_EMBD);
         vision_model->position_embeddings = get_tensor(model_ctx, format_cstr(&keys, TN_POS_EMBD, "v"));
-        vision_model->pre_ln_w            = get_tensor(model_ctx, format_cstr(&keys, TN_LN_PRE, "v", "weight"));
-        vision_model->pre_ln_b            = get_tensor(model_ctx, format_cstr(&keys, TN_LN_PRE, "v", "bias"));
-        vision_model->post_ln_w           = get_tensor(model_ctx, format_cstr(&keys, TN_LN_POST, "v", "weight"));
-        vision_model->post_ln_b           = get_tensor(model_ctx, format_cstr(&keys, TN_LN_POST, "v", "bias"));
-        vision_model->projection          = get_tensor(model_ctx, TN_VIS_PROJ);
+        vision_model->pre_ln_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_PRE, "v", "weight"));
+        vision_model->pre_ln_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_PRE, "v", "bias"));
+        vision_model->post_ln_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_POST, "v", "weight"));
+        vision_model->post_ln_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_POST, "v", "bias"));
+        vision_model->projection = get_tensor(model_ctx, TN_VIS_PROJ);
 
-        vision_model->layers = push_array(model_arena, hparams->n_layer, clip_layer);
+        vision_model->layers = push_array(arena, hparams->n_layer, clip_layer);
         for (S32 il = 0; il < hparams->n_layer; ++il)
         {
             clip_layer *layer = vision_model->layers + il;
-            layer->k_w        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_K, "v", il, "weight"));
-            layer->q_w        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_Q, "v", il, "weight"));
-            layer->v_w        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_V, "v", il, "weight"));
-            layer->o_w        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_OUTPUT, "v", il, "weight"));
-            layer->ln_1_w     = get_tensor(model_ctx, format_cstr(&keys, TN_LN_1, "v", il, "weight"));
-            layer->ln_2_w     = get_tensor(model_ctx, format_cstr(&keys, TN_LN_2, "v", il, "weight"));
-            layer->ff_i_w     = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_DOWN, "v", il, "weight"));
-            layer->ff_o_w     = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "v", il, "weight"));
-            layer->k_b        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_K, "v", il, "bias"));
-            layer->q_b        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_Q, "v", il, "bias"));
-            layer->v_b        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_V, "v", il, "bias"));
-            layer->o_b        = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_OUTPUT, "v", il, "bias"));
-            layer->ln_1_b     = get_tensor(model_ctx, format_cstr(&keys, TN_LN_1, "v", il, "bias"));
-            layer->ln_2_b     = get_tensor(model_ctx, format_cstr(&keys, TN_LN_2, "v", il, "bias"));
-            layer->ff_i_b     = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_DOWN, "v", il, "bias"));
-            layer->ff_o_b     = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "v", il, "bias"));
+            layer->k_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_K, "v", il, "weight"));
+            layer->q_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_Q, "v", il, "weight"));
+            layer->v_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_V, "v", il, "weight"));
+            layer->o_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_OUTPUT, "v", il, "weight"));
+            layer->ln_1_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_1, "v", il, "weight"));
+            layer->ln_2_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_2, "v", il, "weight"));
+            layer->ff_i_w = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_DOWN, "v", il, "weight"));
+            layer->ff_o_w = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "v", il, "weight"));
+            layer->k_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_K, "v", il, "bias"));
+            layer->q_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_Q, "v", il, "bias"));
+            layer->v_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_V, "v", il, "bias"));
+            layer->o_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_OUTPUT, "v", il, "bias"));
+            layer->ln_1_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_1, "v", il, "bias"));
+            layer->ln_2_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_2, "v", il, "bias"));
+            layer->ff_i_b = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_DOWN, "v", il, "bias"));
+            layer->ff_o_b = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "v", il, "bias"));
         }
     }
-    temp_end(scratch);
-
     ggml_free(temp_ctx);
     gguf_free(gguf_ctx);
     clip->ctx_ggml = model_ctx;
@@ -387,7 +378,7 @@ void clip_model_load(Arena *arena, clip_ctx *clip, const char *fname)
 // TODO: This is definitely cursed
 bool clip_tokenize(clip_ctx *ctx, String *input, clip_tokens *tokens)
 {
-    Assert(ctx->has_text_encoder && "This GGUF file seems to have no text encoder\n");
+    Assert(ctx->has_text_encoder, "This GGUF file seems to have no text encoder");
 
     std::vector<std::string> words;
 
@@ -455,7 +446,7 @@ bool clip_tokenize(clip_ctx *ctx, String *input, clip_tokens *tokens)
             for (int j = word.size() - 1; j >= i; j--)
             {
                 auto cand = word.substr(i, j - i + 1);
-                auto it   = ctx->vocab.token_to_id.find(cand);
+                auto it = ctx->vocab.token_to_id.find(cand);
                 if (it != ctx->vocab.token_to_id.end())
                 { // word.substr(i, j-i+1) in vocab
                     v_tokens.push_back(it->second);
@@ -489,7 +480,7 @@ void clip_free(clip_ctx *ctx)
 
 F32 *clip_get_text_embedding(Arena *arena, clip_ctx *clip, clip_tokens *tokens, bool normalize)
 {
-    Assert(clip->has_text_encoder && "This GGUF file seems to have no text encoder\n");
+    Assert(clip->has_text_encoder, "This GGUF file seems to have no text encoder");
 
     Temp scratch = temp_begin(arena);
 
@@ -498,22 +489,22 @@ F32 *clip_get_text_embedding(Arena *arena, clip_ctx *clip, clip_tokens *tokens, 
      */
 
     clip_text_model *text_model = &clip->text_model;
-    clip_text_hparams hparams   = text_model->hparams;
-    U64 N                       = tokens->size;
+    clip_text_hparams hparams = text_model->hparams;
+    U64 N = tokens->size;
 
-    S32 n_vocab        = hparams.n_vocab;
-    S32 num_positions  = hparams.num_positions;
-    S32 hidden_size    = hparams.hidden_size;
-    S32 n_head         = hparams.n_head;
-    S32 d_head         = hidden_size / n_head;
-    S32 n_layer        = hparams.n_layer;
+    S32 n_vocab = hparams.n_vocab;
+    S32 num_positions = hparams.num_positions;
+    S32 hidden_size = hparams.hidden_size;
+    S32 n_head = hparams.n_head;
+    S32 d_head = hidden_size / n_head;
+    S32 n_layer = hparams.n_layer;
     S32 n_intermediate = hparams.n_intermediate;
     S32 projection_dim = hparams.projection_dim;
-    F32 eps            = hparams.eps;
+    F32 eps = hparams.eps;
 
-    U64 mem_size            = ggml_tensor_overhead() * GGML_DEFAULT_GRAPH_SIZE + ggml_graph_overhead();
+    U64 mem_size = ggml_tensor_overhead() * GGML_DEFAULT_GRAPH_SIZE + ggml_graph_overhead();
     ggml_context *graph_ctx = ggml_init({mem_size, arena_push(arena, mem_size, 0, GGML_MEM_ALIGN), true});
-    ggml_cgraph *gf         = ggml_new_graph(graph_ctx);
+    ggml_cgraph *gf = ggml_new_graph(graph_ctx);
 
     {
         ggml_tensor *input_ids = ggml_new_tensor_1d(graph_ctx, GGML_TYPE_I32, N);
@@ -560,17 +551,17 @@ F32 *clip_get_text_embedding(Arena *arena, clip_ctx *clip, clip_tokens *tokens, 
                 K = ggml_reshape_3d(graph_ctx, K, d_head, N, n_head);
 
                 ggml_tensor *V = ggml_add(graph_ctx, ggml_repeat(graph_ctx, text_model->layers[il].v_b, cur), ggml_mul_mat(graph_ctx, text_model->layers[il].v_w, cur));
-                V              = ggml_reshape_4d(graph_ctx, V, d_head, n_head, N, 1);
-                V              = ggml_cont(graph_ctx, ggml_permute(graph_ctx, V, 1, 2, 0, 3));
-                V              = ggml_reshape_3d(graph_ctx, V, N, d_head, n_head);
+                V = ggml_reshape_4d(graph_ctx, V, d_head, n_head, N, 1);
+                V = ggml_cont(graph_ctx, ggml_permute(graph_ctx, V, 1, 2, 0, 3));
+                V = ggml_reshape_3d(graph_ctx, V, N, d_head, n_head);
 
                 ggml_tensor *KQ = ggml_mul_mat(graph_ctx, K, Q);
-                KQ              = ggml_diag_mask_inf_inplace(graph_ctx, KQ, 0); // causal masking
-                KQ              = ggml_soft_max_inplace(graph_ctx, KQ);
+                KQ = ggml_diag_mask_inf_inplace(graph_ctx, KQ, 0); // causal masking
+                KQ = ggml_soft_max_inplace(graph_ctx, KQ);
 
                 ggml_tensor *KQV = ggml_mul_mat(graph_ctx, V, KQ);
-                KQV              = ggml_reshape_4d(graph_ctx, KQV, d_head, N, n_head, 1);
-                KQV              = ggml_cont(graph_ctx, ggml_permute(graph_ctx, KQV, 0, 2, 1, 3));
+                KQV = ggml_reshape_4d(graph_ctx, KQV, d_head, N, n_head, 1);
+                KQV = ggml_cont(graph_ctx, ggml_permute(graph_ctx, KQV, 0, 2, 1, 3));
 
                 cur = ggml_cpy(graph_ctx, KQV, ggml_new_tensor_2d(graph_ctx, GGML_TYPE_F32, hidden_size, N));
             }
@@ -654,7 +645,7 @@ F32 *clip_get_text_embedding(Arena *arena, clip_ctx *clip, clip_tokens *tokens, 
     ggml_tensor *input = ggml_graph_get_tensor(gf, "input");
     ggml_backend_tensor_set(input, tokens->data, 0, ggml_nbytes(input));
 
-    S32 eot_n        = N - 1;
+    S32 eot_n = N - 1;
     ggml_tensor *eot = ggml_graph_get_tensor(gf, "eot");
     ggml_backend_tensor_set(eot, &eot_n, 0, ggml_nbytes(eot));
 
@@ -671,7 +662,7 @@ F32 *clip_get_text_embedding(Arena *arena, clip_ctx *clip, clip_tokens *tokens, 
     PERF_END(compute);
 
     ggml_tensor *output = ggml_graph_get_tensor(gf, "output");
-    F32 *res            = (F32 *)ggml_get_data(output);
+    F32 *res = (F32 *)ggml_get_data(output);
 
     // ggml_threadpool_params threadpool_params = ggml_threadpool_params_default(n_threads);
     // ggml_threadpool *threadPool              = ggml_threadpool_new(&threadpool_params);
@@ -759,16 +750,16 @@ F32 *clip_get_text_embedding(Arena *arena, clip_ctx *clip, clip_tokens *tokens, 
 ggml_cgraph *build_image_encode_graph(ggml_context *graph_ctx, clip_ctx *clip, int batch_size)
 {
     clip_vision_model *vision_model = &clip->vision_model;
-    clip_vision_hparams hparams     = vision_model->hparams;
-    S32 image_size                  = hparams.image_size;
-    S32 patch_size                  = hparams.patch_size;
-    S32 num_patches                 = ((image_size / patch_size) * (image_size / patch_size));
-    S32 num_positions               = num_patches + 1;
-    S32 hidden_size                 = hparams.hidden_size;
-    S32 n_head                      = hparams.n_head;
-    S32 d_head                      = hidden_size / n_head;
-    S32 eps                         = hparams.eps;
-    S32 n_layer                     = hparams.n_layer;
+    clip_vision_hparams hparams = vision_model->hparams;
+    S32 image_size = hparams.image_size;
+    S32 patch_size = hparams.patch_size;
+    S32 num_patches = ((image_size / patch_size) * (image_size / patch_size));
+    S32 num_positions = num_patches + 1;
+    S32 hidden_size = hparams.hidden_size;
+    S32 n_head = hparams.n_head;
+    S32 d_head = hidden_size / n_head;
+    S32 eps = hparams.eps;
+    S32 n_layer = hparams.n_layer;
 
     ggml_cgraph *graph = ggml_new_graph(graph_ctx);
 
@@ -814,16 +805,16 @@ ggml_cgraph *build_image_encode_graph(ggml_context *graph_ctx, clip_ctx *clip, i
         // self-attention
         ggml_tensor *Q = ggml_add(graph_ctx, ggml_repeat(graph_ctx, vision_model->layers[layer].q_b, cur),
                                   ggml_mul_mat(graph_ctx, vision_model->layers[layer].q_w, cur));
-        Q              = ggml_scale_inplace(graph_ctx, Q, 1 / sqrt((float)d_head));
-        Q              = ggml_reshape_4d(graph_ctx, Q, d_head, n_head, num_positions, batch_size);
-        Q              = ggml_cont(graph_ctx, ggml_permute(graph_ctx, Q, 0, 2, 1, 3));
-        Q              = ggml_reshape_3d(graph_ctx, Q, d_head, num_positions, n_head * batch_size);
+        Q = ggml_scale_inplace(graph_ctx, Q, 1 / sqrt((float)d_head));
+        Q = ggml_reshape_4d(graph_ctx, Q, d_head, n_head, num_positions, batch_size);
+        Q = ggml_cont(graph_ctx, ggml_permute(graph_ctx, Q, 0, 2, 1, 3));
+        Q = ggml_reshape_3d(graph_ctx, Q, d_head, num_positions, n_head * batch_size);
 
         ggml_tensor *K = ggml_add(graph_ctx, ggml_repeat(graph_ctx, vision_model->layers[layer].k_b, cur),
                                   ggml_mul_mat(graph_ctx, vision_model->layers[layer].k_w, cur));
-        K              = ggml_reshape_4d(graph_ctx, K, d_head, n_head, num_positions, batch_size);
-        K              = ggml_cont(graph_ctx, ggml_permute(graph_ctx, K, 0, 2, 1, 3));
-        K              = ggml_reshape_3d(graph_ctx, K, d_head, num_positions, n_head * batch_size);
+        K = ggml_reshape_4d(graph_ctx, K, d_head, n_head, num_positions, batch_size);
+        K = ggml_cont(graph_ctx, ggml_permute(graph_ctx, K, 0, 2, 1, 3));
+        K = ggml_reshape_3d(graph_ctx, K, d_head, num_positions, n_head * batch_size);
 
         ggml_tensor *V = ggml_add(graph_ctx, ggml_repeat(graph_ctx, vision_model->layers[layer].v_b, cur),
                                   ggml_mul_mat(graph_ctx, vision_model->layers[layer].v_w, cur));
@@ -833,11 +824,11 @@ ggml_cgraph *build_image_encode_graph(ggml_context *graph_ctx, clip_ctx *clip, i
         V = ggml_reshape_3d(graph_ctx, V, num_positions, d_head, n_head * batch_size);
 
         ggml_tensor *KQ = ggml_mul_mat(graph_ctx, K, Q);
-        KQ              = ggml_soft_max(graph_ctx, KQ);
+        KQ = ggml_soft_max(graph_ctx, KQ);
 
         ggml_tensor *KQV = ggml_mul_mat(graph_ctx, V, KQ);
-        KQV              = ggml_reshape_4d(graph_ctx, KQV, d_head, num_positions, n_head, batch_size);
-        KQV              = ggml_cont(graph_ctx, ggml_permute(graph_ctx, KQV, 0, 2, 1, 3));
+        KQV = ggml_reshape_4d(graph_ctx, KQV, d_head, num_positions, n_head, batch_size);
+        KQV = ggml_cont(graph_ctx, ggml_permute(graph_ctx, KQV, 0, 2, 1, 3));
 
         cur = ggml_cpy(graph_ctx, KQV, ggml_new_tensor_3d(graph_ctx, GGML_TYPE_F32, hidden_size, num_positions, batch_size));
 
@@ -917,10 +908,10 @@ F32 *clip_get_image_embedding(Arena *arena, clip_ctx *clip, struct VisionWorker 
     }
 
     clip_vision_hparams hparams = clip->vision_model.hparams;
-    int image_size              = hparams.image_size;
-    int patch_size              = hparams.patch_size;
-    int num_patches             = ((image_size / patch_size) * (image_size / patch_size));
-    int num_positions           = num_patches + 1;
+    int image_size = hparams.image_size;
+    int patch_size = hparams.patch_size;
+    int num_patches = ((image_size / patch_size) * (image_size / patch_size));
+    int num_positions = num_patches + 1;
 
     ggml_tensor *input = ggml_graph_get_tensor(vis->graph, "input");
     ggml_backend_tensor_set(input, imageData, 0, ggml_nbytes(input));
@@ -1066,7 +1057,7 @@ bool softmax_with_sorting(float *arr, const int length, float *sorted_scores, in
     for (int i = 0; i < length; i++)
     {
         sorted_scores[i] = score_index_pairs[i].score;
-        indices[i]       = score_index_pairs[i].index;
+        indices[i] = score_index_pairs[i].index;
     }
 
     free(score_index_pairs);

@@ -18,11 +18,13 @@ struct UIFilter
     };
 };
 
-struct UIFilterList
+struct UIViewQuery
 {
     Arena *arena;
 
     StringBuilder search_query;
+    SortType sort_basis;
+    B32 descending;
     UIFilter *filters;
     U64 last;
 };
@@ -38,7 +40,7 @@ struct UIState
     struct ImFont *icon_font;
     struct ImFont *title_font;
 
-    UIFilterList filter_list;
+    UIViewQuery view_query;
 };
 
 MSCBL_API UIState ui_state;

@@ -98,9 +98,9 @@ void ui_init()
 
 void ui_filterlist_init()
 {
-    arena_alloc(MB(1), ui_state.filter_list.arena);
-    da_push(ui_state.filter_list.arena, ui_state.filter_list.filters, {0});
-    ui_state.filter_list.search_query = string_empty(ui_state.filter_list.arena, 4096);
+    arena_alloc(MB(1), ui_state.view_query.arena);
+    da_push(ui_state.view_query.arena, ui_state.view_query.filters, {0});
+    ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
 }
 
 void ui_close()

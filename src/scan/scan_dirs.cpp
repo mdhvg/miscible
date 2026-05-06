@@ -34,9 +34,9 @@
 DBStmtCbk(push_imagerow)
 {
     ImageRow **inserted = (ImageRow **)data;
-    ImageRow row        = {
-               .id   = sqlite3_column_int64(stmt, 0),
-               .path = string_cpy(arena, sqlite3_column_text(stmt, 1))};
+    ImageRow row = {
+        .id = sqlite3_column_int64(stmt, 0),
+        .path = string_cpy(arena, sqlite3_column_text(stmt, 1))};
     da_push(arena, *inserted, row);
 }
 
@@ -79,7 +79,6 @@ void scan_new_dir()
         db_run_stmt(stmt, 1);
 
         TPData args = {.kind = TPData_OSString, .os_str = dir};
-        threadpool_enqueue({scan_routine,
-                            args});
+        threadpool_enqueue({scan_routine, args});
     }
 }

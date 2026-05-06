@@ -1,4 +1,7 @@
 --x, R"(
+PRAGMA foreign_keys = ON;
+PRAGMA recursive_triggers = ON;
+
 CREATE TABLE IF NOT EXISTS Images (
     id          INTEGER     PRIMARY KEY             AUTOINCREMENT,
     path        TEXT        UNIQUE NOT NULL,
@@ -17,7 +20,7 @@ CREATE TABLE IF NOT EXISTS Images (
     modified    INTEGER                             DEFAULT 0
 );
 
-CREATE VIRTUAL TABLE IF NOT EXISTS Images_FTS USING fts5(
+CREATE VIRTUAL TABLE IF NOT EXISTS Image_FTS USING fts5(
     filename,
     path,
     content='Images',
@@ -26,21 +29,23 @@ CREATE VIRTUAL TABLE IF NOT EXISTS Images_FTS USING fts5(
 
 DROP TRIGGER IF EXISTS Image_FTS_insert;
 CREATE TRIGGER Image_FTS_insert AFTER INSERT ON Images BEGIN
-    INSERT INTO Images_FTS(rowid, filename, path)
+    INSERT INTO Image_FTS(rowid, filename, path)
     VALUES (new.id, new.filename, new.path);
 END;
 
 DROP TRIGGER IF EXISTS Image_FTS_delete;
 CREATE TRIGGER Image_FTS_delete AFTER DELETE ON Images BEGIN
-    INSERT INTO Images_FTS(Images_FTS, rowid, filename, path)
+    INSERT INTO Image_FTS(Image_FTS, rowid, filename, path)
     VALUES('delete', old.id, old.filename, old.path);
 END;
 
 DROP TRIGGER IF EXISTS Image_FTS_update;
 CREATE TRIGGER Image_FTS_update AFTER UPDATE ON Images BEGIN
-    INSERT INTO Images_FTS(Images_FTS, rowid, filename, path) VALUES('delete', old.id, old.filename, old.path);
-    INSERT INTO Images_FTS(rowid, filename, path) VALUES(new.id, new.filename, new.path);
+    INSERT INTO Image_FTS(Image_FTS, rowid, filename, path) VALUES('delete', old.id, old.filename, old.path);
+    INSERT INTO Image_FTS(rowid, filename, path) VALUES(new.id, new.filename, new.path);
 END;
+
+INSERT INTO Image_FTS(Image_FTS) VALUES('rebuild');
 
 -- CREATE INDEX IF NOT EXISTS idx_imagepath ON Images(path);
 

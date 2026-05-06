@@ -7,7 +7,7 @@
 #include "os/win32/win32_core.h"
 #include "base/threadpool.h"
 
-local_v ThreadPool *pool        = NULL;
+local_v ThreadPool *pool = NULL;
 local_v Arena *threadpool_arena = NULL;
 
 ThreadFunc(clear_arena)
@@ -68,7 +68,7 @@ void threadpool_init(U32 worker_count)
     for (U64 i = 0; i < worker_count; i++)
     {
         Worker *worker = &pool->worker_array[i];
-        worker->id     = i;
+        worker->id = i;
     }
 
     for (U64 i = 0; i < worker_count; i += 1)
@@ -110,7 +110,7 @@ void threadpool_clear_arenas()
     Semaphore batch = os_semaphore_alloc(0, S32_MAX);
     if (!pool)
         return;
-    U64 jobs    = pool->worker_count * 2;
+    U64 jobs = pool->worker_count * 2;
     TPData args = {.kind = TPData_ANY, .any = NULL};
     for (U64 i = 0; i < pool->worker_count * 2; i++)
         threadpool_enqueue({clear_arena, args, &jobs, batch});
