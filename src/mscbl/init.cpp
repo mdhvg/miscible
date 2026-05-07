@@ -10,7 +10,7 @@ ThreadFunc(init_scan)
 {
     arena_clear(arena);
 
-    OSString *dirs     = (OSString *)db_fetch_pending();
+    OSString *dirs = (OSString *)db_fetch_pending();
     sqlite3_stmt *stmt = db_prepare("UPDATE DirSelect SET indexed = 1 WHERE path = ?;");
     for (S64 i = 0; i < da_getsize(dirs); i++)
     {
@@ -26,7 +26,7 @@ ThreadFunc(init_scan)
     }
     sqlite3_finalize(stmt);
 
-    view_fetch();
+    view_reload();
 }
 
 ThreadFunc(init_atlas)

@@ -12,25 +12,6 @@
 #include "os/linux/linux_scan_dirs.cpp"
 #endif
 
-// #define START_GRAPH(p, X)                    \
-//     X(p, db_fetch_images, db_fetch_dirtree)  \
-//     X(p, db_fetch_dirtree, db_fetch_atlases) \
-//     X(p, db_fetch_atlases)
-//
-// ThreadGraphDef(NEW_DIR, SCAN_GRAPH);
-
-// #define ThreadGraph(pre, ...)         \
-//     global_v TGArgs_ pre##_flow[] = { \
-//         __VA_ARGS__,                  \
-//         TGArgs_NONE,                  \
-//     };                                \
-//     global_v TGArgs pre##_graph = {pre##_flow, StaticArrSize(pre##_flow)}
-
-// ThreadGraph(
-//     scan,
-//     TGArgs_first_scan,
-//     TGArgs_atlas_bake);
-
 DBStmtCbk(push_imagerow)
 {
     ImageRow **inserted = (ImageRow **)data;
@@ -46,7 +27,7 @@ ThreadFunc(scan_routine)
     OSString dir = data.os_str;
 
     first_scan(arena, dir);
-    view_fetch();
+    view_reload();
 
     sqlite3_stmt *stmt = db_prepare("UPDATE DirSelect SET indexed = 1 WHERE path = ?;");
 #if OS_WINDOWS

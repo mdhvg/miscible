@@ -107,7 +107,7 @@ enum Source
 struct ViewResultGroup
 {
     S64 start_index;
-    U64 count;
+    S64 count;
     Source source;
 };
 
@@ -125,13 +125,9 @@ struct ViewManager
     ViewResult back;
 };
 
-MSCBL_API S64 *view_order;
 MSCBL_API void view_init();
-MSCBL_API void view_fetch();
 MSCBL_API void view_reload();
+MSCBL_API ViewResult view_get_result();
 
 MSCBL_API void view_clear_state();
 MSCBL_API void view_set_state(struct UIViewQuery ui_query);
-MSCBL_API void view_update_search(String query);
-MSCBL_API void view_push_filters(struct UIFilter *filters);
-MSCBL_API ViewFilter **view_get_filters();

@@ -1,6 +1,7 @@
 #include "db/view.h"
 #include "base/arena.h"
 #include "base/log.h"
+#include "config.h"
 #include "db/db_helpers.h"
 #include "base/array.h"
 #include "base/string.h"
@@ -16,13 +17,15 @@ void view_init()
     arena_alloc(MB(1), view.back.arena);
 
     arena_alloc(MB(1), view.state.arena);
+
+    view_clear_state();
 }
 
 void view_clear_state()
 {
     view.state.search_query = {0};
-    view.state.sort_basis = (SortType)0;
-    view.state.descending = 0;
+    view.state.sort_basis = mscbl_config.view_settings.sort_basis;
+    view.state.descending = mscbl_config.view_settings.descending;
     view.state.filters = 0;
 
     arena_clear(view.state.arena);
@@ -31,8 +34,8 @@ void view_clear_state()
 void view_set_state(UIViewQuery ui_query)
 {
     view.state.search_query = string_cpy(view.state.arena, StringCast(ui_query.search_query));
-    view.state.sort_basis = (SortType)0; // TODO:
-    view.state.descending = 0;           // TODO:
+    view.state.sort_basis = (SortType)ui_query.sort_basis;
+    view.state.descending = ui_query.descending;
 
     for (S64 i = 1; i < da_getsize(ui_query.filters); i++)
     {
@@ -277,6 +280,10 @@ ThreadFunc(view_run_query)
     arena_clear(view.back.arena);
 
     db_run_stmt(stmt, 1, print_rows);
+
+    ViewResult temp = view.main;
+    view.main = view.back;
+    view.back = temp;
 }
 
 void view_reload()
@@ -288,42 +295,28 @@ void view_reload()
             .kind = TPData_String,
             .str = query}};
     threadpool_enqueue(query_task);
-
-    // ViewRequest req = {
-    //     // .embedding_dim = // model.get ... embedding_dim
-    //     // .search_embedding = // Done later
-    //     .query  = view.state.query,
-    //     .ticket = ++view.ticket_counter,
-    // };
-    //
-    // EnterCriticalSection(&view.queue_mutex);
-    // rb_push(view.request_queue, req);
-    // LeaveCriticalSection(&view.queue_mutex);
-    //
-    // threadpool_enqueue({view_process});
 }
 
-Arena *view_arena = NULL;
-S64 *view_order = NULL;
-
-DBStmtCbk(push_id)
+ViewResult view_get_result()
 {
-    da_push(view_arena, view_order, sqlite3_column_int64(stmt, 0));
+    return view.main;
 }
 
-void view_fetch()
-{
-    if (!view_arena)
-        arena_alloc(MB(1), view_arena);
-    arena_clear(view_arena);
-
-    view_order = NULL;
-    sqlite3_stmt *stmt = db_prepare("SELECT id FROM Images ORDER BY path ASC;");
-    db_run_stmt(stmt, 1, push_id);
-}
+// Arena *view_arena = NULL;
+// S64 *view_order = NULL;
 //
-// void view_set_order(ViewOrder order)
+// DBStmtCbk(push_id)
 // {
-//     view_params.order = order;
-//     view_fetch();
+//     da_push(view_arena, view_order, sqlite3_column_int64(stmt, 0));
+// }
+//
+// void view_fetch()
+// {
+//     if (!view_arena)
+//         arena_alloc(MB(1), view_arena);
+//     arena_clear(view_arena);
+//
+//     view_order = NULL;
+//     sqlite3_stmt *stmt = db_prepare("SELECT id FROM Images ORDER BY path ASC;");
+//     db_run_stmt(stmt, 1, push_id);
 // }

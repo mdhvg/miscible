@@ -2,57 +2,80 @@
 
 #include "config.h"
 #include "base/log.h"
-#include "base/arena.h"
+#include "base/string.h"
 #include "os/os_inc.h"
 
 Config mscbl_config = {0};
 Arena *config_arena = NULL;
 
-void default_config()
-{
-    Settings def = {0};
-    def.font_size = 16.0f;
-    def.scan_depth = 15;
+/*
+ * Reserved symbols
+ * '~' is for user home directory (C:/Users/user on Win32 or /home/user on Unix)
+ * '$' is for app data directory
+ *
+ * For eg. if app_data is ~/Miscible, "$/atlas" resolves to ~/Miscible/atlas
+ */
 
-    mscbl_config.settings = def;
+Config default_config()
+{
+    Config config = {
+        .app_data = sv("~/Miscible"),
+        .atlas_dir = sv("$/atlas"),
+        .db_path = sv("$/miscible.sqlite"),
+        .settings = {
+            .scan_depth = 15,
+            .font_size = 16.0f},
+        .view_settings = {
+            .sort_basis = SortType_DateModified,
+            .descending = 0,
+        }};
+    return config;
 }
 
-void setup_dirs()
+void setup_dirs(Config *config)
 {
     StringBuilder base = string_empty(config_arena, 1024);
 
     const char *home = os_gethome();
-    Assert(home, "Home dir not found");
+    Assert(home, "home dir not found");
     string_push(&base, home);
 
 #if OS_WINDOWS
     win32_format_path(&base);
 #endif
 
-    if (!match_end(StringCast(base), "/"))
-        string_push(&base, "/");
+    if (match_end(StringCast(base), "/"))
+        string_pop_by(&base, 1);
 
-    string_push(&base, Stringify(APP_NAME));
-    os_mkdir(StringCast(base));
-    mscbl_config.home_path = string_cpy(config_arena, StringCast(base));
+    StringBuilder app_data = string_empty(config_arena, 1024);
+    string_push(&app_data, config->app_data);
+    string_replace(&app_data, "~", CStrCast(base));
 
-    U64 size = base.size;
-    string_push(&base, "/" ATLAS_DIR);
-    os_mkdir(StringCast(base));
-    mscbl_config.atlas_dir = string_cpy(config_arena, StringCast(base));
+    StringBuilder atlas_dir = string_empty(config_arena, 1024);
+    string_push(&atlas_dir, config->atlas_dir);
+    string_replace(&atlas_dir, "~", CStrCast(base));
+    string_replace(&atlas_dir, "$", CStrCast(app_data));
 
-    string_pop_to(&base, size);
-    string_push(&base, "/" DB_FILE);
-    mscbl_config.db_path = string_cpy(config_arena, StringCast(base));
+    StringBuilder db_path = string_empty(config_arena, 1024);
+    string_push(&db_path, config->db_path);
+    string_replace(&db_path, "~", CStrCast(base));
+    string_replace(&db_path, "$", CStrCast(app_data));
+
+    os_mkdir(StringCast(app_data));
+    os_mkdir(StringCast(atlas_dir));
+
+    config->app_data = StringCast(app_data);
+    config->atlas_dir = StringCast(atlas_dir);
+    config->db_path = StringCast(db_path);
 }
 
 void config_init()
 {
     arena_alloc(MB(1), config_arena);
-    setup_dirs();
 
     // TODO: Put a check for existing config.yaml file
-    default_config();
+    mscbl_config = default_config();
+    setup_dirs(&mscbl_config);
 
     // if (!os_path_exist(config_path))
     // {

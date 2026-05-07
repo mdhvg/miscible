@@ -1,6 +1,5 @@
 #pragma once
-#include "base/base_core.h"
-#include "base/string.h"
+#include "db/view.h"
 
 struct Settings
 {
@@ -8,13 +7,20 @@ struct Settings
     F32 font_size;
 };
 
+struct ViewSettings
+{
+    SortType sort_basis;
+    B32 descending;
+};
+
 struct Config
 {
-    String home_path;
+    String app_data;
     String atlas_dir;
     String db_path;
 
     Settings settings;
+    ViewSettings view_settings;
 };
 
 MSCBL_API Config mscbl_config;

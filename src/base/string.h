@@ -136,6 +136,10 @@ inline String string_cpy(Arena *arena, String x)
 #define string_clear(x) ((x).size = 0)
 MSCBL_API StringBuilder string_empty(Arena *arena, U64 size = 1);
 MSCBL_API void string_pop_to(StringBuilder *base, U64 size);
+MSCBL_API inline void string_pop_by(StringBuilder *base, U64 count)
+{
+    return string_pop_to(base, base->size - count);
+}
 
 MSCBL_API inline String string_from_to(String base, U64 from, U64 to)
 {

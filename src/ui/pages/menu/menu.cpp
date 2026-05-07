@@ -213,29 +213,45 @@ void main_grid()
     U32 width_avail = ImGui::GetContentRegionAvail().x;
     U32 row_size = width_avail / 128;
 
-    for (S64 i = 0; i < da_getsize(view_order); i++)
+    ViewResult view_result = view_get_result();
+    for (S64 i = 0; i < da_getsize(view_result.groups); i++)
     {
-        if ((view_order[i] < va_getsize(images)) &&
-            (images[view_order[i]].atlas_id < va_getsize(atlases)))
+        ViewResultGroup group = view_result.groups[i];
+        switch (group.source)
         {
-            Image img = images[view_order[i]];
-            Atlas atl = atlases[img.atlas_id];
-
-            F32 x = (F32)(img.atlas_idx % 10);
-            F32 y = (F32)(img.atlas_idx / 10);
-
-            ImGui::ImageButton(
-                format_cstr(&sb, "##%d", i),
-                atl.tex, {128, 128}, {x / 10.0f, y / 10.0f}, {(x + 1) / 10.0f, (y + 1) / 10.0f});
+        case Source_Embedding:
+            ImGui::Text("Semantic search");
+            break;
+        case Source_FTS:
+            ImGui::Text("Text search");
+            break;
+        default: break;
         }
-        else
+
+        for (S64 i = group.start_index; i < group.start_index + group.count; i++)
         {
-            ImGui::ImageButton(
-                format_cstr(&sb, "##%d", i),
-                (ImTextureID)0, {128, 128});
+            S64 image_id = view_result.image_ids[i];
+            if (image_id < va_getsize(images) && images[image_id].atlas_id < va_getsize(atlases))
+            {
+                Image img = images[image_id];
+                Atlas atl = atlases[img.atlas_id];
+
+                F32 x = (F32)(img.atlas_idx % 10);
+                F32 y = (F32)(img.atlas_idx / 10);
+
+                ImGui::ImageButton(
+                    format_cstr(&sb, "##%d", i),
+                    atl.tex, {128, 128}, {x / 10.0f, y / 10.0f}, {(x + 1) / 10.0f, (y + 1) / 10.0f});
+            }
+            else
+            {
+                ImGui::ImageButton(
+                    format_cstr(&sb, "##%d", i),
+                    (ImTextureID)0, {128, 128});
+            }
+            if ((i + 1) % row_size)
+                ImGui::SameLine();
         }
-        if ((i + 1) % row_size)
-            ImGui::SameLine();
     }
 
     // if (ui_state.images)
