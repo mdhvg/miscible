@@ -4,16 +4,12 @@
 
 struct CLIPModel
 {
+
     clip_ctx *clip;
 };
 
 MSCBL_API CLIPModel model;
 MSCBL_API Arena *model_arena;
 
-struct Embedding
-{
-    F32 *vector;
-    S32 size;
-};
-
-Embedding embed_text(String text);
+ThreadFunc(model_insert_embedding);
+Embedding model_embed_text(Arena* arena, String text);

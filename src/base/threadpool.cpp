@@ -110,10 +110,13 @@ void threadpool_clear_arenas()
     Semaphore batch = os_semaphore_alloc(0, S32_MAX);
     if (!pool)
         return;
-    U64 jobs = pool->worker_count * 2;
+    S64 jobs = pool->worker_count * 2;
     TPData args = {.kind = TPData_ANY, .any = NULL};
     for (U64 i = 0; i < pool->worker_count * 2; i++)
-        threadpool_enqueue({clear_arena, args, &jobs, batch});
+        threadpool_enqueue({.func = clear_arena,
+                            .data = args,
+                            .batch_size = &jobs,
+                            .batch_complete = batch});
     os_semaphore_take(batch, U64_MAX);
     os_semaphore_drop(batch);
 }

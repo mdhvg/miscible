@@ -40,9 +40,12 @@ CREATE TRIGGER Image_FTS_delete AFTER DELETE ON Images BEGIN
 END;
 
 DROP TRIGGER IF EXISTS Image_FTS_update;
-CREATE TRIGGER Image_FTS_update AFTER UPDATE ON Images BEGIN
-    INSERT INTO Image_FTS(Image_FTS, rowid, filename, path) VALUES('delete', old.id, old.filename, old.path);
-    INSERT INTO Image_FTS(rowid, filename, path) VALUES(new.id, new.filename, new.path);
+CREATE TRIGGER Image_FTS_update AFTER UPDATE OF filename, path ON Images BEGIN
+    INSERT INTO Image_FTS(Image_FTS, rowid, filename, path)
+    VALUES('delete', old.id, old.filename, old.path);
+
+    INSERT INTO Image_FTS(rowid, filename, path)
+    VALUES(new.id, new.filename, new.path);
 END;
 
 INSERT INTO Image_FTS(Image_FTS) VALUES('rebuild');

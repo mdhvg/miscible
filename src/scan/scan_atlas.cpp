@@ -9,8 +9,8 @@
 #include "gl/gl_core.h"
 #include "os/os_inc.h"
 #include "stb_image.h"
-#include "stb_image_resize2.h"
 #include "stb_image_write.h"
+#include "stb_image_resize2.h"
 
 #include "base/log.h"
 #include "base/array.h"
@@ -30,24 +30,24 @@ ThreadFunc(read_image)
 
     if (w < h)
     {
-        resize_width  = THUMB_SIZE;
+        resize_width = THUMB_SIZE;
         resize_height = THUMB_SIZE / ((float)w / (float)h);
     }
     else
     {
         resize_height = THUMB_SIZE;
-        resize_width  = THUMB_SIZE * ((float)w / (float)h);
+        resize_width = THUMB_SIZE * ((float)w / (float)h);
     }
 
     U8 *resize_data = push_size(arena, (3 * resize_height * resize_width), U8);
     stbir_resize_uint8_linear(img_data, w, h, 0, resize_data, resize_width, resize_height, 0, STBIR_RGB);
     stbi_image_free(img_data);
 
-    row->width         = w;
-    row->height        = h;
-    row->channels      = c;
-    row->data          = resize_data;
-    row->resize_width  = resize_width;
+    row->width = w;
+    row->height = h;
+    row->channels = c;
+    row->data = resize_data;
+    row->resize_width = resize_width;
     row->resize_height = resize_height;
 }
 
@@ -61,7 +61,7 @@ ThreadFunc(draw_image)
 {
     Assert(data.kind == TPData_ANY, "wrong datatype");
     draw_params params = *(draw_params *)data.any;
-    U32 smaller_side   = MIN(params.row->resize_width, params.row->resize_height);
+    U32 smaller_side = MIN(params.row->resize_width, params.row->resize_height);
 
     U32 x_off = (params.row->resize_width - smaller_side) / 2;
     U32 y_off = (params.row->resize_height - smaller_side) / 2;
@@ -94,10 +94,10 @@ struct atlas_params
 DBStmtCbk(get_atlas)
 {
     atlas_params *params = (atlas_params *)data;
-    AtlasRow row         = {
-        sqlite3_column_int64(stmt, 0),
-        string_cpy(params->arena, sqlite3_column_text(stmt, 1)),
-        1};
+    AtlasRow row = {
+        .atlas_id = sqlite3_column_int64(stmt, 0),
+        .path = string_cpy(params->arena, sqlite3_column_text(stmt, 1)),
+        .update = 1};
     *params->row = row;
 }
 
@@ -110,7 +110,7 @@ struct idx_params
 DBStmtCbk(push_idx)
 {
     idx_params *params = (idx_params *)data;
-    draw_params idx    = {(U64)sqlite3_column_int64(stmt, 0)};
+    draw_params idx = {(U64)sqlite3_column_int64(stmt, 0)};
     da_push(params->arena, params->array, idx);
 }
 
@@ -118,26 +118,31 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
 {
     U64 inserted_count = da_getsize(inserted);
 
-    Temp tmp              = temp_begin(arena);
-    AtlasRow row          = {0};
+    Temp tmp = temp_begin(arena);
+    AtlasRow row = {0};
     draw_params *draw_pos = NULL;
 
-    U64 task_count      = 0;
+    S64 task_count = 0;
     Semaphore batch_sem = os_semaphore_alloc(0, S32_MAX);
 
     for (U64 i = 0; i < inserted_count; i += ATLAS_CAPACITY)
     {
         threadpool_clear_arenas();
 
-        row      = {0};
+        row = {0};
         draw_pos = NULL;
         da_setcap(tmp.arena, draw_pos, ATLAS_CAPACITY);
 
         task_count = MIN(i + ATLAS_CAPACITY, inserted_count) - i;
         for (U64 j = i; j < MIN(i + ATLAS_CAPACITY, inserted_count); j++)
         {
-            TPData args    = {.kind = TPData_ANY, .any = inserted + j};
-            AsyncTask task = {read_image, args, &task_count, batch_sem};
+            AsyncTask task = {
+                .func = read_image,
+                .data = {
+                    .kind = TPData_ANY,
+                    .any = inserted + j},
+                .batch_size = &task_count,
+                .batch_complete = batch_sem};
             threadpool_enqueue(task);
         }
 
@@ -191,8 +196,14 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
         for (U64 j = i; j < MIN(i + ATLAS_CAPACITY, inserted_count); j++)
         {
             draw_pos[j - i].row = inserted + j;
-            TPData args         = {.kind = TPData_ANY, .any = draw_pos + j - i};
-            threadpool_enqueue({draw_image, args, &task_count, batch_sem});
+            AsyncTask task = {
+                .func = draw_image,
+                .data = {
+                    .kind = TPData_ANY,
+                    .any = draw_pos + j - i},
+                .batch_size = &task_count,
+                .batch_complete = batch_sem};
+            threadpool_enqueue(task);
         }
 
         // Now, save the atlas and update the database
@@ -209,15 +220,15 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
 
         // Insert images and Create slot entries
         sqlite3_stmt *insert_stmt = db_prepare("UPDATE Images SET atlas_id = ?, atlas_idx = ?, width = ?, height = ?, channels = ? WHERE id = ?;");
-        sqlite3_stmt *slot_stmt   = db_prepare("INSERT INTO AtlasSlots (atlas_id, atlas_idx, image_id) VALUES (?, ?, ?) ON CONFLICT(atlas_id, atlas_idx) DO UPDATE SET image_id = excluded.image_id;");
+        sqlite3_stmt *slot_stmt = db_prepare("INSERT INTO AtlasSlots (atlas_id, atlas_idx, image_id) VALUES (?, ?, ?) ON CONFLICT(atlas_id, atlas_idx) DO UPDATE SET image_id = excluded.image_id;");
         for (U64 j = i; j < MIN(i + ATLAS_CAPACITY, inserted_count); j++)
         {
-            S64 image_id  = inserted[j].id;
-            S64 atlas_id  = row.atlas_id;
+            S64 image_id = inserted[j].id;
+            S64 atlas_id = row.atlas_id;
             U32 atlas_idx = draw_pos[j - i].draw_idx;
-            S32 width     = inserted[i].width;
-            S32 height    = inserted[i].height;
-            S32 channels  = inserted[i].channels;
+            S32 width = inserted[i].width;
+            S32 height = inserted[i].height;
+            S32 channels = inserted[i].channels;
 
             sqlite3_bind_int64(insert_stmt, 1, atlas_id);
             sqlite3_bind_int64(insert_stmt, 2, atlas_idx);
@@ -237,11 +248,11 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
             sqlite3_clear_bindings(slot_stmt);
 
             Image img;
-            img.atlas_id  = atlas_id;
+            img.atlas_id = atlas_id;
             img.atlas_idx = atlas_idx;
-            img.width     = width;
-            img.height    = height;
-            img.channels  = channels;
+            img.width = width;
+            img.height = height;
+            img.channels = channels;
 
             dense_update(images, image_id, img);
         }

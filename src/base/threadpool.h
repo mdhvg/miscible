@@ -35,7 +35,7 @@ struct AsyncTask
     thread_func *func;
     TPData data;
 
-    volatile U64 *batch_size;
+    volatile S64 *batch_size;
     Semaphore batch_complete;
 };
 

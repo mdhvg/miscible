@@ -123,6 +123,7 @@ struct ViewManager
     ViewQuery state;
     ViewResult main;
     ViewResult back;
+    B32 busy;
 };
 
 MSCBL_API void view_init();

@@ -171,7 +171,7 @@ void menu_sidebar()
             : (menu_state.sidebar_open = 1, menu_state.sidebar_width = sidebar_open_w);
     }
 
-    if (ImGui::Button(menu_state.sidebar_open ? ICON_MS_CACHED "  Rescan Images" : ICON_MS_CACHED, {ImGui::GetContentRegionAvail().x, 0}))
+    if (ImGui::Button(menu_state.sidebar_open ? ICON_MS_CACHED "  Rescan Images" : ICON_MS_CACHED))
     {
         // threadpool_enqueue({cont_scan});
         // threadpool_enqueue(os_info.pool, {index_fill});
@@ -252,6 +252,7 @@ void main_grid()
             if ((i + 1) % row_size)
                 ImGui::SameLine();
         }
+        ImGui::NewLine();
     }
 
     // if (ui_state.images)

@@ -24,7 +24,7 @@ global_v SortField sort_options[] = {
     {SortType_Filename, "Filename"},
     {SortType_DateCreated, "Date Created"},
     {SortType_DateModified, "Date Modified"},
-    // {SortType_EmbeddingDistance, "EmbeddingDistance"},
+    {SortType_EmbeddingDistance, "Distance"},
 };
 
 global_v ViewFilter default_filter = {FilterType_Path};

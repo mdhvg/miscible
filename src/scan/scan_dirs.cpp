@@ -4,6 +4,7 @@
 #include "scan/scan.h"
 #include "base/string.h"
 #include "base/threadpool.h"
+#include "inference/model.h"
 #include "sqlite3.h"
 
 #if OS_WINDOWS
@@ -43,7 +44,8 @@ ThreadFunc(scan_routine)
     db_run_stmt(stmt, 1, push_imagerow, &inserted, arena);
     scan_atlas_bake(arena, inserted);
 
-    threadpool_enqueue({db_fetchall});
+    threadpool_enqueue({.func = db_fetchall});
+    threadpool_enqueue({.func = model_insert_embedding});
 }
 
 void scan_new_dir()

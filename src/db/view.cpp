@@ -15,14 +15,16 @@ void view_init()
 {
     arena_alloc(MB(1), view.main.arena);
     arena_alloc(MB(1), view.back.arena);
-
     arena_alloc(MB(1), view.state.arena);
+    view.busy = 0;
 
     view_clear_state();
 }
 
 void view_clear_state()
 {
+    if (view.busy)
+        return;
     view.state.search_query = {0};
     view.state.sort_basis = mscbl_config.view_settings.sort_basis;
     view.state.descending = mscbl_config.view_settings.descending;
@@ -33,6 +35,8 @@ void view_clear_state()
 
 void view_set_state(UIViewQuery ui_query)
 {
+    if (view.busy)
+        return;
     view.state.search_query = string_cpy(view.state.arena, StringCast(ui_query.search_query));
     view.state.sort_basis = (SortType)ui_query.sort_basis;
     view.state.descending = ui_query.descending;
@@ -177,19 +181,6 @@ String view_build_query(ViewQuery request)
     return StringCast(query);
 }
 
-// void view_reload()
-// {
-// Make a query request (with embedding if required)
-// generate sqlite3 query
-// perform search
-// update results
-// }
-
-// void add_filter(ViewFilter filter)
-// {
-//     da_push(view.arena, view.state.filters, filter);
-// }
-
 void view_fill_filters(sqlite3_stmt *stmt, S32 *cursor, ViewFilter *filters)
 {
     U64 bytes = 0, timestamp = 0;
@@ -222,7 +213,7 @@ void view_fill_filters(sqlite3_stmt *stmt, S32 *cursor, ViewFilter *filters)
     }
 }
 
-DBStmtCbk(print_rows)
+DBStmtCbk(view_push_result)
 {
     S64 id = sqlite3_column_int64(stmt, 0);
     // String path = sv(sqlite3_column_text(stmt, 1));
@@ -253,7 +244,7 @@ DBStmtCbk(print_rows)
     }
 
     // mscbl_log_dbg("|%3zu|%.*s|%.*s|%07zu|%10zu|%10zu|%02zu|%2.4f|", id, StringSpr(path), StringSpr(filename), size, ctime, mtime, source, distance);
-    mscbl_log_dbg("|%05zu|%02d|%2.4f|", id, source, distance);
+    // mscbl_log_dbg("|%3zu|%02d|%2.4f|", id, source, distance);
 }
 
 ThreadFunc(view_run_query)
@@ -265,7 +256,7 @@ ThreadFunc(view_run_query)
 
     if (view.state.search_query.size)
     {
-        Embedding embedding = embed_text(StringCast(view.state.search_query));
+        Embedding embedding = model_embed_text(arena, StringCast(view.state.search_query));
         sqlite3_bind_blob(stmt, cursor++, embedding.vector, embedding.size * sizeof(F32), SQLITE_STATIC);
         view_fill_filters(stmt, &cursor, view.state.filters);
     }
@@ -279,7 +270,7 @@ ThreadFunc(view_run_query)
     view.back.image_ids = NULL;
     arena_clear(view.back.arena);
 
-    db_run_stmt(stmt, 1, print_rows);
+    db_run_stmt(stmt, 1, view_push_result);
 
     ViewResult temp = view.main;
     view.main = view.back;
@@ -288,6 +279,8 @@ ThreadFunc(view_run_query)
 
 void view_reload()
 {
+    if (view.busy)
+        return;
     String query = view_build_query(view.state);
     AsyncTask query_task = {
         .func = view_run_query,
@@ -301,22 +294,3 @@ ViewResult view_get_result()
 {
     return view.main;
 }
-
-// Arena *view_arena = NULL;
-// S64 *view_order = NULL;
-//
-// DBStmtCbk(push_id)
-// {
-//     da_push(view_arena, view_order, sqlite3_column_int64(stmt, 0));
-// }
-//
-// void view_fetch()
-// {
-//     if (!view_arena)
-//         arena_alloc(MB(1), view_arena);
-//     arena_clear(view_arena);
-//
-//     view_order = NULL;
-//     sqlite3_stmt *stmt = db_prepare("SELECT id FROM Images ORDER BY path ASC;");
-//     db_run_stmt(stmt, 1, push_id);
-// }

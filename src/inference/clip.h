@@ -80,6 +80,10 @@ struct clip_text_model
     ggml_tensor *post_ln_b;
 
     ggml_tensor *projection;
+    ggml_context *graph_ctx;
+    ggml_context *ctx_ggml;
+    ggml_backend_t backend;
+    ggml_backend_buffer_t backend_buf;
 };
 
 struct clip_vision_model
@@ -100,6 +104,10 @@ struct clip_vision_model
     ggml_tensor *post_ln_b;
 
     ggml_tensor *projection;
+    ggml_context *graph_ctx;
+    ggml_context *ctx_ggml;
+    ggml_backend_t backend;
+    ggml_backend_buffer_t backend_buf;
 };
 
 typedef S32 clip_vocab_id;
@@ -111,7 +119,7 @@ struct clip_tokens
 
 struct clip_vocab
 {
-    using id    = clip_vocab_id;
+    using id = clip_vocab_id;
     using token = std::string;
 
     std::map<token, id> token_to_id;
@@ -123,7 +131,7 @@ struct clip_vocab
 
 struct clip_ctx
 {
-    bool has_text_encoder   = false;
+    bool has_text_encoder = false;
     bool has_vision_encoder = false;
     clip_text_model text_model;
     clip_vision_model vision_model;
@@ -131,27 +139,28 @@ struct clip_ctx
     F32 image_mean[3];
     F32 image_std[3];
     bool use_gelu = false;
-    S32 ftype     = 1;
-    ggml_context *ctx_ggml;
-    ggml_backend_t backend;
-    ggml_backend_buffer_t backend_buf;
+    S32 ftype = 1;
+};
+
+struct Embedding
+{
+    F32 *vector;
+    S32 size;
+    S32 count;
 };
 
 void clip_model_load(Arena *arena, clip_ctx *clip, const char *fname);
 
 void clip_free(clip_ctx *ctx);
 
-clip_text_hparams *clip_get_text_hparams(struct clip_ctx *ctx);
-struct clip_vision_hparams *clip_get_vision_hparams(struct clip_ctx *ctx);
-
 // TODO: Assuming this works **as intended** for now. Need the check later
 bool clip_tokenize(clip_ctx *ctx, String *input, struct clip_tokens *tokens);
 
-F32 *clip_get_text_embedding(Arena *arena, clip_ctx *ctx, clip_tokens *tokens, bool normalize);
+Embedding clip_get_text_embedding(Arena *arena, clip_ctx *clip, clip_tokens *tokens);
+ggml_cgraph *build_text_encode_graph(clip_text_model *text_model, clip_ctx *clip, U64 token_size);
 
-F32 *clip_get_image_embedding(Arena *arena, clip_ctx *clip, struct VisionWorker *vis, F32 *imageData, S32 batch_size);
-
-ggml_cgraph *build_image_encode_graph(ggml_context *graph_ctx, clip_ctx *clip, int batch_size);
+Embedding clip_get_image_embedding(Arena *arena, clip_ctx *clip, ggml_cgraph *graph, F32 *imageData, S32 batch_size);
+ggml_cgraph *build_image_encode_graph(clip_vision_model *vision_model, clip_ctx *clip, S32 batch_size);
 
 // bool image_normalize(const clip_image_u8 *img, clip_image_f32 *res);
 
