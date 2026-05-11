@@ -214,13 +214,15 @@ void main_grid()
     U32 row_size = width_avail / 128;
 
     ViewResult view_result = view_get_result();
-    for (S64 i = 0; i < da_getsize(view_result.groups); i++)
+    for (S64 grp = 0; grp < da_getsize(view_result.groups); grp++)
     {
-        ViewResultGroup group = view_result.groups[i];
+        ViewResultGroup group = view_result.groups[grp];
+        S64 group_limit = 0;
         switch (group.source)
         {
         case Source_Embedding:
             ImGui::Text("Semantic search");
+            group_limit = 20;
             break;
         case Source_FTS:
             ImGui::Text("Text search");
@@ -228,10 +230,14 @@ void main_grid()
         default: break;
         }
 
-        for (S64 i = group.start_index; i < group.start_index + group.count; i++)
+        for (S64 off = 0;
+             ((group_limit > 0) ? (off < group_limit && off < group.count) : (off < group.count));
+             off++)
         {
-            S64 image_id = view_result.image_ids[i];
-            if (image_id < va_getsize(images) && images[image_id].atlas_id < va_getsize(atlases))
+            S64 id_idx = group.start_index + off;
+            S64 image_id = view_result.image_ids[id_idx];
+            if ((image_id < va_getsize(images)) &&
+                (images[image_id].atlas_id < va_getsize(atlases)))
             {
                 Image img = images[image_id];
                 Atlas atl = atlases[img.atlas_id];
@@ -240,16 +246,16 @@ void main_grid()
                 F32 y = (F32)(img.atlas_idx / 10);
 
                 ImGui::ImageButton(
-                    format_cstr(&sb, "##%d", i),
+                    format_cstr(&sb, "##%d", image_id),
                     atl.tex, {128, 128}, {x / 10.0f, y / 10.0f}, {(x + 1) / 10.0f, (y + 1) / 10.0f});
             }
             else
             {
                 ImGui::ImageButton(
-                    format_cstr(&sb, "##%d", i),
+                    format_cstr(&sb, "##%d", image_id),
                     (ImTextureID)0, {128, 128});
             }
-            if ((i + 1) % row_size)
+            if ((off + 1) % row_size)
                 ImGui::SameLine();
         }
         ImGui::NewLine();

@@ -9,7 +9,6 @@ struct CLIPModel
 };
 
 MSCBL_API CLIPModel model;
-MSCBL_API Arena *model_arena;
 
 ThreadFunc(model_insert_embedding);
-Embedding model_embed_text(Arena* arena, String text);
+Embedding model_embed_text(Arena *arena, String text);

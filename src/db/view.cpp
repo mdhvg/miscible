@@ -23,20 +23,24 @@ void view_init()
 
 void view_clear_state()
 {
-    if (view.busy)
+    if (ins_atomic_u32_eval_cond_assign(&view.busy, 1, 0) == 1)
         return;
+
     view.state.search_query = {0};
     view.state.sort_basis = mscbl_config.view_settings.sort_basis;
     view.state.descending = mscbl_config.view_settings.descending;
     view.state.filters = 0;
 
     arena_clear(view.state.arena);
+
+    ins_atomic_u32_eval_assign(&view.busy, 0);
 }
 
 void view_set_state(UIViewQuery ui_query)
 {
-    if (view.busy)
+    if (ins_atomic_u32_eval_cond_assign(&view.busy, 1, 0) == 1)
         return;
+
     view.state.search_query = string_cpy(view.state.arena, StringCast(ui_query.search_query));
     view.state.sort_basis = (SortType)ui_query.sort_basis;
     view.state.descending = ui_query.descending;
@@ -66,6 +70,8 @@ void view_set_state(UIViewQuery ui_query)
         }
         da_push(view.state.arena, view.state.filters, f1);
     }
+
+    ins_atomic_u32_eval_assign(&view.busy, 0);
 }
 
 String *view_serialize_filters(Arena *arena, ViewFilter *filters)
@@ -130,16 +136,17 @@ String view_build_query(ViewQuery request)
         for (S64 i = 0; i < da_getsize(filters); i++)
             da_push(arena, queries, filters[i]);
 
-        da_push(arena, queries, sv(" UNION ALL"));
+        // da_push(arena, queries, sv(" UNION ALL"));
+        da_push(arena, queries, sv(" ORDER BY distance ASC;\n"));
     }
 
     if (request.search_query.size)
     {
-        da_push(arena, queries, sv(" SELECT id, path, filename, size, ctime, mtime, 2 as source, 0 as distance FROM Images WHERE id IN (SELECT rowid FROM Image_FTS WHERE Image_FTS MATCH ?)"));
+        da_push(arena, queries, sv("SELECT id, path, filename, size, ctime, mtime, 2 as source, 0 as distance FROM Images WHERE id IN (SELECT rowid FROM Image_FTS WHERE Image_FTS MATCH ?)"));
     }
     else
     {
-        da_push(arena, queries, sv(" SELECT id, path, filename, size, ctime, mtime, 0 as source, 0 as distance FROM Images WHERE 1=1"));
+        da_push(arena, queries, sv("SELECT id, path, filename, size, ctime, mtime, 0 as source, 0 as distance FROM Images WHERE 1=1"));
     }
 
     for (U32 i = 0; i < da_getsize(filters); i++)
@@ -177,6 +184,8 @@ String view_build_query(ViewQuery request)
     StringBuilder query = string_empty(arena, KB(4));
     for (S64 i = 0; i < da_getsize(queries); i++)
         string_push(&query, queries[i]);
+
+    mscbl_log_dbg("Query: %.*s", StringSpr(query));
 
     return StringCast(query);
 }
@@ -279,8 +288,9 @@ ThreadFunc(view_run_query)
 
 void view_reload()
 {
-    if (view.busy)
+    if (ins_atomic_u32_eval_cond_assign(&view.busy, 1, 0) == 1)
         return;
+
     String query = view_build_query(view.state);
     AsyncTask query_task = {
         .func = view_run_query,
@@ -288,6 +298,8 @@ void view_reload()
             .kind = TPData_String,
             .str = query}};
     threadpool_enqueue(query_task);
+
+    ins_atomic_u32_eval_assign(&view.busy, 0);
 }
 
 ViewResult view_get_result()

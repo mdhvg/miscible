@@ -140,7 +140,7 @@ typedef double F64;
 #define ins_atomic_u32_inc_eval(x)                InterlockedIncrement((LONG *)(x))
 #define ins_atomic_u32_dec_eval(x)                InterlockedDecrement((LONG *)(x))
 #define ins_atomic_u32_eval_assign(x, c)          InterlockedExchange((LONG *)(x), (c))
-#define ins_atomic_u32_eval_cond_assign(x, k, c)  InterlockedCompareExchange((LONG *)(x), (k), (c))
+#define ins_atomic_u32_eval_cond_assign(d, e, c)  InterlockedCompareExchange((LONG *)(d), (e), (c))
 #define ins_atomic_u32_add_eval(x, c)             InterlockedAdd((LONG *)(x), (c))
 #define ins_atomic_u8_eval_assign(x, c)           InterlockedExchange8((CHAR *)(x), (c))
 #else
@@ -159,7 +159,7 @@ typedef double F64;
 #define ins_atomic_u32_dec_eval(x)                (__atomic_fetch_sub((U32 *)(x), 1, __ATOMIC_SEQ_CST) - 1)
 #define ins_atomic_u32_add_eval(x, c)             (__atomic_fetch_add((U32 *)(x), c, __ATOMIC_SEQ_CST) + (c))
 #define ins_atomic_u32_eval_assign(x, c)          __atomic_exchange_n((x), (c), __ATOMIC_SEQ_CST)
-#define ins_atomic_u32_eval_cond_assign(x, k, c)  ({ U32 _new = (c); __atomic_compare_exchange_n((U32 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
+#define ins_atomic_u32_eval_cond_assign(d, e, c)  ({ U32 _new = (c); __atomic_compare_exchange_n((U32 *)(d),&_new,(e),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
 #define ins_atomic_u8_eval_assign(x, c)           __atomic_exchange_n((x), (c), __ATOMIC_SEQ_CST)
 #else
 #error Atomic intrinsics not defined for this compiler / architecture.

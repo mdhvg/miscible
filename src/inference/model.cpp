@@ -92,7 +92,7 @@ ThreadFunc(preprocess_image)
     temp_end(scratch);
 }
 
-ThreadFunc(model_insert_embedding)
+void model_insert_embedding_impl(Arena *arena)
 {
     arena_clear(arena);
     ImageRow *inserted = NULL;
@@ -216,7 +216,32 @@ ThreadFunc(model_insert_embedding)
 
     ggml_free(vision_model->graph_ctx);
     ggml_gallocr_free(allocr);
-    ggml_backend_free(vision_model->backend);
+}
+
+struct model_embed
+{
+    B32 is_running;
+    B32 needs_rerun;
+};
+
+global_v model_embed m_embed = {0};
+
+ThreadFunc(model_insert_embedding)
+{
+    if (ins_atomic_u32_eval_cond_assign(&m_embed.is_running, 1, 0) == 0)
+    {
+        // This thread is first to run it
+        do
+        {
+            ins_atomic_u32_eval_assign(&m_embed.needs_rerun, 0);
+            // Embed images here
+            model_insert_embedding_impl(arena);
+        } while (ins_atomic_u32_eval(&m_embed.needs_rerun) != 0);
+        ins_atomic_u32_eval_assign(&m_embed.is_running, 0);
+        return;
+    }
+    // Other thread already running this function
+    ins_atomic_u32_eval_assign(&m_embed.needs_rerun, 1);
 }
 
 DBStmtCbk(print_dist)

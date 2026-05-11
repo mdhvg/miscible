@@ -691,9 +691,14 @@ Embedding clip_get_text_embedding(Arena *arena, clip_ctx *clip, clip_tokens *tok
     F32 *vector = push_array(arena, hparams.projection_dim, F32);
     MemoryCopy(vector, ggml_get_data(output), hparams.projection_dim * sizeof(F32));
 
+    void *graph_mem = ggml_get_mem_buffer(text_model->graph_ctx);
     ggml_free(text_model->graph_ctx);
     ggml_gallocr_free(allocr);
-    ggml_backend_free(text_model->backend);
+
+    U64 mem_size = ggml_tensor_overhead() * GGML_DEFAULT_GRAPH_SIZE + ggml_graph_overhead();
+    text_model->graph_ctx = ggml_init({.mem_size = mem_size,
+                                       .mem_buffer = graph_mem,
+                                       .no_alloc = true});
 
     return {
         .vector = vector,

@@ -6,7 +6,7 @@ void ui_debug_arenas()
 {
     ImGui::Begin("Arena Debug");
 
-    for (Arena *cur = arena_head; cur->next; cur = cur->next)
+    for (Arena *cur = arena_head; cur; cur = cur->next)
     {
         ImGui::Text("Arena: %s", cur->name);
 
