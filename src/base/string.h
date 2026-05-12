@@ -38,7 +38,7 @@ typedef struct WString OSString;
 typedef struct String OSString;
 #endif
 
-#define StringSpr(s)  (s).size, (s).v
+#define StringSpr(s)  ((S32)(s).size), (s).v
 #define WStringSpr(s) (s).size, (s).v
 
 #define StringCast(x)  *(String *)(&(x))

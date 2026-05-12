@@ -76,6 +76,7 @@
 #define AlignOf(A, B)    (((A) + (B) - 1) & (~((B) - 1)))
 #define ToCeilInt(A, B)  (((A) + (B - 1)) / (B))
 #define StaticArrSize(A) (sizeof(A) / sizeof((A)[0]))
+#define ToBool(A)        (((A) != 0) ? (1) : (0))
 
 // #define SetBit(bitset, idx)	  (bitset[(idx) / 64] |= (1ull << ((idx) % 64)))
 // #define ClearBit(bitset, idx) (bitset[(idx) / 64] &= ~(1ull << ((idx) % 64)))
@@ -215,5 +216,6 @@ void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
 
 #define ATLAS_CAPACITY 100
 #define ATLAS_SIZE     2560
+#define ATLAS_CHANNELS 3
 #define THUMB_PER_SIDE 10
 #define THUMB_SIZE     256

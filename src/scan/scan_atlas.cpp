@@ -25,7 +25,7 @@ ThreadFunc(read_image)
 
     S32 w, h, c;
     S32 resize_height, resize_width;
-    U8 *img_data = stbi_load(CStrCast(row->path), &w, &h, &c, 3);
+    U8 *img_data = stbi_load(CStrCast(row->path), &w, &h, &c, ATLAS_CHANNELS);
     Assert(img_data, "image data is NULL (%.*s)", StringSpr(row->path));
 
     if (w < h)
@@ -39,7 +39,7 @@ ThreadFunc(read_image)
         resize_width = THUMB_SIZE * ((float)w / (float)h);
     }
 
-    U8 *resize_data = push_size(arena, (3 * resize_height * resize_width), U8);
+    U8 *resize_data = push_size(arena, (ATLAS_CHANNELS * resize_height * resize_width), U8);
     stbir_resize_uint8_linear(img_data, w, h, 0, resize_data, resize_width, resize_height, 0, STBIR_RGB);
     stbi_image_free(img_data);
 
@@ -53,7 +53,7 @@ ThreadFunc(read_image)
 
 struct draw_params
 {
-    U64 draw_idx;
+    S64 draw_idx;
     ImageRow *row;
 };
 
@@ -66,15 +66,15 @@ ThreadFunc(draw_image)
     U32 x_off = (params.row->resize_width - smaller_side) / 2;
     U32 y_off = (params.row->resize_height - smaller_side) / 2;
 
-    U8 *src = params.row->data + (y_off * params.row->resize_width + x_off) * 3;
-    U8 *dst = atlas_data + (params.draw_idx / THUMB_PER_SIDE * ATLAS_SIZE * 3 * THUMB_SIZE) +
-              (params.draw_idx % THUMB_PER_SIDE * 3 * THUMB_SIZE);
+    U8 *src = params.row->data + (y_off * params.row->resize_width + x_off) * ATLAS_CHANNELS;
+    U8 *dst = atlas_data + (params.draw_idx / THUMB_PER_SIDE * ATLAS_SIZE * ATLAS_CHANNELS * THUMB_SIZE) +
+              (params.draw_idx % THUMB_PER_SIDE * ATLAS_CHANNELS * THUMB_SIZE);
 
     for (U32 i = 0; i < THUMB_SIZE; i++)
     {
-        memcpy(dst, src, THUMB_SIZE * 3);
-        src += params.row->resize_width * 3;
-        dst += ATLAS_SIZE * 3;
+        memcpy(dst, src, THUMB_SIZE * ATLAS_CHANNELS);
+        src += params.row->resize_width * ATLAS_CHANNELS;
+        dst += ATLAS_SIZE * ATLAS_CHANNELS;
     }
 }
 
@@ -85,34 +85,22 @@ struct AtlasRow
     B32 update;
 };
 
-struct atlas_params
-{
-    Arena *arena;
-    AtlasRow *row;
-};
-
 DBStmtCbk(get_atlas)
 {
-    atlas_params *params = (atlas_params *)data;
+    AtlasRow *ret = (AtlasRow *)data;
     AtlasRow row = {
         .atlas_id = sqlite3_column_int64(stmt, 0),
-        .path = string_cpy(params->arena, sqlite3_column_text(stmt, 1)),
+        .path = string_cpy(arena, sqlite3_column_text(stmt, 1)),
         .update = 1};
-    *params->row = row;
+    *ret = row;
 }
-
-struct idx_params
-{
-    Arena *arena;
-    draw_params *array;
-};
 
 DBStmtCbk(push_idx)
 {
-    idx_params *params = (idx_params *)data;
+    draw_params **array = (draw_params **)data;
     draw_params idx = {
-        .draw_idx = (U64)sqlite3_column_int64(stmt, 0)};
-    da_push(params->arena, params->array, idx);
+        .draw_idx = sqlite3_column_int64(stmt, 0)};
+    da_push(arena, *array, idx);
 }
 
 void scan_atlas_bake(Arena *arena, ImageRow *inserted)
@@ -126,7 +114,7 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
     S64 task_count = 0;
     Semaphore batch_sem = os_semaphore_alloc(0, S32_MAX);
 
-    for (U64 i = 0; i < inserted_count; i += ATLAS_CAPACITY)
+    for (U64 base = 0; base < inserted_count; base += ATLAS_CAPACITY)
     {
         threadpool_clear_arenas();
 
@@ -134,19 +122,24 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
         draw_pos = NULL;
         da_setcap(tmp.arena, draw_pos, ATLAS_CAPACITY);
 
-        task_count = MIN(i + ATLAS_CAPACITY, inserted_count) - i;
-        for (U64 j = i; j < MIN(i + ATLAS_CAPACITY, inserted_count); j++)
+        // NOTE: get number of images to be drawn (0, 100]
+        task_count = MIN(base + ATLAS_CAPACITY, inserted_count) - base;
+        S64 batch_size = task_count;
+        for (S64 off = 0; off < task_count; off++)
         {
+            // NOTE: read jobs are taken from entire inserted array
+            // so job index = base + off (offset of current job)
             AsyncTask task = {
                 .func = read_image,
                 .data = {
                     .kind = TPData_ANY,
-                    .val_any = inserted + j},
-                .batch_size = &task_count,
+                    .val_any = &inserted[off + base]},
+                .batch_size = &batch_size,
                 .batch_complete = batch_sem};
             threadpool_enqueue(task);
         }
 
+        // NOTE: find the existing atlas which can accomodate the images of this batch
         sqlite3_stmt *st0 = db_prepare(
             "SELECT s.atlas_id, a.atlas_path "
             "FROM AtlasSlots s JOIN Atlas a "
@@ -157,61 +150,72 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
             "WHERE image_id IS NULL "
             "GROUP BY atlas_id "
             "HAVING COUNT(*) >= ?);");
-        sqlite3_bind_int64(st0, 1, inserted_count - i);
-        atlas_params p = {tmp.arena, &row};
-        if (db_run_stmt(st0, 1, get_atlas, &p))
+        sqlite3_bind_int64(st0, 1, inserted_count - base);
+
+        if (db_run_stmt(st0, 1, get_atlas, &row, tmp.arena))
         {
+            // NOTE: get the available slot indices from the existing atlas
             sqlite3_stmt *st1 = db_prepare(
                 "SELECT atlas_idx "
                 "FROM AtlasSlots "
-                "WHERE atlas_id = ?;");
+                "WHERE atlas_id = ? "
+                "AND image_id IS NULL;");
             sqlite3_bind_int64(st1, 1, row.atlas_id);
-            idx_params _p = {tmp.arena, draw_pos};
-            db_run_stmt(st1, 1, push_idx, &_p);
+            db_run_stmt(st1, 1, push_idx, &draw_pos, tmp.arena);
 
+            // NOTE: load the existing atlas for drawing
             S32 w, h, c;
-            atlas_data = stbi_load(CStrCast(row.path), &w, &h, &c, 3);
+            atlas_data = stbi_load(CStrCast(row.path), &w, &h, &c, ATLAS_CHANNELS);
         }
 
         if (!da_getsize(draw_pos))
         {
+            // NOTE: if no existing atlas has enough slots available, create new
+            // atlas with new guid and path
             char *guid = push_array(tmp.arena, sizeof(Guid) * 2, char);
             bytes_as_hex_lower(os_make_guid().v, 0, sizeof(Guid), guid);
 
             StringBuilder path = string_empty(tmp.arena);
             string_format(&path, "%.*s/%.*s.tga", StringSpr(mscbl_config.atlas_dir), sizeof(Guid) * 2, guid);
 
-            row = {-1, StringCast(path), 0};
+            row = {.atlas_id = -1,
+                   .path = StringCast(path),
+                   .update = 0};
 
-            for (U64 j = 0; j < MIN(ATLAS_CAPACITY, inserted_count - i); j++)
+            for (S64 j = 0; j < task_count; j++)
             {
-                draw_params pos = {j};
+                // NOTE: create draw command list
+                draw_params pos = {.draw_idx = j};
                 da_push(tmp.arena, draw_pos, pos);
             }
 
-            atlas_data = push_array(tmp.arena, (ATLAS_SIZE * ATLAS_SIZE * 3), U8);
+            atlas_data = push_array(tmp.arena, (ATLAS_SIZE * ATLAS_SIZE * ATLAS_CHANNELS), U8);
         }
+
+        // NOTE: wait until batch of read_image commands finishes
         os_semaphore_take(batch_sem, U64_MAX);
 
-        task_count = MIN(i + ATLAS_CAPACITY, inserted_count) - i;
-        for (U64 j = i; j < MIN(i + ATLAS_CAPACITY, inserted_count); j++)
+        batch_size = task_count;
+        for (S64 off = 0; off < task_count; off++)
         {
-            draw_pos[j - i].row = inserted + j;
+            // NOTE: draw jobs reads rows from base + off (offset of job) and
+            // draws them into draw_idx (<=ATLAS_CAPACITY) which is taken from
+            // off (current offset) index of draw_pos array
+            draw_pos[off].row = &inserted[off + base];
             AsyncTask task = {
                 .func = draw_image,
                 .data = {
                     .kind = TPData_ANY,
-                    .val_any = draw_pos + j - i},
-                .batch_size = &task_count,
+                    .val_any = &draw_pos[off]},
+                .batch_size = &batch_size,
                 .batch_complete = batch_sem};
             threadpool_enqueue(task);
         }
 
-        // Now, save the atlas and update the database
-
+        // NOTE: save the atlas and update the database as 1 transaction
         db_run("BEGIN TRANSACTION;");
 
-        // Insert atlas if new
+        // NOTE: insert atlas if new and obtain it's atlas_id
         if (!row.update)
         {
             sqlite3_stmt *st2 = db_prepare("INSERT INTO Atlas(atlas_path) VALUES(?) RETURNING id;");
@@ -219,17 +223,17 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
             db_run_stmt(st2, 1, get_id, &row.atlas_id);
         }
 
-        // Insert images and Create slot entries
+        //NOTE: insert images and Create slot entries
         sqlite3_stmt *insert_stmt = db_prepare("UPDATE Images SET atlas_id = ?, atlas_idx = ?, width = ?, height = ?, channels = ? WHERE id = ?;");
         sqlite3_stmt *slot_stmt = db_prepare("INSERT INTO AtlasSlots (atlas_id, atlas_idx, image_id) VALUES (?, ?, ?) ON CONFLICT(atlas_id, atlas_idx) DO UPDATE SET image_id = excluded.image_id;");
-        for (U64 j = i; j < MIN(i + ATLAS_CAPACITY, inserted_count); j++)
+        for (S64 off = 0; off < task_count; off++)
         {
-            S64 image_id = inserted[j].id;
+            S64 image_id = inserted[off + base].id;
             S64 atlas_id = row.atlas_id;
-            U32 atlas_idx = draw_pos[j - i].draw_idx;
-            S32 width = inserted[i].width;
-            S32 height = inserted[i].height;
-            S32 channels = inserted[i].channels;
+            U32 atlas_idx = draw_pos[off].draw_idx;
+            S32 width = inserted[off + base].width;
+            S32 height = inserted[off + base].height;
+            S32 channels = inserted[off + base].channels;
 
             sqlite3_bind_int64(insert_stmt, 1, atlas_id);
             sqlite3_bind_int64(insert_stmt, 2, atlas_idx);
@@ -248,26 +252,30 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
             sqlite3_reset(slot_stmt);
             sqlite3_clear_bindings(slot_stmt);
 
-            Image img;
-            img.atlas_id = atlas_id;
-            img.atlas_idx = atlas_idx;
-            img.width = width;
-            img.height = height;
-            img.channels = channels;
+            Image img = {.atlas_id = atlas_id,
+                         .atlas_idx = atlas_idx,
+                         .width = width,
+                         .height = height,
+                         .channels = channels};
 
             dense_update(images, image_id, img);
         }
         sqlite3_finalize(insert_stmt);
         sqlite3_finalize(slot_stmt);
 
+        // NOTE: now, start waiting for last batch job
         os_semaphore_take(batch_sem, U64_MAX);
 
-        task_count = MIN(i + ATLAS_CAPACITY, inserted_count) - i;
         if (!row.update && task_count < ATLAS_CAPACITY)
         {
+            // NOTE: when new atlas is created and it has empty slots, fill
+            // them with NULL values in image_id column
             sqlite3_stmt *slot_stmt = db_prepare("INSERT INTO AtlasSlots (atlas_id, atlas_idx, image_id) VALUES (?, ?, ?) ON CONFLICT(atlas_id, atlas_idx) DO UPDATE SET image_id = excluded.image_id;");
-            // Can only happen when a new atlas is created and it's not filled completely
-            for (U64 j = draw_pos[da_getsize(draw_pos)].draw_idx; j < ATLAS_CAPACITY; j++)
+
+            // NOTE: last index where image was drawn + 1 marks the beginning of
+            // empty slots
+            U64 empty_start = draw_pos[da_getsize(draw_pos) - 1].draw_idx + 1;
+            for (U64 j = empty_start; j < ATLAS_CAPACITY; j++)
             {
                 sqlite3_bind_int64(slot_stmt, 1, row.atlas_id);
                 sqlite3_bind_int64(slot_stmt, 2, j);
@@ -277,15 +285,22 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
             }
             sqlite3_finalize(slot_stmt);
         }
+        B32 write_success = ToBool(stbi_write_tga(CStrCast(row.path), ATLAS_SIZE, ATLAS_SIZE, ATLAS_CHANNELS, atlas_data));
+        Assert(write_success, "failed to save image (%.*s)", StringSpr(row.path));
+        mscbl_log_dbg("Written atlas: %.*s", StringSpr(row.path));
 
-        Assert(stbi_write_tga(CStrCast(row.path), ATLAS_SIZE, ATLAS_SIZE, 3, atlas_data), "failed to save image (%.*s)", row.path.size, row.path.v);
-        mscbl_log_dbg("Written atlas: %.*s", row.path.size, CStrCast(row.path));
+        // NOTE: only writes to DB if everything up till here succeeds
         db_run("COMMIT;");
 
-        // Load atlas as texture
-        dense_update(atlases, row.atlas_id, {row.atlas_id});
-        GLA_tex params = {&atlases[row.atlas_id].tex, atlas_data, ATLAS_SIZE, ATLAS_SIZE, 3};
-        gl_push({GLArgs_tex, params});
+        // NOTE: load atlas as texture
+        dense_update(atlases, row.atlas_id, {.id = row.atlas_id});
+        GLA_tex params = {
+            .texture = &atlases[row.atlas_id].tex,
+            .data = atlas_data,
+            .width = ATLAS_SIZE,
+            .height = ATLAS_SIZE,
+            .channels = ATLAS_CHANNELS};
+        gl_push({.kind = GLArgs_tex, .v = params});
 
         temp_end(tmp);
     }
