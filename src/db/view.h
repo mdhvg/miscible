@@ -96,19 +96,18 @@ struct ViewQuery
     ViewFilter *filters;
 };
 
-enum Source
+enum QueryType
 {
-    Source_None,
-    Source_Embedding,
-    Source_FTS,
-    Source_COUNT
+    QueryType_None,
+    QueryType_Embedding,
+    QueryType_FTS,
 };
 
 struct ViewResultGroup
 {
     S64 start_index;
     S64 count;
-    Source source;
+    QueryType query_type;
 };
 
 struct ViewResult

@@ -54,7 +54,7 @@ DBStmtCbk(push_atlas)
         gl_args_path *params = push_struct(fetch_arena, gl_args_path);
         params->texture = &atlases[id].tex;
         params->path = path;
-        TPData args = {.kind = TPData_ANY, .any = params};
+        TPData args = {.kind = TPData_ANY, .val_any = params};
         threadpool_enqueue({gl_tex_path, args});
     }
     else

@@ -152,15 +152,13 @@ void ui_render()
     }
 
     // Render page
-    {
-        if (page_data[ui_state.page].fn)
-            page_data[ui_state.page].fn();
+    if (page_data[ui_state.page].fn)
+        page_data[ui_state.page].fn();
 #else
     page_data[ui_state.page]();
 #endif
 
-        arena_clear(ui_state.page_arena);
-    }
+    arena_clear(ui_state.page_arena);
     ImGui::End();
 
     ImGui::ShowDemoWindow();

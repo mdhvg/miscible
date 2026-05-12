@@ -122,37 +122,16 @@ String *view_serialize_filters(Arena *arena, ViewFilter *filters)
     return f1;
 }
 
-String view_build_query(ViewQuery request)
+String view_build_default_query(ViewQuery request, Arena *arena, String *filters)
 {
-    Arena *arena = request.arena;
     String *queries = NULL;
 
-    String *filters = view_serialize_filters(arena, request.filters);
-
-    if (request.search_query.size)
-    {
-        da_push(arena, queries, sv("SELECT id, path, filename, size, ctime, mtime, 1 as source, distance_cosine_f32(embedding, ?) AS distance FROM Images WHERE embedding IS NOT NULL"));
-
-        for (S64 i = 0; i < da_getsize(filters); i++)
-            da_push(arena, queries, filters[i]);
-
-        // da_push(arena, queries, sv(" UNION ALL"));
-        da_push(arena, queries, sv(" ORDER BY distance ASC;\n"));
-    }
-
-    if (request.search_query.size)
-    {
-        da_push(arena, queries, sv("SELECT id, path, filename, size, ctime, mtime, 2 as source, 0 as distance FROM Images WHERE id IN (SELECT rowid FROM Image_FTS WHERE Image_FTS MATCH ?)"));
-    }
-    else
-    {
-        da_push(arena, queries, sv("SELECT id, path, filename, size, ctime, mtime, 0 as source, 0 as distance FROM Images WHERE 1=1"));
-    }
+    da_push(arena, queries, sv("SELECT id, path, filename, size, ctime, mtime, 0 as distance FROM Images WHERE 1=1"));
 
     for (U32 i = 0; i < da_getsize(filters); i++)
         da_push(arena, queries, filters[i]);
 
-    da_push(arena, queries, sv(" ORDER BY source ASC,"));
+    da_push(arena, queries, sv(" ORDER BY"));
 
     switch (request.sort_basis)
     {
@@ -190,65 +169,138 @@ String view_build_query(ViewQuery request)
     return StringCast(query);
 }
 
-void view_fill_filters(sqlite3_stmt *stmt, S32 *cursor, ViewFilter *filters)
+String view_build_embedding_query(ViewQuery request, Arena *arena, String *filters)
 {
-    U64 bytes = 0, timestamp = 0;
+    String *queries = NULL;
+
+    da_push(arena, queries, sv("SELECT id, path, filename, size, ctime, mtime, distance_cosine_f32(embedding, ?) AS distance FROM Images WHERE embedding IS NOT NULL"));
+
     for (S64 i = 0; i < da_getsize(filters); i++)
+        da_push(arena, queries, filters[i]);
+
+    da_push(arena, queries, sv(" ORDER BY distance ASC;\n"));
+
+    StringBuilder query = string_empty(arena, KB(4));
+    for (S64 i = 0; i < da_getsize(queries); i++)
+        string_push(&query, queries[i]);
+
+    mscbl_log_dbg("Query: %.*s", StringSpr(query));
+
+    return StringCast(query);
+}
+
+String view_build_fts_query(ViewQuery request, Arena *arena, String *filters)
+{
+    String *queries = NULL;
+
+    da_push(arena, queries, sv("SELECT id, path, filename, size, ctime, mtime, 0 as distance FROM Images WHERE id IN (SELECT rowid FROM Image_FTS WHERE Image_FTS MATCH ?)"));
+
+    for (U32 i = 0; i < da_getsize(filters); i++)
+        da_push(arena, queries, filters[i]);
+
+    da_push(arena, queries, sv(" ORDER BY"));
+
+    switch (request.sort_basis)
     {
-        ViewFilter f0 = filters[i];
-        switch (f0.type)
-        {
-        case FilterType_SizeGreater:
-            bytes = (f0.val_bytes.value * (1 << (10 * (int)f0.val_bytes.unit)));
-            sqlite3_bind_int64(stmt, *cursor, bytes);
-            break;
-        case FilterType_Path:
-        case FilterType_Filename:
-            sqlite3_bind_text(stmt, *cursor, CStrCast(f0.val_str), f0.val_str.size, SQLITE_STATIC);
-            break;
-        case FilterType_DateCreatedAfter:
-        case FilterType_DateModifiedAfter:
-            // TODO: Make UNIX timestamp (also, convert os timestamps to UNIX timestamp in Windows functions)
-            timestamp = 0;
-            sqlite3_bind_int64(stmt, *cursor, timestamp);
-            break;
-        case FilterType_EmbeddingDistanceGreater:
-            // TODO: This case
-            break;
-        default:
-            break;
-        }
-        *cursor += 1;
+    case SortType_Path:
+        da_push(arena, queries, sv(" path"));
+        break;
+    case SortType_Size:
+        da_push(arena, queries, sv(" size"));
+        break;
+    case SortType_Filename:
+        da_push(arena, queries, sv(" filename"));
+        break;
+    case SortType_DateCreated:
+        da_push(arena, queries, sv(" ctime"));
+        break;
+    case SortType_DateModified:
+        da_push(arena, queries, sv(" mtime"));
+        break;
+    case SortType_EmbeddingDistance:
+        da_push(arena, queries, sv(" distance"));
+        break;
+    default:
+        Assert(0, "invalid sort order");
+        break;
     }
+
+    da_push(arena, queries, request.descending ? sv(" DESC;") : sv(" ASC;"));
+
+    StringBuilder query = string_empty(arena, KB(4));
+    for (S64 i = 0; i < da_getsize(queries); i++)
+        string_push(&query, queries[i]);
+
+    mscbl_log_dbg("Query: %.*s", StringSpr(query));
+
+    return StringCast(query);
+}
+
+struct tagged_query
+{
+    String query;
+    QueryType query_type;
+};
+
+tagged_query view_build_query(ViewQuery request, QueryType query_type)
+{
+    Arena *arena = request.arena;
+    String *filters = view_serialize_filters(arena, request.filters);
+
+    String query = {0};
+    switch (query_type)
+    {
+    case QueryType_None:
+        query = view_build_default_query(request, arena, filters);
+        break;
+    case QueryType_Embedding:
+        query = view_build_embedding_query(request, arena, filters);
+        break;
+    case QueryType_FTS:
+        query = view_build_fts_query(request, arena, filters);
+        break;
+    default:
+        Assert(0, "wrong enum type %d", query_type);
+    }
+    return {.query = query, .query_type = query_type};
 }
 
 DBStmtCbk(view_push_result)
 {
+    QueryType query_type = *(QueryType *)data;
+
     S64 id = sqlite3_column_int64(stmt, 0);
     // String path = sv(sqlite3_column_text(stmt, 1));
     // String filename = sv(sqlite3_column_text(stmt, 2));
     // S64 size = sqlite3_column_int64(stmt, 3);
     // S64 ctime = sqlite3_column_int64(stmt, 4);
     // S64 mtime = sqlite3_column_int64(stmt, 5);
-    S32 source = sqlite3_column_int(stmt, 6);
-    F64 distance = sqlite3_column_double(stmt, 7);
+    F64 distance = sqlite3_column_double(stmt, 6);
 
     S64 push_idx = da_getsize(view.back.image_ids);
     da_push(view.back.arena, view.back.image_ids, id);
 
-    if (da_getsize(view.back.groups) > source)
+    if (da_getsize(view.back.groups) > (U32)query_type)
     {
-        view.back.groups[source].count++;
+        ViewResultGroup *group = &view.back.groups[query_type];
+        if (group->count == 0)
+            *group = {
+                .start_index = push_idx,
+                .count = 1,
+                .query_type = query_type};
+
+        group->count++;
     }
     else
     {
         ViewResultGroup dummy = {0};
-        while (da_getsize(view.back.groups) < source)
+        while (da_getsize(view.back.groups) < (U32)query_type)
             da_push(view.back.arena, view.back.groups, dummy);
+
         ViewResultGroup group = {
             .start_index = push_idx,
             .count = 1,
-            .source = (Source)source};
+            .query_type = query_type};
         da_push(view.back.arena, view.back.groups, group);
     }
 
@@ -258,28 +310,68 @@ DBStmtCbk(view_push_result)
 
 ThreadFunc(view_run_query)
 {
-    Assert(data.kind == TPData_String, "wrong datatype");
-    String query = data.str;
-    sqlite3_stmt *stmt = db_prepare(CStrCast(query));
-    S32 cursor = 1;
-
-    if (view.state.search_query.size)
-    {
-        Embedding embedding = model_embed_text(arena, StringCast(view.state.search_query));
-        sqlite3_bind_blob(stmt, cursor++, embedding.vector, embedding.size * sizeof(F32), SQLITE_STATIC);
-        view_fill_filters(stmt, &cursor, view.state.filters);
-    }
-
-    if (view.state.search_query.size)
-        sqlite3_bind_text(stmt, cursor++, CStrCast(view.state.search_query), view.state.search_query.size, SQLITE_STATIC);
-
-    view_fill_filters(stmt, &cursor, view.state.filters);
+    Assert(data.kind == TPData_ANY, "wrong datatype");
+    tagged_query *queries = (tagged_query *)data.val_any;
+    ViewFilter *filters = view.state.filters;
 
     view.back.groups = NULL;
     view.back.image_ids = NULL;
     arena_clear(view.back.arena);
 
-    db_run_stmt(stmt, 1, view_push_result);
+    for (S64 q = 0; q < da_getsize(queries); q++)
+    {
+        tagged_query query = queries[q];
+
+        sqlite3_stmt *stmt = db_prepare(CStrCast(query.query));
+        S32 cursor = 1;
+        Embedding embedding;
+
+        switch (query.query_type)
+        {
+        case QueryType_None:
+            break;
+        case QueryType_Embedding:
+            embedding = model_embed_text(arena, StringCast(view.state.search_query));
+            sqlite3_bind_blob(stmt, cursor++, embedding.vector, embedding.size * sizeof(F32), SQLITE_STATIC);
+            break;
+        case QueryType_FTS:
+            sqlite3_bind_text(stmt, cursor++, CStrCast(view.state.search_query), view.state.search_query.size, SQLITE_STATIC);
+            break;
+        default:
+            Assert(0, "wrong enum type %d", query.query_type);
+        }
+
+        U64 bytes = 0, timestamp = 0;
+        for (S64 i = 0; i < da_getsize(filters); i++)
+        {
+            ViewFilter f0 = filters[i];
+            switch (f0.type)
+            {
+            case FilterType_SizeGreater:
+                bytes = (f0.val_bytes.value * (1 << (10 * (int)f0.val_bytes.unit)));
+                sqlite3_bind_int64(stmt, cursor, bytes);
+                break;
+            case FilterType_Path:
+            case FilterType_Filename:
+                sqlite3_bind_text(stmt, cursor, CStrCast(f0.val_str), f0.val_str.size, SQLITE_STATIC);
+                break;
+            case FilterType_DateCreatedAfter:
+            case FilterType_DateModifiedAfter:
+                // TODO: Make UNIX timestamp (also, convert os timestamps to UNIX timestamp in Windows functions)
+                timestamp = 0;
+                sqlite3_bind_int64(stmt, cursor, timestamp);
+                break;
+            case FilterType_EmbeddingDistanceGreater:
+                // TODO: This case
+                break;
+            default:
+                break;
+            }
+            cursor++;
+        }
+
+        db_run_stmt(stmt, 1, view_push_result, &query.query_type);
+    }
 
     ViewResult temp = view.main;
     view.main = view.back;
@@ -291,12 +383,23 @@ void view_reload()
     if (ins_atomic_u32_eval_cond_assign(&view.busy, 1, 0) == 1)
         return;
 
-    String query = view_build_query(view.state);
+    tagged_query *queries = NULL;
+
+    if (view.state.search_query.size)
+    {
+        da_push(view.state.arena, queries, view_build_query(view.state, QueryType_FTS));
+        da_push(view.state.arena, queries, view_build_query(view.state, QueryType_Embedding));
+    }
+    else
+    {
+        da_push(view.state.arena, queries, view_build_query(view.state, QueryType_None));
+    }
+
     AsyncTask query_task = {
         .func = view_run_query,
         .data = {
-            .kind = TPData_String,
-            .str = query}};
+            .kind = TPData_ANY,
+            .val_any = queries}};
     threadpool_enqueue(query_task);
 
     ins_atomic_u32_eval_assign(&view.busy, 0);

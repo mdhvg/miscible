@@ -24,9 +24,9 @@ struct TPData
 {
     TPData_ kind;
     union {
-        void *any;
-        String str;
-        OSString os_str;
+        void *val_any;
+        String val_str;
+        OSString val_os_str;
     };
 };
 

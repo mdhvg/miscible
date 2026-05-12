@@ -25,7 +25,7 @@ DBStmtCbk(push_imagerow)
 ThreadFunc(scan_routine)
 {
     Assert(data.kind == TPData_OSString, "wrong datatype");
-    OSString dir = data.os_str;
+    OSString dir = data.val_os_str;
 
     first_scan(arena, dir);
     view_reload();
@@ -61,7 +61,7 @@ void scan_new_dir()
 #endif
         db_run_stmt(stmt, 1);
 
-        TPData args = {.kind = TPData_OSString, .os_str = dir};
+        TPData args = {.kind = TPData_OSString, .val_os_str = dir};
         threadpool_enqueue({scan_routine, args});
     }
 }

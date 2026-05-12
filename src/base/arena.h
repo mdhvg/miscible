@@ -47,7 +47,7 @@ void _arena_alloc(U64 capacity, Arena **arena);
 #define arena_alloc(capacity, arena) _arena_alloc(capacity, &(arena))
 #endif
 
-void *arena_push(Arena *a, U64 size, U8 zero = 0, U64 align = 8);
+MSCBL_API void *arena_push(Arena *a, U64 size, U8 zero = 0, U64 align = 8);
 void *arena_realloc(Arena *a, void *ptr, U64 old_size, U64 new_size);
 #define realloc_array(a, ptr, count, new_count, type) (type *)arena_realloc(a, ptr, count * sizeof(type), new_count * sizeof(type))
 #define push_array(a, count, type)                    (type *)arena_push(a, (count) * sizeof(type))

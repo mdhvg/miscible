@@ -111,7 +111,7 @@ void threadpool_clear_arenas()
     if (!pool)
         return;
     S64 jobs = pool->worker_count * 2;
-    TPData args = {.kind = TPData_ANY, .any = NULL};
+    TPData args = {.kind = TPData_ANY, .val_any = NULL};
     for (U64 i = 0; i < pool->worker_count * 2; i++)
         threadpool_enqueue({.func = clear_arena,
                             .data = args,

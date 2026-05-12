@@ -218,13 +218,13 @@ void main_grid()
     {
         ViewResultGroup group = view_result.groups[grp];
         S64 group_limit = 0;
-        switch (group.source)
+        switch (group.query_type)
         {
-        case Source_Embedding:
+        case QueryType_Embedding:
             ImGui::Text("Semantic search");
             group_limit = 20;
             break;
-        case Source_FTS:
+        case QueryType_FTS:
             ImGui::Text("Text search");
             break;
         default: break;
@@ -254,6 +254,16 @@ void main_grid()
                 ImGui::ImageButton(
                     format_cstr(&sb, "##%d", image_id),
                     (ImTextureID)0, {128, 128});
+            }
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_Stationary))
+            {
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, RADIUS(0.5));
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {SPACING(1), SPACING(1)});
+                ImGui::PushStyleColor(ImGuiCol_PopupBg, DARK_BACKGROUND_HOVER);
+                ImGui::SetTooltip("%zu", image_id);
+                ImGui::PopStyleVar();
+                ImGui::PopStyleVar();
+                ImGui::PopStyleColor();
             }
             if ((off + 1) % row_size)
                 ImGui::SameLine();

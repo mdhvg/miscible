@@ -29,7 +29,7 @@ struct preprocess_params
 ThreadFunc(preprocess_image)
 {
     Assert(data.kind == TPData_ANY, "wrong datatype");
-    preprocess_params *params = (preprocess_params *)data.any;
+    preprocess_params *params = (preprocess_params *)data.val_any;
     String image_path = params->path;
     F32 *write_base = params->write_base;
 
@@ -143,7 +143,7 @@ void model_insert_embedding_impl(Arena *arena)
                 .func = preprocess_image,
                 .data = {
                     .kind = TPData_ANY,
-                    .any = params},
+                    .val_any = params},
                 .batch_size = &batch_var,
                 .batch_complete = batch_sem};
             threadpool_enqueue(task);
@@ -214,8 +214,14 @@ void model_insert_embedding_impl(Arena *arena)
     sqlite3_finalize(stmt);
     os_semaphore_release(batch_sem);
 
+    void *graph_mem = ggml_get_mem_buffer(vision_model->graph_ctx);
     ggml_free(vision_model->graph_ctx);
     ggml_gallocr_free(allocr);
+
+    U64 mem_size = ggml_tensor_overhead() * GGML_DEFAULT_GRAPH_SIZE + ggml_graph_overhead();
+    vision_model->graph_ctx = ggml_init({.mem_size = mem_size,
+                                         .mem_buffer = graph_mem,
+                                         .no_alloc = true});
 }
 
 struct model_embed

@@ -109,7 +109,7 @@ void gl_tex_data(GLA_tex args)
 ThreadFunc(gl_tex_path)
 {
     Assert(data.kind == TPData_ANY, "wrong datatype");
-    gl_args_path args0 = *(gl_args_path *)data.any;
+    gl_args_path args0 = *(gl_args_path *)data.val_any;
 
     GLA_tex params1;
 

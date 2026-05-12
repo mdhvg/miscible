@@ -21,7 +21,7 @@ global_v U8 *atlas_data = NULL;
 ThreadFunc(read_image)
 {
     Assert(data.kind == TPData_ANY, "wrong datatype");
-    ImageRow *row = (ImageRow *)data.any;
+    ImageRow *row = (ImageRow *)data.val_any;
 
     S32 w, h, c;
     S32 resize_height, resize_width;
@@ -60,7 +60,7 @@ struct draw_params
 ThreadFunc(draw_image)
 {
     Assert(data.kind == TPData_ANY, "wrong datatype");
-    draw_params params = *(draw_params *)data.any;
+    draw_params params = *(draw_params *)data.val_any;
     U32 smaller_side = MIN(params.row->resize_width, params.row->resize_height);
 
     U32 x_off = (params.row->resize_width - smaller_side) / 2;
@@ -110,7 +110,8 @@ struct idx_params
 DBStmtCbk(push_idx)
 {
     idx_params *params = (idx_params *)data;
-    draw_params idx = {(U64)sqlite3_column_int64(stmt, 0)};
+    draw_params idx = {
+        .draw_idx = (U64)sqlite3_column_int64(stmt, 0)};
     da_push(params->arena, params->array, idx);
 }
 
@@ -140,7 +141,7 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
                 .func = read_image,
                 .data = {
                     .kind = TPData_ANY,
-                    .any = inserted + j},
+                    .val_any = inserted + j},
                 .batch_size = &task_count,
                 .batch_complete = batch_sem};
             threadpool_enqueue(task);
@@ -200,7 +201,7 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
                 .func = draw_image,
                 .data = {
                     .kind = TPData_ANY,
-                    .any = draw_pos + j - i},
+                    .val_any = draw_pos + j - i},
                 .batch_size = &task_count,
                 .batch_complete = batch_sem};
             threadpool_enqueue(task);
