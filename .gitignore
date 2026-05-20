@@ -2,6 +2,7 @@ build
 bin
 imgui
 deps/stb
+deps/sha2
 deps/icons
 deps/sqlite.zip
 deps/sqlite

@@ -178,7 +178,7 @@ String view_build_embedding_query(ViewQuery request, Arena *arena, String *filte
     for (S64 i = 0; i < da_getsize(filters); i++)
         da_push(arena, queries, filters[i]);
 
-    da_push(arena, queries, sv(" ORDER BY distance ASC;\n"));
+    da_push(arena, queries, sv(" ORDER BY distance ASC;"));
 
     StringBuilder query = string_empty(arena, KB(4));
     for (S64 i = 0; i < da_getsize(queries); i++)
@@ -331,6 +331,8 @@ ThreadFunc(view_run_query)
         case QueryType_None:
             break;
         case QueryType_Embedding:
+            if (!model_available())
+                continue;
             embedding = model_embed_text(arena, StringCast(view.state.search_query));
             sqlite3_bind_blob(stmt, cursor++, embedding.vector, embedding.size * sizeof(F32), SQLITE_STATIC);
             break;

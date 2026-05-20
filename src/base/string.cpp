@@ -345,16 +345,20 @@ U64 string_assign_string(StringBuilder *base, String push)
     return base->size;
 }
 
-WString string_view_wcstr(const wchar *c)
+WString string_view_wcstr(const wchar *c, S64 size)
 {
+    if (size >= 0)
+        return {(U16 *)c, (U64)size};
     U64 len = 0;
     while (len[c] != 0)
         len++;
     return {(U16 *)c, len};
 }
 
-String string_view_cstr(const char *c)
+String string_view_cstr(const char *c, S64 size)
 {
+    if (size >= 0)
+        return {(U8 *)c, (U64)size};
     U64 len = 0;
     while (len[c] != 0)
         len++;

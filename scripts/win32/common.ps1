@@ -11,6 +11,7 @@ $INCLUDES = @(
     "-I$ProjectDir/deps/imgui"
     "-I$ProjectDir/deps/icons"
     "-I$ProjectDir/deps/stb"
+    "-I$ProjectDir/deps/sha2"
     "-I$ProjectDir/deps/tinyfiledialogs"
     "-I$ProjectDir/deps/easy-args"
     "-I$ProjectDir/deps/sqlite"
@@ -23,6 +24,7 @@ $INCLUDES = @(
     "-I$ProjectDir/deps/usearch/stringzilla/include"
     "-I$ProjectDir/deps/usearch/sqlite"
     "-I$ProjectDir/deps/doctest"
+    "-I$ProjectDir/deps/curl/include"
 )
 
 $CommonLibs = @(
@@ -33,7 +35,14 @@ $CommonLibs = @(
     "advapi32.lib",
     "Rpcrt4.lib",
     "Ole32.lib",
-    "Comdlg32.lib"
+    "Comdlg32.lib",
+    "ws2_32.lib",
+    "crypt32.lib",
+    "normaliz.lib",
+    "wldap32.lib",
+    "bcrypt.lib",
+    "iphlpapi.lib",
+    "secur32.lib"
 )
 
 $ThirdpartyLibs = @(
@@ -41,12 +50,13 @@ $ThirdpartyLibs = @(
     "glfw3.lib",
     "ggml.lib",
     "ggml-cpu.lib",
-    "ggml-base.lib"
+    "ggml-base.lib",
+    "libcurl-d.lib"
 )
 
 $LinkerBase = @("/link", "/LIBPATH:.", "/DEBUG", "-incremental:no")
 $CFLAGS = @()
-$DEFINES = @("-D_CRT_SECURE_NO_WARNINGS=1", "-DSQLITE_CORE=1")
+$DEFINES = @("-D_CRT_SECURE_NO_WARNINGS=1", "-DSQLITE_CORE=1", "-DCURL_STATICLIB")
 
 # warning C4244: '=': conversion from 'float' to 'int', possible loss of data
 # warning C4477: 'printf' : format string '%.*s' requires an argument of type

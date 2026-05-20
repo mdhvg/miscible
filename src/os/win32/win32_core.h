@@ -16,6 +16,8 @@
 #define LibAddress FARPROC
 #define LibExt     ".dll"
 
+typedef HANDLE FileHandle;
+
 struct OSInfo
 {
     OS_COMMON;

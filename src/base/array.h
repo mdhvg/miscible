@@ -1,7 +1,7 @@
 #pragma once
+#include "os/os_inc.h"
 #include "base/arena.h"
 #include "base/base_core.h"
-#include "os/os_inc.h"
 
 struct ArrayHeader
 {
@@ -11,6 +11,9 @@ struct ArrayHeader
 
 #define getheader(arr) ((arr) ? ((ArrayHeader *)(arr) - 1) : (0))
 
+/*******************************************************************************
+* Dynamic array (DA)
+*******************************************************************************/
 #define da_getsize(arr) ((arr) ? (getheader(arr)->size) : (0))
 #define da_getcap(arr)  ((arr) ? (getheader(arr)->capacity) : (0))
 #define da_clear(arr)   da_setsize((arr), 0)
@@ -89,12 +92,12 @@ void _da_push(Arena *arena, T **arr, T val)
 /*******************************************************************************
 * Virtual memory array (VA)
 *******************************************************************************/
-#define va_free(arr)    ((arr)                                                     \
-                             ? (os_release(                                        \
-                                   getheader(arr),                                 \
-                                   sizeof(ArrayHeader) +                           \
-                                       sizeof(arr[0]) * getheader(arr)->capacity)) \
-                             : (0))
+#define va_free(arr) ((arr)                                                     \
+                          ? (os_release(                                        \
+                                getheader(arr),                                 \
+                                sizeof(ArrayHeader) +                           \
+                                    sizeof(arr[0]) * getheader(arr)->capacity)) \
+                          : (0))
 #define va_getcap(arr)  ((arr) ? (getheader(arr)->capacity) : (0))
 #define va_getsize(arr) ((arr) ? (getheader(arr)->size) : (0))
 

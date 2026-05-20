@@ -2,6 +2,7 @@
 #include "sqlite3.c"
 
 #include "glad.c"
+#include "sha2.c"
 #include "tinyfiledialogs.c"
 
 // STB libs

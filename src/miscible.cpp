@@ -19,6 +19,7 @@
 #include "base/ringbuf.cpp"
 #include "mscbl/init.h"
 #include "mscbl/init.cpp"
+#include "yaml.cpp"
 // #include "index/index.cpp"
 // #include "index/index_dirtree.cpp"
 

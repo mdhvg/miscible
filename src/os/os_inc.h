@@ -51,6 +51,7 @@ union Guid {
 #endif
 
 MSCBL_API OSInfo os_info;
+typedef struct OSMmap OSMmap;
 
 Guid os_make_guid();
 void os_prelaunch();
@@ -61,7 +62,9 @@ void os_mkdir(String path);
 LibHandle os_loadlib(const char *filename);
 LibAddress os_libfunc(LibHandle lib, const char *symbol);
 void os_closelib(LibHandle lib);
+
 MSCBL_API OSString os_select_dir(const OSchar *title, const OSchar *default_path);
+B32 os_path_exists(String path);
 
 MSCBL_API void *os_reserve(void *ptr, U64 size);
 MSCBL_API void os_release(void *ptr, U64 size);
@@ -74,3 +77,27 @@ void os_semaphore_drop(Semaphore s);
 B32 os_semaphore_take(Semaphore s, U64 end_us);
 
 void os_thread_detach(Thread t);
+
+typedef U32 FileAccess;
+enum
+{
+    FileAccess_Read = (1 << 0),
+    FileAccess_Write = (1 << 1),
+};
+
+enum FileMode
+{
+    FileMode_CreateAlways = (1 << 0),
+    FileMode_OpenAlways = (1 << 1),
+};
+
+FileHandle os_file_open(String path, FileAccess access, FileMode mode);
+void os_file_close(FileHandle file_desc);
+U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer);
+void os_file_read(FileHandle file_desc, U64 size, U8 *buffer);
+U64 os_file_size(FileHandle file_desc);
+
+#define os_map_get_data(map) (map.data)
+// NOTE: Linux requires file to be of `size` size, so use `ftruncate` first
+OSMmap os_file_map(FileHandle file_desc, U64 size);
+void os_file_unmap(OSMmap map);

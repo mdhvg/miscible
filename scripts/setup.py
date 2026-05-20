@@ -53,6 +53,16 @@ FILES = [
         "filename": "doctest.h",
         "parent": "deps/doctest",
     },
+    {
+        "url": "https://raw.githubusercontent.com/ogay/sha2/b90991f90967a46d0955dc981e9e3cd53c13b061/sha2.c",
+        "filename": "sha2.c",
+        "parent": "deps/sha2",
+    },
+    {
+        "url": "https://raw.githubusercontent.com/ogay/sha2/b90991f90967a46d0955dc981e9e3cd53c13b061/sha2.h",
+        "filename": "sha2.h",
+        "parent": "deps/sha2",
+    }
 ]
 
 

@@ -16,3 +16,6 @@
 [submodule "deps/libfyaml"]
 	path = deps/libfyaml
 	url = https://github.com/pantoniou/libfyaml
+[submodule "deps/curl"]
+	path = deps/curl
+	url = https://github.com/curl/curl

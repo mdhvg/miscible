@@ -1,12 +1,57 @@
-// #include "libfyaml.h"
+#include "libfyaml.h"
+#include "sha2.h"
+#include "yaml.h"
+#include "db/view.h"
 
 #include "config.h"
 #include "base/log.h"
-#include "base/string.h"
 #include "os/os_inc.h"
+#include "base/array.h"
+#include "base/string.h"
 
 Config mscbl_config = {0};
 Arena *config_arena = NULL;
+
+ModelConfig config_load_model(fy_node *model_node, U8 *str_buf)
+{
+    ModelConfig model_cfg = {
+        .filename = yaml_scan_string(config_arena, model_node, str_buf, "/Filename")};
+
+    yaml_scan_hash(model_node, str_buf, model_cfg.model_hash, SHA512_DIGEST_SIZE, "/ModelHash");
+    yaml_scan_hash(model_node, str_buf, model_cfg.manifest_hash, SHA512_DIGEST_SIZE, "/ManifestHash");
+
+    fy_node *model_url_node = fy_node_by_path(model_node, "/ModelURL", FY_NT, FYNWF_FOLLOW);
+    fy_node *manifest_url_node = fy_node_by_path(model_node, "/ManifestURL", FY_NT, FYNWF_FOLLOW);
+    Assert(!fy_node_sequence_is_empty(model_url_node), "model url array empty");
+    Assert(!fy_node_sequence_is_empty(manifest_url_node), "manifest url array empty");
+
+    S64 model_url_count = fy_node_sequence_item_count(model_url_node);
+    S64 manifest_url_count = fy_node_sequence_item_count(manifest_url_node);
+    da_setcap(config_arena, model_cfg.model_url, model_url_count);
+    da_setcap(config_arena, model_cfg.manifest_url, manifest_url_count);
+
+    {
+        fy_node *url_node = NULL;
+        void *pre = NULL;
+        while ((url_node = fy_node_sequence_iterate(model_url_node, &pre)))
+        {
+            String url = yaml_scan_string(config_arena, url_node, str_buf, "/");
+            da_push(config_arena, model_cfg.model_url, url);
+        }
+    }
+
+    {
+        fy_node *url_node = NULL;
+        void *pre = NULL;
+        while ((url_node = fy_node_sequence_iterate(manifest_url_node, &pre)))
+        {
+            String url = yaml_scan_string(config_arena, url_node, str_buf, "/");
+            da_push(config_arena, model_cfg.manifest_url, url);
+        }
+    }
+
+    return model_cfg;
+}
 
 /*
  * Reserved symbols
@@ -18,17 +63,46 @@ Arena *config_arena = NULL;
 
 Config default_config()
 {
+#include "config.yaml"
+    String config_text = sv(__mscbl_cfg_text);
+
+    U8 *str_buf = push_array(config_arena, KB(4), U8);
+
+    fy_document *config_doc = fy_document_build_from_string(NULL, CStrCast(config_text), config_text.size);
+    Assert(config_doc, "fyd is NULL");
+    fy_node *config_root = fy_document_root(config_doc);
+
     Config config = {
-        .app_data = sv("~/Miscible"),
-        .atlas_dir = sv("$/atlas"),
-        .db_path = sv("$/miscible.sqlite"),
-        .settings = {
-            .scan_depth = 15,
-            .font_size = 16.0f},
+        .app_data = yaml_scan_string(config_arena, config_root, str_buf, "/AppData"),
+        .atlas_dir = yaml_scan_string(config_arena, config_root, str_buf, "/AtlasDir"),
+        .db_path = yaml_scan_string(config_arena, config_root, str_buf, "/DBPath"),
+
+        .settings = {.scan_depth = yaml_scan_int(config_root, "/Settings/ScanDepth"),
+                     .font_size = yaml_scan_float(config_root, "/Settings/FontSize")},
+
         .view_settings = {
-            .sort_basis = SortType_DateModified,
-            .descending = 0,
-        }};
+            .sort_basis = (SortType)yaml_scan_int(config_root, "/ViewSettings/SortBasis"),
+            .descending = ((yaml_scan_int(config_root, "/ViewSettings/Descending") == 0) ? 0 : 1)},
+
+        .model_group = {
+            .base_dir = yaml_scan_string(config_arena, config_root, str_buf, "/Models/BaseDir"),
+            .clip_model = config_load_model(fy_node_by_path(config_root, "/Models/CLIPModel", FY_NT, FYNWF_FOLLOW), str_buf),
+        },
+    };
+
+    // Config config = {
+    //     .app_data = sv("~/Miscible"),
+    //     .atlas_dir = sv("$/atlas"),
+    //     .db_path = sv("$/miscible.sqlite"),
+    //     .settings = {
+    //         .scan_depth = 15,
+    //         .font_size = 16.0f},
+    //     .view_settings = {
+    //         .sort_basis = SortType_DateModified,
+    //         .descending = 0,
+    //     },
+    //     .model_dir = sv("$/models"),
+    //     .models = da_init(config_arena, ModelConfig, {.model_url = da_init(config_arena, String, sv("http://192.168.29.5:8080/test/model.gguf")), .manifest_url = da_init(config_arena, String, sv("http://192.168.29.5:8080/test/model.gguf.yaml"))})};
     return config;
 }
 
@@ -61,12 +135,19 @@ void setup_dirs(Config *config)
     string_replace(&db_path, "~", CStrCast(base));
     string_replace(&db_path, "$", CStrCast(app_data));
 
+    StringBuilder model_base = string_empty(config_arena, 1024);
+    string_push(&model_base, config->model_group.base_dir);
+    string_replace(&model_base, "~", CStrCast(base));
+    string_replace(&model_base, "$", CStrCast(app_data));
+
     os_mkdir(StringCast(app_data));
     os_mkdir(StringCast(atlas_dir));
+    os_mkdir(StringCast(model_base));
 
     config->app_data = StringCast(app_data);
     config->atlas_dir = StringCast(atlas_dir);
     config->db_path = StringCast(db_path);
+    config->model_group.base_dir = StringCast(model_base);
 }
 
 void config_init()

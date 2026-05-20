@@ -93,19 +93,19 @@ inline U64 string_assign(StringBuilder *base, String x)
     return string_assign_string(base, x);
 }
 
-MSCBL_API WString string_view_wcstr(const wchar *c);
-MSCBL_API String string_view_cstr(const char *c);
-inline WString sv(const wchar *x)
+MSCBL_API WString string_view_wcstr(const wchar *c, S64 size);
+MSCBL_API String string_view_cstr(const char *c, S64 size);
+inline WString sv(const wchar *x, S64 size = -1)
 {
-    return string_view_wcstr(x);
+    return string_view_wcstr(x, size);
 }
-inline String sv(const char *x)
+inline String sv(const char *x, S64 size = -1)
 {
-    return string_view_cstr(x);
+    return string_view_cstr(x, size);
 }
-inline String sv(const unsigned char *x)
+inline String sv(const unsigned char *x, S64 size = -1)
 {
-    return string_view_cstr((char *)x);
+    return string_view_cstr((char *)x, size);
 }
 
 MSCBL_API WString string_cpy_wcstr(Arena *arena, const wchar *c);

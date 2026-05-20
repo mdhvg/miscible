@@ -2,8 +2,6 @@
 
 #include "arena.h"
 #include "base/ringbuf.h"
-// #include "mscbl/task_graph.h"
-// #include "mscbl/tp_task.h"
 #include "os/win32/win32_core.h"
 #include "base/threadpool.h"
 

@@ -80,22 +80,22 @@ local_v U32 win32_sleep_ms_from_us(U64 end_us)
         return INFINITE;
 
     U32 sleep_ms = 0;
-    U64 begint   = os_now_microseconds();
+    U64 begint = os_now_microseconds();
     if (begint < end_us)
     {
         U64 sleep_us = end_us - begint;
-        sleep_ms     = (U32)((sleep_us + 999) / 1000);
+        sleep_ms = (U32)((sleep_us + 999) / 1000);
     }
     return sleep_ms;
 }
 
 OSString os_select_dir(const wchar *title, const wchar *default_path)
 {
-    PWSTR path           = NULL;
-    IShellItem *res_psi  = NULL;
-    IShellItem *def_psi  = NULL;
+    PWSTR path = NULL;
+    IShellItem *res_psi = NULL;
+    IShellItem *def_psi = NULL;
     IFileOpenDialog *pfd = NULL;
-    HRESULT hr           = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, (void **)&pfd);
+    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, (void **)&pfd);
 
     Assert(SUCCEEDED(hr), "CoCreateInstance failed");
     pfd->SetOptions(FOS_PICKFOLDERS | FOS_PATHMUSTEXIST);
@@ -120,6 +120,12 @@ OSString os_select_dir(const wchar *title, const wchar *default_path)
     res_psi->Release();
     pfd->Release();
     return res;
+}
+
+B32 os_path_exists(String path)
+{
+    DWORD attrs = GetFileAttributes(CStrCast(path));
+    return (attrs != INVALID_FILE_ATTRIBUTES);
 }
 
 void win32_format_path(StringBuilder *dir)
@@ -208,9 +214,9 @@ void os_semaphore_drop(Semaphore s)
 
 B32 os_semaphore_take(Semaphore s, U64 end_us)
 {
-    U32 sleep         = win32_sleep_ms_from_us(end_us);
+    U32 sleep = win32_sleep_ms_from_us(end_us);
     DWORD wait_result = WaitForSingleObject(s, sleep);
-    B32 result        = (wait_result == WAIT_OBJECT_0);
+    B32 result = (wait_result == WAIT_OBJECT_0);
     return result;
 }
 
@@ -225,4 +231,101 @@ void os_thread_detach(Thread t)
     {
         CloseHandle(t);
     }
+}
+
+FileHandle os_file_open(String path, FileAccess access, FileMode mode)
+{
+    DWORD desired_access = 0;
+    if (access & FileAccess_Read)
+        desired_access |= GENERIC_READ;
+    if (access & FileAccess_Write)
+        desired_access |= GENERIC_WRITE;
+
+    Assert(desired_access, "needs to have read/write/both access");
+
+    DWORD creation_mode = 0;
+    switch (mode)
+    {
+    case FileMode_CreateAlways:
+        creation_mode = CREATE_ALWAYS;
+        break;
+    case FileMode_OpenAlways:
+        creation_mode = OPEN_ALWAYS;
+        break;
+    default:
+        Assert(0, "invalid file open mode %lu", mode);
+    }
+
+    HANDLE handle = CreateFileA(CStrCast(path), desired_access, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, creation_mode, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (handle == INVALID_HANDLE_VALUE)
+    {
+        U32 err = GetLastError();
+        Assert(0, "CreateFileA failed %.*s, error code: 0x%X (%u)", StringSpr(path), err, err);
+    }
+    return handle;
+}
+
+void os_file_close(FileHandle file_desc)
+{
+    if (file_desc != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(file_desc);
+    }
+}
+
+U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer)
+{
+    DWORD written = 0;
+    Assert(WriteFile(file_desc, buffer, size, &written, NULL), "error code: %lu", GetLastError());
+    return written;
+}
+
+void os_file_read(FileHandle file_desc, U64 size, U8 *buffer)
+{
+    Assert(ReadFileEx(file_desc, buffer, size, NULL, NULL), "error code: %lu", GetLastError());
+}
+
+U64 os_file_size(FileHandle file_desc)
+{
+    LARGE_INTEGER size = {0};
+    GetFileSizeEx(file_desc, &size);
+    return size.QuadPart;
+}
+
+struct OSMmap
+{
+    void *data;
+    U64 size;
+    HANDLE map_handle;
+};
+
+OSMmap os_file_map(FileHandle file_desc, U64 size)
+{
+    // NOTE: store size as size_high:size_low format
+    DWORD size_high = (DWORD)((size >> 32) & 0xFFFFFFFF);
+    DWORD size_low = (DWORD)(size & 0xFFFFFFFF);
+
+    HANDLE handle = CreateFileMappingA(file_desc, NULL, PAGE_READWRITE, size_high, size_low, NULL);
+    if (handle == NULL)
+    {
+        U32 err = GetLastError();
+        Assert(0, "CreateFileMappingA failed %p, error code: 0x%X (%u)", file_desc, err, err);
+    }
+
+    void *map = MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, size);
+    if (map == NULL)
+    {
+        U32 err = GetLastError();
+        Assert(0, "MapViewOfFile failed %p, error code: 0x%X (%u)", handle, err, err);
+    }
+    return {.data = map,
+            .size = size,
+            .map_handle = handle};
+}
+
+void os_file_unmap(OSMmap map)
+{
+    FlushViewOfFile(map.data, map.size);
+    UnmapViewOfFile(map.data);
+    CloseHandle(map.map_handle);
 }

@@ -16,7 +16,7 @@ $jobs += Start-Job -ScriptBlock {
         if ($Mode -eq "release") {
             cmake -S .. -B . -G Ninja -DCMAKE_BUILD_TYPE=Release
         } else {
-            cmake -S .. -B . -DCMAKE_BUILD_TYPE=Debug
+            cmake -S .. -B . -G Ninja -DCMAKE_BUILD_TYPE=Debug
         }
         cmake --build . -j
     }
