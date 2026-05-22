@@ -18,6 +18,13 @@
 
 typedef HANDLE FileHandle;
 
+struct OSMmap
+{
+    void *data;
+    U64 size;
+    HANDLE map_handle;
+};
+
 struct OSInfo
 {
     OS_COMMON;

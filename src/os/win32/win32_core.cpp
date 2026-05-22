@@ -273,16 +273,25 @@ void os_file_close(FileHandle file_desc)
     }
 }
 
-U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer)
+U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer, U64 offset)
 {
+    LARGE_INTEGER off_large_int = {0};
+    off_large_int.QuadPart = offset;
+
+    OVERLAPPED off_overlap = {0};
+    off_overlap.Offset = off_large_int.LowPart;
+    off_overlap.OffsetHigh = off_large_int.HighPart;
+
     DWORD written = 0;
-    Assert(WriteFile(file_desc, buffer, size, &written, NULL), "error code: %lu", GetLastError());
+
+    Assert(WriteFile(file_desc, buffer, size, &written, &off_overlap), "error code: %lu", GetLastError());
     return written;
 }
 
 void os_file_read(FileHandle file_desc, U64 size, U8 *buffer)
 {
-    Assert(ReadFileEx(file_desc, buffer, size, NULL, NULL), "error code: %lu", GetLastError());
+    DWORD bytes_read = 0;
+    Assert(ReadFile(file_desc, buffer, size, &bytes_read, NULL), "error code: %lu", GetLastError());
 }
 
 U64 os_file_size(FileHandle file_desc)
@@ -292,12 +301,11 @@ U64 os_file_size(FileHandle file_desc)
     return size.QuadPart;
 }
 
-struct OSMmap
+void os_file_rename(String old_path, String new_path)
 {
-    void *data;
-    U64 size;
-    HANDLE map_handle;
-};
+    DWORD flags = MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED;
+    Assert(MoveFileEx(CStrCast(old_path), CStrCast(new_path), flags), "error code: %lu", GetLastError());
+}
 
 OSMmap os_file_map(FileHandle file_desc, U64 size)
 {

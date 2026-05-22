@@ -331,7 +331,7 @@ ThreadFunc(view_run_query)
         case QueryType_None:
             break;
         case QueryType_Embedding:
-            if (!model_available())
+            if (!model_clip_exists(arena))
                 continue;
             embedding = model_embed_text(arena, StringCast(view.state.search_query));
             sqlite3_bind_blob(stmt, cursor++, embedding.vector, embedding.size * sizeof(F32), SQLITE_STATIC);

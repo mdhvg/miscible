@@ -16,6 +16,7 @@ struct ViewSettings
 
 struct ModelConfig
 {
+    String path;
     String filename;
     U8 model_hash[SHA512_DIGEST_SIZE];
     U8 manifest_hash[SHA512_DIGEST_SIZE];

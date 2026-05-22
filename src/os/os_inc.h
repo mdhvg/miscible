@@ -93,9 +93,10 @@ enum FileMode
 
 FileHandle os_file_open(String path, FileAccess access, FileMode mode);
 void os_file_close(FileHandle file_desc);
-U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer);
+U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer, U64 offset = 0);
 void os_file_read(FileHandle file_desc, U64 size, U8 *buffer);
 U64 os_file_size(FileHandle file_desc);
+void os_file_rename(String old_path, String new_path);
 
 #define os_map_get_data(map) (map.data)
 // NOTE: Linux requires file to be of `size` size, so use `ftruncate` first

@@ -136,6 +136,9 @@ void setup_dirs(Config *config)
     string_replace(&model_base, "~", CStrCast(base));
     string_replace(&model_base, "$", CStrCast(app_data));
 
+    StringBuilder clip_model_path = string_init(config_arena, StringCast(model_base));
+    path_join(&clip_model_path, config->model_group.clip_model.filename);
+
     os_mkdir(StringCast(app_data));
     os_mkdir(StringCast(atlas_dir));
     os_mkdir(StringCast(model_base));

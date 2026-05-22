@@ -17,11 +17,9 @@
 
 #include "ggml.h"
 #include "gguf.h"
+#include "base/log.h"
 #include "inference/clip.h"
 #include "base/base_core.h"
-#include "base/log.h"
-#include "inference/model.h"
-#include "scan/scan.h"
 
 //
 // key constants
@@ -303,14 +301,14 @@ void clip_load_vision_model(Arena *arena, clip_ctx *clip, clip_vision_model *vis
 }
 
 // read and create ggml_context containing the tensors and their data
-void clip_model_load(Arena *arena, clip_ctx *clip, const char *fname)
+void clip_model_load(Arena *arena, clip_ctx *clip, String model_path)
 {
     ggml_context *temp_ctx = NULL;
     gguf_init_params params = {
         .no_alloc = false,
         .ctx = &temp_ctx};
 
-    gguf_context *gguf_ctx = gguf_init_from_file(fname, params);
+    gguf_context *gguf_ctx = gguf_init_from_file(CStrCast(model_path), params);
     Assert(gguf_ctx, "gguf_ctx is NULL");
 
     S32 n_tensors = gguf_get_n_tensors(gguf_ctx);
@@ -859,7 +857,6 @@ ggml_cgraph *build_image_encode_graph(clip_vision_model *vision_model, clip_ctx 
 
 Embedding clip_get_image_embedding(Arena *arena, clip_ctx *clip, ggml_cgraph *graph, F32 *imageData, S32 batch_size)
 {
-    Temp scratch = temp_begin(arena);
     clip_vision_model *vision_model = &clip->vision_model;
     clip_vision_hparams hparams = vision_model->hparams;
     S32 image_size = hparams.image_size;
@@ -867,37 +864,41 @@ Embedding clip_get_image_embedding(Arena *arena, clip_ctx *clip, ggml_cgraph *gr
     S32 num_patches = ((image_size / patch_size) * (image_size / patch_size));
     S32 num_positions = num_patches + 1;
 
-    ggml_tensor *input = ggml_graph_get_tensor(graph, "input");
-    U64 input_bytes = batch_size * 3 * image_size * image_size * sizeof(F32);
-    ggml_backend_tensor_set(input, imageData, 0, input_bytes);
+    ggml_tensor *output = NULL;
 
-    ggml_tensor *embeddings = ggml_graph_get_tensor(graph, "embeddings");
-    ggml_backend_tensor_memset(embeddings, 0, 0, ggml_nbytes(embeddings));
-    // size_t embed_size		= ggml_nbytes(embeddings);
-    // memset(ggml_get_data(embeddings), 0, embed_size * sizeof(F32)); // This single line is so so important. It cost me so much of my lifespan to find this bug
-    // ggml_backend_tensor_set(embeddings, embedding, 0, embeddingsSize);
+    ArenaScoped(arena)
+    {
+        ggml_tensor *input = ggml_graph_get_tensor(graph, "input");
+        U64 input_bytes = batch_size * 3 * image_size * image_size * sizeof(F32);
+        ggml_backend_tensor_set(input, imageData, 0, input_bytes);
 
-    ggml_tensor *positions = ggml_graph_get_tensor(graph, "positions");
-    S32 *pos_data = push_array(scratch.arena, num_positions, S32);
-    for (S32 i = 0; i < num_positions; i++)
-        pos_data[i] = i;
-    ggml_backend_tensor_set(positions, pos_data, 0, ggml_nbytes(positions));
+        ggml_tensor *embeddings = ggml_graph_get_tensor(graph, "embeddings");
+        ggml_backend_tensor_memset(embeddings, 0, 0, ggml_nbytes(embeddings));
+        // size_t embed_size		= ggml_nbytes(embeddings);
+        // memset(ggml_get_data(embeddings), 0, embed_size * sizeof(F32)); // This single line is so so important. It cost me so much of my lifespan to find this bug
+        // ggml_backend_tensor_set(embeddings, embedding, 0, embeddingsSize);
 
-    // Re-using positionsData array since it's just setting i * num_positions
-    // where 'i' is numbers from 0->n
-    ggml_tensor *cls = ggml_graph_get_tensor(graph, "cls");
-    S32 *cls_data = push_array(scratch.arena, batch_size, S32);
-    for (S32 i = 0; i < batch_size; i++)
-        cls_data[i] = i * num_positions;
-    ggml_backend_tensor_set(cls, cls_data, 0, batch_size * sizeof(S32));
+        ggml_tensor *positions = ggml_graph_get_tensor(graph, "positions");
+        S32 *pos_data = push_array(arena, num_positions, S32);
+        for (S32 i = 0; i < num_positions; i++)
+            pos_data[i] = i;
+        ggml_backend_tensor_set(positions, pos_data, 0, ggml_nbytes(positions));
 
-    PERF_BEGIN(compute);
-    ggml_backend_graph_compute(vision_model->backend, graph);
-    PERF_END(compute);
+        // Re-using positionsData array since it's just setting i * num_positions
+        // where 'i' is numbers from 0->n
+        ggml_tensor *cls = ggml_graph_get_tensor(graph, "cls");
+        S32 *cls_data = push_array(arena, batch_size, S32);
+        for (S32 i = 0; i < batch_size; i++)
+            cls_data[i] = i * num_positions;
+        ggml_backend_tensor_set(cls, cls_data, 0, batch_size * sizeof(S32));
 
-    ggml_tensor *output = ggml_graph_get_tensor(graph, "output");
+        PERF_BEGIN(compute);
+        ggml_backend_graph_compute(vision_model->backend, graph);
+        PERF_END(compute);
 
-    temp_end(scratch);
+        output = ggml_graph_get_tensor(graph, "output");
+    }
+
     return {
         .vector = (F32 *)ggml_get_data(output),
         .size = hparams.projection_dim,
