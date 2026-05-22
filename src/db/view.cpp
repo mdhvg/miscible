@@ -41,7 +41,7 @@ void view_set_state(UIViewQuery ui_query)
     if (ins_atomic_u32_eval_cond_assign(&view.busy, 1, 0) == 1)
         return;
 
-    view.state.search_query = string_cpy(view.state.arena, StringCast(ui_query.search_query));
+    view.state.search_query = string_copy(view.state.arena, StringCast(ui_query.search_query));
     view.state.sort_basis = (SortType)ui_query.sort_basis;
     view.state.descending = ui_query.descending;
 
@@ -57,7 +57,7 @@ void view_set_state(UIViewQuery ui_query)
 
         case FilterType_Path:
         case FilterType_Filename:
-            f1.val_str = string_cpy(view.state.arena, StringCast(f0.val_str));
+            f1.val_str = string_copy(view.state.arena, StringCast(f0.val_str));
             break;
 
         case FilterType_DateCreatedAfter:

@@ -108,29 +108,29 @@ inline String sv(const unsigned char *x, S64 size = -1)
     return string_view_cstr((char *)x, size);
 }
 
-MSCBL_API WString string_cpy_wcstr(Arena *arena, const wchar *c);
-MSCBL_API String string_cpy_cstr(Arena *arena, const char *c);
-MSCBL_API WString string_cpy_wstr(Arena *arena, WString s);
-MSCBL_API String string_cpy_str(Arena *arena, String s);
-inline WString string_cpy(Arena *arena, const wchar *x)
+MSCBL_API WString string_copy_wcstr(Arena *arena, const wchar *c);
+MSCBL_API String string_copy_cstr(Arena *arena, const char *c);
+MSCBL_API WString string_copy_wstr(Arena *arena, WString s);
+MSCBL_API String string_copy_str(Arena *arena, String s);
+inline WString string_copy(Arena *arena, const wchar *x)
 {
-    return string_cpy_wcstr(arena, x);
+    return string_copy_wcstr(arena, x);
 }
-inline String string_cpy(Arena *arena, const char *x)
+inline String string_copy(Arena *arena, const char *x)
 {
-    return string_cpy_cstr(arena, x);
+    return string_copy_cstr(arena, x);
 }
-inline String string_cpy(Arena *arena, const unsigned char *x)
+inline String string_copy(Arena *arena, const unsigned char *x)
 {
-    return string_cpy_cstr(arena, (const char *)x);
+    return string_copy_cstr(arena, (const char *)x);
 }
-inline WString string_cpy(Arena *arena, WString x)
+inline WString string_copy(Arena *arena, WString x)
 {
-    return string_cpy_wstr(arena, x);
+    return string_copy_wstr(arena, x);
 }
-inline String string_cpy(Arena *arena, String x)
+inline String string_copy(Arena *arena, String x)
 {
-    return string_cpy_str(arena, x);
+    return string_copy_str(arena, x);
 }
 
 #define string_clear(x) ((x).size = 0)
@@ -148,6 +148,13 @@ MSCBL_API inline String string_from_to(String base, U64 from, U64 to)
 MSCBL_API inline String string_from(String base, U64 from)
 {
     return string_from_to(base, from, base.size);
+}
+
+inline StringBuilder string_init(Arena *arena, String init)
+{
+    StringBuilder base = string_empty(arena, init.size);
+    string_push(&base, init);
+    return base;
 }
 
 MSCBL_API B32 string_cmp_wcstr(WString str, const wchar *match, U64 limit);
@@ -240,4 +247,11 @@ inline B32 match_front(String base, const char *match)
 inline B32 match_end(String base, const char *match)
 {
     return match_end_cstr(base, match);
+}
+
+inline void path_join(StringBuilder *base, String part)
+{
+    if (!match_end_cstr(StringCast(*base), "/") && !match_end_cstr(StringCast(*base), "\\"))
+        string_push(base, "/");
+    string_push(base, part);
 }

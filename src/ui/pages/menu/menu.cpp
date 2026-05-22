@@ -423,12 +423,12 @@ void filters()
     //     ViewFilter *filter = head;
     //     filter->type       = FilterType_Path;
     //     // StringCast(string_empty(ui_state.arena, 4096));
-    //     filter->val_str = string_cpy(ui_state.arena, "* a path *");
+    //     filter->val_str = string_copy(ui_state.arena, "* a path *");
     //
     //     filter->next    = push_struct(ui_state.arena, ViewFilter);
     //     filter          = filter->next;
     //     filter->type    = FilterType_Filename;
-    //     filter->val_str = string_cpy(ui_state.arena, "* a filename *");
+    //     filter->val_str = string_copy(ui_state.arena, "* a filename *");
     //
     //     filter->next      = push_struct(ui_state.arena, ViewFilter);
     //     filter            = filter->next;

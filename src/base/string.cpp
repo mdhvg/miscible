@@ -365,7 +365,7 @@ String string_view_cstr(const char *c, S64 size)
     return {(U8 *)c, len};
 }
 
-WString string_cpy_wcstr(Arena *arena, const wchar *c)
+WString string_copy_wcstr(Arena *arena, const wchar *c)
 {
     U64 len = 0;
     while (c[len])
@@ -380,7 +380,7 @@ WString string_cpy_wcstr(Arena *arena, const wchar *c)
     return WStringCast(b);
 }
 
-String string_cpy_cstr(Arena *arena, const char *c)
+String string_copy_cstr(Arena *arena, const char *c)
 {
     U64 len = 0;
     while (c[len])
@@ -394,7 +394,7 @@ String string_cpy_cstr(Arena *arena, const char *c)
     return StringCast(b);
 }
 
-WString string_cpy_wstr(Arena *arena, WString c)
+WString string_copy_wstr(Arena *arena, WString c)
 {
     StringBuilder b = {.arena = arena};
     string_growby(&b, (c.size + 1) * sizeof(wchar));
@@ -404,7 +404,7 @@ WString string_cpy_wstr(Arena *arena, WString c)
     return WStringCast(b);
 }
 
-String string_cpy_str(Arena *arena, String s)
+String string_copy_str(Arena *arena, String s)
 {
     StringBuilder b = {.arena = arena};
     string_growby(&b, s.size + 1);
@@ -824,4 +824,9 @@ B32 match_end_cstr(String base, const char *match)
             return 0;
     }
     return 1;
+}
+
+void path_join_string(StringBuilder *base, String part)
+{
+
 }

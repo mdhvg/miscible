@@ -41,7 +41,7 @@ DBStmtCbk(push_image)
 DBStmtCbk(push_atlas)
 {
     S64 id = sqlite3_column_int64(stmt, 0);
-    String path = string_cpy(fetch_arena, sqlite3_column_text(stmt, 1));
+    String path = string_copy(fetch_arena, sqlite3_column_text(stmt, 1));
 
     Atlas atl = {id};
     while (va_getsize(atlases) < id + 1)
@@ -65,7 +65,7 @@ DBStmtCbk(push_dirs)
 {
     S64 id = sqlite3_column_int64(stmt, 0);
     U64 level = (U64)sqlite3_column_int64(stmt, 1);
-    String name = string_cpy(fetch_arena, sqlite3_column_text(stmt, 2));
+    String name = string_copy(fetch_arena, sqlite3_column_text(stmt, 2));
 
     DirTree node = {id, level, name};
     DirKey new_idx = va_push(dir_tree, node);
@@ -112,14 +112,14 @@ DBStmtCbk(push_dirs)
 DBStmtCbk(push_pending)
 {
     String **paths = (String **)data;
-    String path = string_cpy(arena, sqlite3_column_text(stmt, 0));
+    String path = string_copy(arena, sqlite3_column_text(stmt, 0));
     da_push(arena, *paths, path);
 }
 
 DBStmtCbk(push_pending16)
 {
     WString **paths = (WString **)data;
-    WString path = string_cpy(arena, (wchar *)sqlite3_column_text16(stmt, 0));
+    WString path = string_copy(arena, (wchar *)sqlite3_column_text16(stmt, 0));
     da_push(arena, *paths, path);
 }
 

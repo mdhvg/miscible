@@ -183,7 +183,7 @@ U64 put_dir(StringBuilder dir)
 DBStmtCbk(get_path)
 {
     String *path = (String *)data;
-    *path = string_cpy(ui_arena, sqlite3_column_text(stmt, 0));
+    *path = string_copy(ui_arena, sqlite3_column_text(stmt, 0));
 }
 
 void get_filename(U64 id, String *filename)
@@ -196,8 +196,8 @@ void get_filename(U64 id, String *filename)
 DBStmtCbk(fetch_info)
 {
     Image *img = (Image *)data;
-    img->path = string_cpy(ui_arena, sqlite3_column_text(stmt, 0));
-    img->filename = string_cpy(ui_arena, sqlite3_column_text(stmt, 1));
+    img->path = string_copy(ui_arena, sqlite3_column_text(stmt, 0));
+    img->filename = string_copy(ui_arena, sqlite3_column_text(stmt, 1));
     img->size = sqlite3_column_int64(stmt, 2);
     img->mtime = sqlite3_column_int64(stmt, 3);
     img->ctime = sqlite3_column_int64(stmt, 4);

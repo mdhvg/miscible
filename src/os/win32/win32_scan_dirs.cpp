@@ -60,7 +60,7 @@ DBStmtCbk(get_row)
 {
     ImageRow *row = (ImageRow *)data;
     row->id       = sqlite3_column_int64(stmt, 0);
-    row->path     = string_cpy(arena, sqlite3_column_text(stmt, 1));
+    row->path     = string_copy(arena, sqlite3_column_text(stmt, 1));
 }
 
 // No allocations per stack call
@@ -171,7 +171,7 @@ void first_scan(Arena *arena, WString dir)
     if (!scratch_str.capacity)
         scratch_str = string_empty(arena, 1024);
 
-    WString path = string_cpy(arena, dir);
+    WString path = string_copy(arena, dir);
 
     dir_stmt = db_prepare(dir_insert_query);
     img_stmt = db_prepare(img_insert_query);
@@ -249,8 +249,8 @@ DBStmtCbk(push_paths)
         .level     = (U64)sqlite3_column_int64(stmt, 2),
         .root_id   = sqlite3_column_int64(stmt, 3),
         .parent_id = sqlite3_column_int64(stmt, 4),
-        .name      = string_cpy(arena, (wchar *)sqlite3_column_text16(stmt, 5)),
-        .path      = string_cpy(arena, (wchar *)sqlite3_column_text16(stmt, 6))};
+        .name      = string_copy(arena, (wchar *)sqlite3_column_text16(stmt, 5)),
+        .path      = string_copy(arena, (wchar *)sqlite3_column_text16(stmt, 6))};
     da_push(arena, saved_dirs, info);
 }
 

@@ -11,7 +11,7 @@ String _yaml_scan_string(Arena *arena, fy_node *root, U8 *str_buf, const char *n
     fy_node *node = fy_node_by_path(root, node_selector, FY_NT, FYNWF_FOLLOW);
     Assert(node, "node is NULL");
     Assert(fy_node_get_scalar(node, &str_len), "fy_node_get_scalar(node, &str_len) is NULL");
-    return string_cpy(arena, {.v = str_buf, .size = str_len});
+    return string_copy(arena, {.v = str_buf, .size = str_len});
 }
 
 U64 _yaml_scan_int(fy_node *root, const char *text_selector)

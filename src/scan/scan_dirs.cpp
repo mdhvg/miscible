@@ -18,7 +18,7 @@ DBStmtCbk(push_imagerow)
     ImageRow **inserted = (ImageRow **)data;
     ImageRow row = {
         .id = sqlite3_column_int64(stmt, 0),
-        .path = string_cpy(arena, sqlite3_column_text(stmt, 1))};
+        .path = string_copy(arena, sqlite3_column_text(stmt, 1))};
     da_push(arena, *inserted, row);
 }
 
