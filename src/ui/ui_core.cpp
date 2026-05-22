@@ -42,7 +42,7 @@ UIState ui_state = {0};
 void ui_init()
 {
     arena_alloc(MB(1), ui_state.arena);
-    arena_alloc(KB(10), ui_state.page_arena);
+    arena_alloc(MB(1), ui_state.page_arena);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
