@@ -54,8 +54,12 @@ DBStmtCbk(push_atlas)
         gl_args_path *params = push_struct(fetch_arena, gl_args_path);
         params->texture = &atlases[id].tex;
         params->path = path;
-        TPData args = {.kind = TPData_ANY, .val_any = params};
-        threadpool_enqueue({gl_tex_path, args});
+        AsyncTask task = {
+            .func = gl_tex_path,
+            .data = {
+                .kind = TPData_ANY,
+                .val_any = params}};
+        threadpool_enqueue(TaskPriority_Realtime, task);
     }
     else
         mscbl_log_dbg("Skipped atlas [%zu] %.*s", id, StringSpr(path));

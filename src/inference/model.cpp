@@ -154,7 +154,7 @@ void model_insert_embedding_impl(Arena *arena)
                     .val_any = params},
                 .batch_size = &batch_var,
                 .batch_complete = batch_sem};
-            threadpool_enqueue(task);
+            threadpool_enqueue(TaskPriority_Low, task);
         }
 
         Temp scratch = temp_begin(arena);

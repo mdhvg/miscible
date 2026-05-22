@@ -5,7 +5,6 @@
 #include "base/string.h"
 #include "base/threadpool.h"
 #include "inference/model.h"
-#include "sqlite3.h"
 
 #if OS_WINDOWS
 #include "os/win32/win32_scan_dirs.cpp"
@@ -44,8 +43,8 @@ ThreadFunc(scan_routine)
     db_run_stmt(stmt, 1, push_imagerow, &inserted, arena);
     scan_atlas_bake(arena, inserted);
 
-    threadpool_enqueue({.func = db_fetchall});
-    threadpool_enqueue({.func = model_insert_embedding});
+    threadpool_enqueue(TaskPriority_High, {.func = db_fetchall});
+    threadpool_enqueue(TaskPriority_Low, {.func = model_insert_embedding});
 }
 
 void scan_new_dir()
@@ -62,6 +61,6 @@ void scan_new_dir()
         db_run_stmt(stmt, 1);
 
         TPData args = {.kind = TPData_OSString, .val_os_str = dir};
-        threadpool_enqueue({scan_routine, args});
+        threadpool_enqueue(TaskPriority_High, {scan_routine, args});
     }
 }

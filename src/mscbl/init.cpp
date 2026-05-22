@@ -40,8 +40,8 @@ ThreadFunc(init_atlas)
 
 void init_mscbl()
 {
-    threadpool_enqueue({.func = init_scan});
-    threadpool_enqueue({.func = init_atlas});
-    threadpool_enqueue({.func = db_fetchall});
-    threadpool_enqueue({.func = model_insert_embedding});
+    threadpool_enqueue(TaskPriority_High, {.func = init_scan});
+    threadpool_enqueue(TaskPriority_High, {.func = init_atlas});
+    threadpool_enqueue(TaskPriority_High, {.func = db_fetchall});
+    threadpool_enqueue(TaskPriority_Low, {.func = model_insert_embedding});
 }

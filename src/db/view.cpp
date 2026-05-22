@@ -402,7 +402,7 @@ void view_reload()
         .data = {
             .kind = TPData_ANY,
             .val_any = queries}};
-    threadpool_enqueue(query_task);
+    threadpool_enqueue(TaskPriority_Realtime, query_task);
 
     ins_atomic_u32_eval_assign(&view.busy, 0);
 }
