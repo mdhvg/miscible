@@ -73,14 +73,16 @@
 #define Mil(A) ((U64)(A) * 1000000)
 #define Bil(A) ((U64)(A) * 1000000000)
 
+#define ToBool(A)        (((A) != 0) ? (1) : (0))
 #define AlignOf(A, B)    (((A) + (B) - 1) & (~((B) - 1)))
 #define ToCeilInt(A, B)  (((A) + (B - 1)) / (B))
 #define StaticArrSize(A) (sizeof(A) / sizeof((A)[0]))
-#define ToBool(A)        (((A) != 0) ? (1) : (0))
 
-// #define SetBit(bitset, idx)	  (bitset[(idx) / 64] |= (1ull << ((idx) % 64)))
-// #define ClearBit(bitset, idx) (bitset[(idx) / 64] &= ~(1ull << ((idx) % 64)))
-// #define TestBit(bitset, idx)  (bitset[(idx) / 64] & (1ull << ((idx) % 64)))
+#define BitFieldGet(arr, i)   (!!((arr)[(i) / (sizeof((arr)[0]) * 8)] & (1 << ((i) % (sizeof((arr)[0]) * 8)))))
+#define BitFieldSet(arr, i)   ((arr)[(i) / (sizeof((arr)[0]) * 8)] |= (1 << ((i) % (sizeof((arr)[0]) * 8))))
+#define BitFieldReset(arr, i) ((arr)[(i) / (sizeof((arr)[0]) * 8)] &= ~(1 << ((i) % (sizeof((arr)[0]) * 8))))
+
+#define ArenaScoped(arena) for (struct { Temp t; int i; } __it = {.t = temp_begin(arena), .i = 0}; !__it.i; (__it.i += 1, temp_end(__it.t)))
 
 #define MemoryCopy(dst, src, size) memmove((dst), (src), (size))
 #define MemoryCopyArray(d, s)      MemoryCopy((d), (s), sizeof(d))

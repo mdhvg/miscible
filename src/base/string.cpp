@@ -825,8 +825,3 @@ B32 match_end_cstr(String base, const char *match)
     }
     return 1;
 }
-
-void path_join_string(StringBuilder *base, String part)
-{
-
-}

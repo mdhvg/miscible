@@ -90,7 +90,7 @@ DBStmtCbk(get_atlas)
     AtlasRow *ret = (AtlasRow *)data;
     AtlasRow row = {
         .atlas_id = sqlite3_column_int64(stmt, 0),
-        .path = string_cpy(arena, sqlite3_column_text(stmt, 1)),
+        .path = string_copy(arena, sqlite3_column_text(stmt, 1)),
         .update = 1};
     *ret = row;
 }

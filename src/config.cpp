@@ -121,22 +121,18 @@ void setup_dirs(Config *config)
     if (match_end(StringCast(base), "/"))
         string_pop_by(&base, 1);
 
-    StringBuilder app_data = string_empty(config_arena, 1024);
-    string_push(&app_data, config->app_data);
+    StringBuilder app_data = string_init(config_arena, config->app_data);
     string_replace(&app_data, "~", CStrCast(base));
 
-    StringBuilder atlas_dir = string_empty(config_arena, 1024);
-    string_push(&atlas_dir, config->atlas_dir);
+    StringBuilder atlas_dir = string_init(config_arena, config->atlas_dir);
     string_replace(&atlas_dir, "~", CStrCast(base));
     string_replace(&atlas_dir, "$", CStrCast(app_data));
 
-    StringBuilder db_path = string_empty(config_arena, 1024);
-    string_push(&db_path, config->db_path);
+    StringBuilder db_path = string_init(config_arena, config->db_path);
     string_replace(&db_path, "~", CStrCast(base));
     string_replace(&db_path, "$", CStrCast(app_data));
 
-    StringBuilder model_base = string_empty(config_arena, 1024);
-    string_push(&model_base, config->model_group.base_dir);
+    StringBuilder model_base = string_init(config_arena, config->model_group.base_dir);
     string_replace(&model_base, "~", CStrCast(base));
     string_replace(&model_base, "$", CStrCast(app_data));
 
@@ -148,6 +144,7 @@ void setup_dirs(Config *config)
     config->atlas_dir = StringCast(atlas_dir);
     config->db_path = StringCast(db_path);
     config->model_group.base_dir = StringCast(model_base);
+    config->model_group.clip_model.path= StringCast(clip_model_path);
 }
 
 void config_init()
