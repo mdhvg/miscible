@@ -8,7 +8,7 @@ enum SortType
     SortType_Filename,
     SortType_DateCreated,
     SortType_DateModified,
-    SortType_EmbeddingDistance,
+    // SortType_EmbeddingDistance,
     SortType_COUNT
 };
 
@@ -25,52 +25,6 @@ enum FilterType
     FilterType_EmbeddingDistanceGreater,
 
     FilterType_COUNT
-};
-
-enum ByteUnit
-{
-    Byte,
-    KiByte,
-    MiByte,
-    GiByte,
-    TiByte,
-    PiByte,
-    ByteUnit_COUNT,
-};
-
-struct ByteSize
-{
-    F32 value;
-    ByteUnit unit;
-};
-
-enum Month
-{
-    Jan,
-    Feb,
-    Mar,
-    Apr,
-    May,
-    Jun,
-    Jul,
-    Aug,
-    Sep,
-    Oct,
-    Nov,
-    Dec,
-    Month_COUNT
-};
-
-struct Date
-{
-    S32 date;
-    Month month;
-    S32 year;
-
-    // NOTE: Later, maybe add time also?
-    // U32 hour;
-    // U32 minute;
-    // U32 second;
 };
 
 struct ViewFilter

@@ -73,7 +73,7 @@ $DEFINES = @("-D_CRT_SECURE_NO_WARNINGS=1", "-DSQLITE_CORE=1", "-DCURL_STATICLIB
 # warning C4305: 'argument': truncation from 'double' to 'float'
 # warning C4005: 'APIENTRY': macro redefinition
 if ($compiler -eq "msvc") {
-    $CFLAGS += @("/nologo", "/Oi", "/GR", "/EHa", "/Zi", "/FC", "/W4", "/Zc:preprocessor"
+    $CFLAGS += @("/nologo", "/Oi", "/GR", "/EHa", "/Z7", "/FC", "/W4", "/Zc:preprocessor"
                 "/wd4244", "/wd4201", "/wd4100", "/wd4505", "/wd4189", "/wd4457",
                 "/wd4456", "/wd4819", "/wd5287", "/wd4458", "/wd4267", "/wd4702",
                 "/wd4245", "/wd4324", "/wd4068", "/wd4477", "/wd4996", "/wd4701",

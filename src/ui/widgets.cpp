@@ -1,44 +1,8 @@
+#include "base/base_core.h"
+#include "base/string.h"
 #include "imgui.h"
 #include "db/view.h"
 #include "ui/widgets.h"
-
-global_v const char *byte_string(ByteUnit unit)
-{
-    switch (unit)
-    {
-    case Byte: return "B";
-    case KiByte: return "KB";
-    case MiByte: return "MB";
-    case GiByte: return "GB";
-    case TiByte: return "TB";
-    case PiByte: return "PB";
-    default:
-        Assert(unit == -1, "what's this?");
-        return NULL;
-    }
-}
-
-global_v const char *month_string(Month month)
-{
-    switch (month)
-    {
-    case Jan: return "JAN";
-    case Feb: return "FEB";
-    case Mar: return "MAR";
-    case Apr: return "APR";
-    case May: return "MAY";
-    case Jun: return "JUN";
-    case Jul: return "JUL";
-    case Aug: return "AUG";
-    case Sep: return "SEP";
-    case Oct: return "OCT";
-    case Nov: return "NOV";
-    case Dec: return "DEC";
-    default:
-        Assert(month == -1, "what's this?");
-        return NULL;
-    }
-}
 
 void input_bytesize(ByteSize *source)
 {
@@ -46,11 +10,11 @@ void input_bytesize(ByteSize *source)
 
     ImGui::SameLine();
 
-    if (ImGui::BeginCombo("##Multiplier", byte_string(source->unit), ImGuiComboFlags_HeightSmall | ImGuiComboFlags_WidthFitPreview | ImGuiComboFlags_NoArrowButton))
+    if (ImGui::BeginCombo("##Multiplier", CStrCast(byte_string(source->unit)), ImGuiComboFlags_HeightSmall | ImGuiComboFlags_WidthFitPreview | ImGuiComboFlags_NoArrowButton))
     {
-        for (U32 i = 0; i < ByteUnit_COUNT; i++)
+        for (U32 i = 0; i <= PiByte; i++)
         {
-            if (ImGui::Selectable(byte_string((ByteUnit)i), 1))
+            if (ImGui::Selectable(CStrCast(byte_string((ByteUnit)i)), 1))
                 source->unit = (ByteUnit)i;
         }
         ImGui::EndCombo();
@@ -62,24 +26,24 @@ void input_date(Date *source)
     S32 end_date = 31;
     switch (source->month)
     {
-    case Jan:
-    case Mar:
-    case May:
-    case Jul:
-    case Aug:
-    case Oct:
-    case Dec:
+    case Month_Jan:
+    case Month_Mar:
+    case Month_May:
+    case Month_Jul:
+    case Month_Aug:
+    case Month_Oct:
+    case Month_Dec:
         end_date = 31;
         break;
 
-    case Apr:
-    case Jun:
-    case Sep:
-    case Nov:
+    case Month_Apr:
+    case Month_Jun:
+    case Month_Sep:
+    case Month_Nov:
         end_date = 30;
         break;
 
-    case Feb:
+    case Month_Feb:
         if (source->year % 4 == 0 && (source->year % 100 != 0 || source->year % 400 == 0))
             end_date = 29;
         else
@@ -91,11 +55,11 @@ void input_date(Date *source)
 
     ImGui::SameLine();
 
-    if (ImGui::BeginCombo("##Month", month_string(source->month), ImGuiComboFlags_HeightSmall | ImGuiComboFlags_WidthFitPreview | ImGuiComboFlags_NoArrowButton))
+    if (ImGui::BeginCombo("##Month", CStrCast(month_string(source->month)), ImGuiComboFlags_HeightSmall | ImGuiComboFlags_WidthFitPreview | ImGuiComboFlags_NoArrowButton))
     {
-        for (U32 i = 0; i < Month_COUNT; i++)
+        for (U32 i = 0; i <= Month_Dec; i++)
         {
-            if (ImGui::Selectable(month_string((Month)i), 1))
+            if (ImGui::Selectable(CStrCast(month_string((Month)i)), 1))
                 source->month = (Month)i;
         }
         ImGui::EndCombo();

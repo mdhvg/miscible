@@ -129,6 +129,50 @@ typedef double F64;
 #define U32_MAX 0xFFFFFFFFul
 #define U64_MAX 0xFFFFFFFFFFFFFFFFull
 
+enum ByteUnit
+{
+    Byte,
+    KiByte,
+    MiByte,
+    GiByte,
+    TiByte,
+    PiByte,
+};
+
+struct ByteSize
+{
+    F32 value;
+    ByteUnit unit;
+};
+
+enum Month
+{
+    Month_Jan,
+    Month_Feb,
+    Month_Mar,
+    Month_Apr,
+    Month_May,
+    Month_Jun,
+    Month_Jul,
+    Month_Aug,
+    Month_Sep,
+    Month_Oct,
+    Month_Nov,
+    Month_Dec,
+};
+
+struct Date
+{
+    S32 date;
+    Month month;
+    S32 year;
+
+    // NOTE: Later, maybe add time also?
+    // U32 hour;
+    // U32 minute;
+    // U32 second;
+};
+
 #if COMPILER_MSVC
 #include <intrin.h>
 #if ARCH_64BIT
@@ -207,6 +251,8 @@ typedef double F64;
 
 void bytes_as_hex_lower(U8 *data, U64 start, U64 len, char *out);
 void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
+U64 date_to_timestamp(Date date);
+Date timestamp_to_date(U64 timestamp);
 
 // TODO: Move these to some other place
 #define APP_NAME Miscible

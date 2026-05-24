@@ -394,8 +394,8 @@ global_v const char *filter_text(FilterType type)
         return "DATE MODIFIED";
     case FilterType_DateCreatedAfter:
         return "DATE CREATED";
-    case FilterType_EmbeddingDistanceGreater:
-        return "DISTANCE";
+    // case FilterType_EmbeddingDistanceGreater:
+    //     return "DISTANCE";
     default:
         Assert(0, "unknown filter added");
         return 0;
@@ -501,7 +501,7 @@ void filters()
                         break;
                     case FilterType_DateCreatedAfter:
                     case FilterType_DateModifiedAfter:
-                        filters[fl].val_date = {22, Apr, 2025};
+                        filters[fl].val_date = {22, Month_Apr, 2025};
                         break;
                     default: break;
                     }

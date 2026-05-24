@@ -255,3 +255,6 @@ inline void path_join(StringBuilder *base, String part)
         string_push(base, "/");
     string_push(base, part);
 }
+
+MSCBL_API String month_string(Month month);
+MSCBL_API String byte_string(ByteUnit unit);

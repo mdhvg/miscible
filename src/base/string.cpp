@@ -3,6 +3,7 @@
 #include "base/arena.h"
 #include "base/string.h"
 #include "base/base_core.h"
+#include "base/log.h"
 
 // WString make_string_cwstr(const wchar *s)
 // {
@@ -824,4 +825,36 @@ B32 match_end_cstr(String base, const char *match)
             return 0;
     }
     return 1;
+}
+
+String month_string(Month month)
+{
+    switch (month)
+    {
+    case Month_Jan: return sv("JAN");
+    case Month_Feb: return sv("FEB");
+    case Month_Mar: return sv("MAR");
+    case Month_Apr: return sv("APR");
+    case Month_May: return sv("MAY");
+    case Month_Jun: return sv("JUN");
+    case Month_Jul: return sv("JUL");
+    case Month_Aug: return sv("AUG");
+    case Month_Sep: return sv("SEP");
+    case Month_Oct: return sv("OCT");
+    case Month_Nov: return sv("NOV");
+    case Month_Dec: return sv("DEC");
+    }
+}
+
+String byte_string(ByteUnit unit)
+{
+    switch (unit)
+    {
+    case Byte: return sv("B");
+    case KiByte: return sv("KB");
+    case MiByte: return sv("MB");
+    case GiByte: return sv("GB");
+    case TiByte: return sv("TB");
+    case PiByte: return sv("PB");
+    }
 }

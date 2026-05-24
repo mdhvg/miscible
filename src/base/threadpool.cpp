@@ -5,6 +5,26 @@
 #include "base/threadpool.h"
 #include "os/win32/win32_core.h"
 
+struct ThreadPool
+{
+    B32 active;
+
+    Semaphore task_semaphore;
+    Mutex task_mutex;
+
+    U32 worker_count;
+    Worker *worker_array;
+    ArenaArray worker_arena;
+
+    // NOTE: Priority level based task buffers with 3 levels of priority. Push
+    // to any buffer is considered as a go signal for workers to release only
+    // difference is, while popping the latest task, they check in the order
+    // 0 -> 1 -> 2 and hence will always finish the most important tasks first
+    RingBuffer(AsyncTask, tasks_p0, KB(1));
+    RingBuffer(AsyncTask, tasks_p1, KB(1));
+    RingBuffer(AsyncTask, tasks_p2, KB(1));
+};
+
 local_v ThreadPool *pool = NULL;
 local_v Arena *threadpool_arena = NULL;
 
@@ -24,31 +44,21 @@ void threadpool_run_tasks(Worker *worker)
     Arena *arena = pool->worker_arena.v[worker->id];
     AsyncTask task = {0};
 
+    EnterCriticalSection(&pool->task_mutex);
     if (rb_getsize(pool->tasks_p0))
-    {
-        EnterCriticalSection(&pool->task_mutex);
         task = rb_pop(pool->tasks_p0);
-        LeaveCriticalSection(&pool->task_mutex);
-    }
     else if (rb_getsize(pool->tasks_p1))
-    {
-        EnterCriticalSection(&pool->task_mutex);
         task = rb_pop(pool->tasks_p1);
-        LeaveCriticalSection(&pool->task_mutex);
-    }
-    else if (rb_getsize(pool->tasks_p2))
-    {
-        EnterCriticalSection(&pool->task_mutex);
+    else
         task = rb_pop(pool->tasks_p2);
-        LeaveCriticalSection(&pool->task_mutex);
-    }
+    LeaveCriticalSection(&pool->task_mutex);
 
     task.func(arena, worker->id, task.data);
 
     if (task.batch_size)
     {
-        U64 left = ins_atomic_u64_dec_eval(task.batch_size);
-        if (!left)
+        S64 left = ins_atomic_u64_dec_eval(task.batch_size);
+        if (left <= 0)
             os_semaphore_drop(task.batch_complete);
     }
 }
@@ -102,17 +112,20 @@ void threadpool_enqueue(TaskPriority priority, AsyncTask task)
     {
     case TaskPriority_Realtime:
         rb_push(pool->tasks_p0, task);
+        break;
     case TaskPriority_High:
         rb_push(pool->tasks_p1, task);
+        break;
     case TaskPriority_Low:
         rb_push(pool->tasks_p2, task);
+        break;
     }
     LeaveCriticalSection(&pool->task_mutex);
 
     os_semaphore_drop(pool->task_semaphore);
 }
 
-void _threadpool_free()
+void threadpool_free()
 {
     (pool)->active = 0;
 
@@ -127,22 +140,8 @@ void _threadpool_free()
     pool = NULL;
     arena_free(threadpool_arena);
 }
-#define threadpool_free() _threadpool_free()
 
-// TODO: This is just a temporary fix. It can fail to clear all thread arenas.
-void threadpool_clear_arenas()
+U64 threadpool_worker_count()
 {
-    Semaphore batch = os_semaphore_alloc(0, S32_MAX);
-    if (!pool)
-        return;
-    S64 jobs = pool->worker_count * 2;
-    TPData args = {.kind = TPData_ANY, .val_any = NULL};
-    for (U64 i = 0; i < pool->worker_count * 2; i++)
-        threadpool_enqueue(TaskPriority_Realtime,
-                           {.func = clear_arena,
-                            .data = args,
-                            .batch_size = &jobs,
-                            .batch_complete = batch});
-    os_semaphore_take(batch, U64_MAX);
-    os_semaphore_drop(batch);
+    return pool->worker_count;
 }

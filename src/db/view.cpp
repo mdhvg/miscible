@@ -1,5 +1,6 @@
 #include "db/view.h"
 #include "base/arena.h"
+#include "base/base_core.h"
 #include "base/log.h"
 #include "config.h"
 #include "db/db_helpers.h"
@@ -7,6 +8,7 @@
 #include "base/string.h"
 #include "base/threadpool.h"
 #include "inference/model.h"
+#include "sqlite3.h"
 #include "ui/ui_core.h"
 
 ViewManager view = {0};
@@ -150,35 +152,12 @@ String view_build_default_query(ViewQuery request, Arena *arena, String *filters
     case SortType_DateModified:
         da_push(arena, queries, sv(" mtime"));
         break;
-    case SortType_EmbeddingDistance:
-        da_push(arena, queries, sv(" distance"));
-        break;
     default:
         Assert(0, "invalid sort order");
         break;
     }
 
     da_push(arena, queries, request.descending ? sv(" DESC;") : sv(" ASC;"));
-
-    StringBuilder query = string_empty(arena, KB(4));
-    for (S64 i = 0; i < da_getsize(queries); i++)
-        string_push(&query, queries[i]);
-
-    mscbl_log_dbg("Query: %.*s", StringSpr(query));
-
-    return StringCast(query);
-}
-
-String view_build_embedding_query(ViewQuery request, Arena *arena, String *filters)
-{
-    String *queries = NULL;
-
-    da_push(arena, queries, sv("SELECT id, path, filename, size, ctime, mtime, distance_cosine_f32(embedding, ?) AS distance FROM Images WHERE embedding IS NOT NULL"));
-
-    for (S64 i = 0; i < da_getsize(filters); i++)
-        da_push(arena, queries, filters[i]);
-
-    da_push(arena, queries, sv(" ORDER BY distance ASC;"));
 
     StringBuilder query = string_empty(arena, KB(4));
     for (S64 i = 0; i < da_getsize(queries); i++)
@@ -217,15 +196,32 @@ String view_build_fts_query(ViewQuery request, Arena *arena, String *filters)
     case SortType_DateModified:
         da_push(arena, queries, sv(" mtime"));
         break;
-    case SortType_EmbeddingDistance:
-        da_push(arena, queries, sv(" distance"));
-        break;
     default:
         Assert(0, "invalid sort order");
         break;
     }
 
     da_push(arena, queries, request.descending ? sv(" DESC;") : sv(" ASC;"));
+
+    StringBuilder query = string_empty(arena, KB(4));
+    for (S64 i = 0; i < da_getsize(queries); i++)
+        string_push(&query, queries[i]);
+
+    mscbl_log_dbg("Query: %.*s", StringSpr(query));
+
+    return StringCast(query);
+}
+
+String view_build_embedding_query(ViewQuery request, Arena *arena, String *filters)
+{
+    String *queries = NULL;
+
+    da_push(arena, queries, sv("SELECT id, path, filename, size, ctime, mtime, distance_cosine_f32(embedding, ?) AS distance FROM Images WHERE embedding IS NOT NULL"));
+
+    for (S64 i = 0; i < da_getsize(filters); i++)
+        da_push(arena, queries, filters[i]);
+
+    da_push(arena, queries, sv(" ORDER BY distance ASC;"));
 
     StringBuilder query = string_empty(arena, KB(4));
     for (S64 i = 0; i < da_getsize(queries); i++)
@@ -343,7 +339,7 @@ ThreadFunc(view_run_query)
             Assert(0, "wrong enum type %d", query.query_type);
         }
 
-        U64 bytes = 0, timestamp = 0;
+        U64 bytes = 0;
         for (S64 i = 0; i < da_getsize(filters); i++)
         {
             ViewFilter f0 = filters[i];
@@ -359,9 +355,7 @@ ThreadFunc(view_run_query)
                 break;
             case FilterType_DateCreatedAfter:
             case FilterType_DateModifiedAfter:
-                // TODO: Make UNIX timestamp (also, convert os timestamps to UNIX timestamp in Windows functions)
-                timestamp = 0;
-                sqlite3_bind_int64(stmt, cursor, timestamp);
+                sqlite3_bind_int64(stmt, cursor, date_to_timestamp(f0.val_date));
                 break;
             case FilterType_EmbeddingDistanceGreater:
                 // TODO: This case
