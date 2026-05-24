@@ -1,4 +1,3 @@
-#include "base/string.h"
 #include "config.h"
 #include "ggml.h"
 #include "sha2.h"
@@ -97,20 +96,22 @@ ThreadFunc(preprocess_image)
 void model_insert_embedding_impl(Arena *arena)
 {
     arena_clear(arena);
+
+    ModelConfig *clip_cfg = &mscbl_config.model_group.clip_model;
+    if (!model_clip_exists(arena) && !model_download(arena, clip_cfg))
+    {
+        // TODO: prompt failure (with reason) on UI
+        return;
+    }
+
     ImageRow *inserted = NULL;
 
-    // NOTE: This only needs id and path, so maybe ImageRow is redundant for it
+    // TODO: This only needs id and path, so maybe ImageRow is redundant for it
     sqlite3_stmt *stmt = db_prepare("SELECT id, path FROM Images WHERE embedding IS NULL;");
     db_run_stmt(stmt, 1, push_imagerow, &inserted, arena);
 
-    ModelConfig *clip_cfg = &mscbl_config.model_group.clip_model;
-
     if (!model_arena)
         arena_alloc(MB(100), model_arena);
-    if (!model_clip_exists(arena))
-    {
-        model_download(arena, clip_cfg);
-    }
     if (!model.clip)
     {
         model.clip = push_struct(model_arena, clip_ctx);
@@ -280,25 +281,46 @@ static U64 manifest_cb(U8 *data, U64 n, U64 l, void *userp)
     return n * l;
 }
 
-void model_parse_manifest(Arena *arena, String content, Manifest *manifest)
+Result model_parse_manifest(Arena *arena, String content, Manifest *manifest)
 {
-    fy_document *fyd = fy_document_build_from_string(NULL, CStrCast(content), content.size);
-    Assert(fyd, "fyd is NULL");
-    fy_node *root = fy_document_root(fyd);
+    Result res = ResultSuccess();
+
+    fy_document *fyd = NULL;
+    fy_node *root = NULL;
+    fy_node *blocks = NULL;
+    fy_node *block_item = NULL;
+    void *pre = NULL;
 
     U8 *str_buf = push_array(arena, KB(4), U8);
+
+    fyd = fy_document_build_from_string(NULL, CStrCast(content), content.size);
+    if (!root)
+    {
+        res = {
+            .success = 0,
+            .domain = Domain_YAML,
+            .code = 0,
+            .context = "YAML document root is missing or empty"};
+        goto Cleanup;
+    }
+    root = fy_document_root(fyd);
 
     manifest->filename = yaml_scan_string(arena, root, str_buf, "/filename");
     manifest->total_size = yaml_scan_int(root, "/total_size");
 
-    fy_node *blocks = fy_node_by_path(root, "/blocks", FY_NT, FYNWF_FOLLOW);
-    Assert(!fy_node_sequence_is_empty(blocks), "blocks array empty");
+    blocks = fy_node_by_path(root, "/blocks", FY_NT, FYNWF_FOLLOW);
+    if (!blocks || fy_node_sequence_is_empty(blocks))
+    {
+        res = {
+            .success = 0,
+            .domain = Domain_YAML,
+            .code = 1,
+            .context = "Manifest validation failed: '/blocks' array is missing or empty"};
+        goto Cleanup;
+    }
 
-    S64 block_count = fy_node_sequence_item_count(blocks);
-    da_setcap(arena, manifest->blocks, block_count);
+    da_setcap(arena, manifest->blocks, fy_node_sequence_item_count(blocks));
 
-    fy_node *block_item = NULL;
-    void *pre = NULL;
     while ((block_item = fy_node_sequence_iterate(blocks, &pre)))
     {
         Block block = {0};
@@ -307,57 +329,132 @@ void model_parse_manifest(Arena *arena, String content, Manifest *manifest)
         yaml_scan_hash(block_item, str_buf, block.hash, SHA512_DIGEST_SIZE, "/hash");
         da_push(arena, manifest->blocks, block);
     }
+
+    goto Return;
+
+Cleanup:;
+Return:
+    if (fyd)
+        fy_document_destroy(fyd);
+    return res;
 }
 
 // TODO: switch from asserts regarding http/s errors to false result
-B32 model_download_manifest(Arena *arena, Manifest *manifest, String url, String path)
+Result model_download_manifest(Arena *arena, StringBuilder *manifest, String url, String path)
 {
-    CURL *curl = curl_easy_init();
-    Assert(curl, "curl is NULL");
+    Result res = ResultSuccess();
+    Result cleanup_res = ResultSuccess();
+
+    CURL *curl = NULL;
+    FileHandle file = 0;
+    CURLcode curl_err = CURLE_OK;
+
+    sha512_ctx ctx = {0};
+    U8 manifest_hash_found[SHA512_DIGEST_SIZE] = {0};
+    U8 *manifest_hash_actual = mscbl_config.model_group.clip_model.manifest_hash;
 
     StringBuilder base = string_empty(arena, KB(4));
 
-    Assert(curl_easy_setopt(curl, CURLOPT_URL, CStrCast(url)) == CURLE_OK, "curl error");
-    Assert(curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L) == CURLE_OK, "curl error");
-    Assert(curl_easy_setopt(curl, CURLOPT_WRITEDATA, &base) == CURLE_OK, "curl error");
-    Assert(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, manifest_cb) == CURLE_OK, "curl error");
+    curl = curl_easy_init();
+    if (!curl)
+    {
+        res = {
+            .success = 0,
+            .domain = Domain_Network,
+            .code = 0,
+            .context = "curl_easy_init fail"};
+        goto Cleanup;
+    }
 
-    if (curl_easy_perform(curl) != CURLE_OK)
-        return 0;
+    curl_err = curl_easy_setopt(curl, CURLOPT_URL, CStrCast(url));
+    if (curl_err != CURLE_OK) goto CurlError;
 
-    // mscbl_log_dbg("%.*s", StringSpr(base));
-    // mscbl_log_dbg("size: %zu, capacity: %zu, used: %.2f%%",
-    //               base.size,
-    //               base.capacity,
-    //               (F32)base.size / (F32)base.capacity * 100.0f);
+    curl_err = curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+    if (curl_err != CURLE_OK) goto CurlError;
 
-    U8 *manifest_hash_actual = mscbl_config.model_group.clip_model.manifest_hash;
-    U8 manifest_hash_found[SHA512_DIGEST_SIZE] = {0};
-    sha512_ctx ctx = {0};
+    curl_err = curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+    if (curl_err != CURLE_OK) goto CurlError;
+
+    curl_err = curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    if (curl_err != CURLE_OK) goto CurlError;
+
+    curl_err = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &base);
+    if (curl_err != CURLE_OK) goto CurlError;
+
+    curl_err = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, manifest_cb);
+    if (curl_err != CURLE_OK) goto CurlError;
+
+    curl_err = curl_easy_perform(curl);
+    if (curl_err != CURLE_OK) goto CurlError;
+
     sha512_init(&ctx);
     sha512_update(&ctx, base.v, base.size);
     sha512_final(&ctx, manifest_hash_found);
-    Assert(!memcmp(manifest_hash_found, manifest_hash_actual, SHA512_DIGEST_SIZE), "manifest corrupt");
 
-    FileHandle file = os_file_open(path, FileAccess_Write, FileMode_OpenAlways);
-    os_file_write(file, StringSpr(base));
-    os_file_close(file);
+    if (memcmp(manifest_hash_found, manifest_hash_actual, SHA512_DIGEST_SIZE) != 0)
+    {
+        res = {.success = 0,
+               .domain = Domain_App,
+               .code = 400,
+               .context = "Manifest checksum verification failed (corrupt download)"};
+        goto Cleanup;
+    }
 
-    model_parse_manifest(arena, StringCast(base), manifest);
+    file = os_file_open(path, FileAccess_Write, FileMode_OpenAlways, &res);
+    CheckAndClearResult(res);
+    os_file_write(file, StringSpr(base), &res);
+    CheckAndClearResult(res);
+    os_file_close(file, &res);
+    CheckAndClearResult(res);
 
-    return 1;
+    goto Return;
+
+CurlError:
+    res = {
+        .success = 0,
+        .domain = Domain_Network,
+        .code = (U32)curl_err,
+        .context = curl_easy_strerror(curl_err)};
+Cleanup:
+    os_file_close(file, &cleanup_res);
+    if (!cleanup_res.success)
+        res = cleanup_res;
+Return:
+    if (curl)
+        curl_easy_cleanup(curl);
+
+    return res;
 }
 
-void model_read_manifest(Arena *arena, Manifest *manifest, String path)
+Result model_read_manifest(Arena *arena, StringBuilder *manifest_content, String path)
 {
-    FileHandle file = os_file_open(path, FileAccess_Read, FileMode_OpenAlways);
-    U64 manifest_file_size = os_file_size(file);
-    U8 *buffer = push_array(arena, manifest_file_size, U8);
-    os_file_read(file, manifest_file_size, buffer);
-    os_file_close(file);
+    Result res = ResultSuccess();
+    Result cleanup_res = ResultSuccess();
 
-    String content = sv(buffer, manifest_file_size);
-    model_parse_manifest(arena, content, manifest);
+    U64 manifest_file_size = 0;
+
+    FileHandle file = os_file_open(path, FileAccess_Read, FileMode_OpenAlways, &res);
+    CheckAndClearResult(res);
+
+    manifest_file_size = os_file_size(file, &res);
+    CheckAndClearResult(res);
+
+    string_growto(manifest_content, manifest_file_size);
+    os_file_read(file, manifest_file_size, manifest_content->v, &res);
+    CheckAndClearResult(res);
+
+    os_file_close(file, &res);
+    CheckAndClearResult(res);
+
+    goto Return;
+
+Cleanup:
+    os_file_close(file, &cleanup_res);
+    if (!cleanup_res.success)
+        res = cleanup_res;
+
+Return:
+    return res;
 }
 
 struct download_params
@@ -437,28 +534,40 @@ ThreadFunc(download_worker)
     BitFieldSet(params0->state, params0->idx);
 
     os_file_write(file_desc, params1.used, params1.buffer, params0->block.start);
-
-    // fseek(file, start, SEEK_SET);
-    // fwrite(array, 1, used, file);
 }
 
-B32 model_download_impl(Arena *arena, Manifest *manifest, String model_url, ModelConfig *model_cfg)
+Result model_download_impl(Arena *arena, Manifest *manifest, String model_url, ModelConfig *model_cfg)
 {
+    Result res = ResultSuccess();
+    Result cleanup_res = ResultSuccess();
+
+    S64 batch_size = 0;
     S64 block_count = da_getsize(manifest->blocks);
     U64 state_array_size = ToCeilInt(block_count, (sizeof(U8) * 8));
 
     StringBuilder statefile_path = string_init(arena, model_cfg->path);
     string_push(&statefile_path, ".state");
-
-    FileHandle statefile_desc = os_file_open(StringCast(statefile_path), FileAccess_Read | FileAccess_Write, FileMode_OpenAlways);
-    OSMmap map = os_file_map(statefile_desc, state_array_size);
-    U8 *state_array = (U8 *)os_map_get_data(map);
-
     StringBuilder tempfile_path = string_init(arena, model_cfg->path);
     string_push(&tempfile_path, ".tmp");
-    FileHandle tempfile_desc = os_file_open(StringCast(tempfile_path), FileAccess_Read | FileAccess_Write, FileMode_OpenAlways);
 
-    S64 batch_size = block_count;
+    FileHandle statefile_desc = 0;
+    FileHandle tempfile_desc = 0;
+
+    U8 *state_array = NULL;
+    B32 download_finish = 1;
+
+    OSMmap map = {0};
+    statefile_desc = os_file_open(StringCast(statefile_path), FileAccess_Read | FileAccess_Write, FileMode_OpenAlways, &res);
+    CheckAndClearResult(res);
+
+    map = os_file_map(statefile_desc, state_array_size, &res);
+    CheckAndClearResult(res);
+    state_array = (U8 *)os_map_get_data(map);
+
+    tempfile_desc = os_file_open(StringCast(tempfile_path), FileAccess_Read | FileAccess_Write, FileMode_OpenAlways, &res);
+    CheckAndClearResult(res);
+
+    batch_size = block_count;
     for (S64 i = 0; i < block_count; i++)
     {
         if (BitFieldGet(state_array, i))
@@ -493,58 +602,102 @@ B32 model_download_impl(Arena *arena, Manifest *manifest, String model_url, Mode
         os_semaphore_release(wait);
     }
 
-    B32 res = 1;
     for (S64 i = 0; i < block_count; i++)
     {
-        res &= BitFieldGet(state_array, i);
+        download_finish &= BitFieldGet(state_array, i);
+    }
+    if (!download_finish)
+    {
+        res = {
+            .success = 0,
+            .domain = Domain_App,
+            .context = "Download finished but data blocks are incomplete"};
+        goto Cleanup;
     }
 
-    os_file_unmap(map);
-    os_file_close(statefile_desc);
-    os_file_close(tempfile_desc);
+    os_file_unmap(map, &res);
+    CheckAndClearResult(res);
+    map = (OSMmap){0};
 
+    os_file_close(statefile_desc, &res);
+    CheckAndClearResult(res);
+    statefile_desc = 0;
+
+    os_file_close(tempfile_desc, &res);
+    CheckAndClearResult(res);
+    tempfile_desc = 0;
+
+    os_file_rename(StringCast(tempfile_path), model_cfg->path);
+
+    goto Return;
+
+Cleanup:
+    os_file_unmap(map, &cleanup_res);
+    if (!cleanup_res.success)
+        res = cleanup_res;
+
+    os_file_close(statefile_desc, &cleanup_res);
+    if (!cleanup_res.success)
+        res = cleanup_res;
+
+    os_file_close(tempfile_desc, &cleanup_res);
+    if (!cleanup_res.success)
+        res = cleanup_res;
+
+Return:
     return res;
 }
 
-void model_download(Arena *arena, ModelConfig *model_cfg)
+B32 model_download(Arena *arena, ModelConfig *model_cfg)
 {
+    S64 url_idx = 0;
+    B32 manifest_exist = 0;
+    Manifest manifest = {0};
+    StringBuilder manifest_content = string_empty(arena, KB(4));
+    StringBuilder manifest_path = string_init(arena, model_cfg->path);
+
+    Result res = ResultSuccess();
     ArenaScoped(arena)
     {
-        StringBuilder manifest_path = string_init(arena, model_cfg->path);
         string_push(&manifest_path, ".yaml");
 
-        Manifest manifest = {0};
-
-        if (os_path_exists(StringCast(manifest_path)))
+        manifest_exist = os_path_exists(StringCast(manifest_path), &res);
+        CheckAndClearResult(res);
+        if (manifest_exist)
         {
-            // TODO: load manifest from file
-            model_read_manifest(arena, &manifest, StringCast(manifest_path));
+            res = model_read_manifest(arena, &manifest_content, StringCast(manifest_path));
+            CheckAndClearResult(res);
         }
         else
         {
-            B32 manifest_downloaded = 0;
-            for (S64 i = 0; i < da_getsize(model_cfg->manifest_url) && !manifest_downloaded; i++)
+            url_idx = 0;
+            res.success = 0;
+            while (url_idx < da_getsize(model_cfg->manifest_url) && !res.success)
             {
-                String manifest_url = model_cfg->manifest_url[i];
-                manifest_downloaded |= model_download_manifest(arena, &manifest, manifest_url, StringCast(manifest_path));
+                String manifest_url = model_cfg->manifest_url[url_idx];
+                res = model_download_manifest(arena, &manifest_content, manifest_url, StringCast(manifest_path));
+                url_idx++;
             }
-            Assert(manifest_downloaded, "all links failed to download manifest");
+            CheckAndClearResult(res);
         }
 
-        B32 model_downloaded = 0;
-        for (S64 i = 0; i < da_getsize(model_cfg->model_url) && !model_downloaded; i++)
+        res = model_parse_manifest(arena, StringCast(manifest_content), &manifest);
+        CheckAndClearResult(res);
+
+        url_idx = 0;
+        res.success = 0;
+        while (url_idx < da_getsize(model_cfg->model_url) && !res.success)
         {
-            String model_url = model_cfg->model_url[i];
-            model_downloaded |= model_download_impl(arena, &manifest, model_url, model_cfg);
+            String model_url = model_cfg->model_url[url_idx];
+            res = model_download_impl(arena, &manifest, model_url, model_cfg);
+            url_idx++;
         }
-        if (model_downloaded)
-        {
-            StringBuilder tempfile_path = string_init(arena, model_cfg->path);
-            string_push(&tempfile_path, ".tmp");
-            os_file_rename(StringCast(tempfile_path), model_cfg->path);
-        }
-        Assert(model_downloaded, "all links failed to download model");
+        CheckAndClearResult(res);
+
+    Cleanup:;
     }
+Return:
+    return res.success;
 }
 
 DBStmtCbk(print_dist)

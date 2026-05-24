@@ -173,6 +173,33 @@ struct Date
     // U32 second;
 };
 
+enum ResultDomain
+{
+    Domain_None,
+    Domain_OS,
+    Domain_Network,
+    Domain_YAML,
+};
+
+struct Result
+{
+    B32 success;
+    ResultDomain domain;
+    U32 code;
+    const char *context;
+};
+
+#define ResultSuccess() ((Result){.success = 1})
+#define CheckAndClearResult(res)   \
+    do                             \
+    {                              \
+        if (!(res).success)        \
+            goto Cleanup;          \
+        else                       \
+            res = ResultSuccess(); \
+    } while (0)
+#define ClearResult(res) ((res) && ((*(res) = ResultSuccess()), 1))
+
 #if COMPILER_MSVC
 #include <intrin.h>
 #if ARCH_64BIT

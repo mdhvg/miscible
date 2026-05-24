@@ -64,7 +64,7 @@ LibAddress os_libfunc(LibHandle lib, const char *symbol);
 void os_closelib(LibHandle lib);
 
 MSCBL_API OSString os_select_dir(const OSchar *title, const OSchar *default_path);
-B32 os_path_exists(String path);
+B32 os_path_exists(String path, Result *res);
 
 MSCBL_API void *os_reserve(void *ptr, U64 size);
 MSCBL_API void os_release(void *ptr, U64 size);
@@ -91,14 +91,14 @@ enum FileMode
     FileMode_OpenAlways = (1 << 1),
 };
 
-FileHandle os_file_open(String path, FileAccess access, FileMode mode);
-void os_file_close(FileHandle file_desc);
-U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer, U64 offset = 0);
-void os_file_read(FileHandle file_desc, U64 size, U8 *buffer);
-U64 os_file_size(FileHandle file_desc);
+FileHandle os_file_open(String path, FileAccess access, FileMode mode, Result *res, U64 size = 0);
+void os_file_close(FileHandle file_desc, Result *res);
+U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset = 0);
+U32 os_file_read(FileHandle file_desc, U64 size, U8 *buffer, Result *res);
+U64 os_file_size(FileHandle file_desc, Result *res);
 void os_file_rename(String old_path, String new_path);
 
 #define os_map_get_data(map) (map.data)
 // NOTE: Linux requires file to be of `size` size, so use `ftruncate` first
-OSMmap os_file_map(FileHandle file_desc, U64 size);
-void os_file_unmap(OSMmap map);
+OSMmap os_file_map(FileHandle file_desc, U64 size, Result *res);
+void os_file_unmap(OSMmap map, Result *res);

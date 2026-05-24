@@ -122,10 +122,33 @@ OSString os_select_dir(const wchar *title, const wchar *default_path)
     return res;
 }
 
-B32 os_path_exists(String path)
+#define _Win32Trap(res, cnd, err)     \
+    do                                \
+    {                                 \
+        if (!cnd && res)              \
+        {                             \
+            *(res) = {                \
+                .success = 0,         \
+                .domain = Domain_OS,  \
+                .code = (err),        \
+                .context = __func__}; \
+        }                             \
+    } while (0)
+#define Win32Trap(res, cnd) _Win32Trap(res, cnd, GetLastError())
+
+B32 os_path_exists(String path, Result *res)
 {
-    DWORD attrs = GetFileAttributes(CStrCast(path));
-    return (attrs != INVALID_FILE_ATTRIBUTES);
+    ClearResult(res);
+    DWORD attrs = GetFileAttributesA(CStrCast(path));
+
+    if (attrs == INVALID_FILE_ATTRIBUTES)
+    {
+        U32 err = GetLastError();
+        _Win32Trap(res, (err != ERROR_FILE_NOT_FOUND && err != ERROR_PATH_NOT_FOUND),
+                   // NOTE: otherwise it's a real error
+                   err);
+    }
+    return true;
 }
 
 void win32_format_path(StringBuilder *dir)
@@ -233,14 +256,15 @@ void os_thread_detach(Thread t)
     }
 }
 
-FileHandle os_file_open(String path, FileAccess access, FileMode mode)
+FileHandle os_file_open(String path, FileAccess access, FileMode mode, Result *res, U64 size)
 {
+    ClearResult(res);
+
     DWORD desired_access = 0;
     if (access & FileAccess_Read)
         desired_access |= GENERIC_READ;
     if (access & FileAccess_Write)
         desired_access |= GENERIC_WRITE;
-
     Assert(desired_access, "needs to have read/write/both access");
 
     DWORD creation_mode = 0;
@@ -257,24 +281,23 @@ FileHandle os_file_open(String path, FileAccess access, FileMode mode)
     }
 
     HANDLE handle = CreateFileA(CStrCast(path), desired_access, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, creation_mode, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (handle == INVALID_HANDLE_VALUE)
-    {
-        U32 err = GetLastError();
-        Assert(0, "CreateFileA failed %.*s, error code: 0x%X (%u)", StringSpr(path), err, err);
-    }
+
+    Win32Trap(res, (handle != INVALID_HANDLE_VALUE));
     return handle;
 }
 
-void os_file_close(FileHandle file_desc)
+void os_file_close(FileHandle file_desc, Result *res)
 {
-    if (file_desc != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(file_desc);
-    }
+    ClearResult(res);
+    if (file_desc == INVALID_HANDLE_VALUE || file_desc == 0)
+        return;
+    BOOL out = CloseHandle(file_desc);
+    Win32Trap(res, out);
 }
 
-U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer, U64 offset)
+U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset)
 {
+    ClearResult(res);
     LARGE_INTEGER off_large_int = {0};
     off_large_int.QuadPart = offset;
 
@@ -284,20 +307,26 @@ U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer, U64 offset)
 
     DWORD written = 0;
 
-    Assert(WriteFile(file_desc, buffer, size, &written, &off_overlap), "error code: %lu", GetLastError());
+    BOOL out = WriteFile(file_desc, buffer, size, &written, &off_overlap);
+    Win32Trap(res, out);
     return written;
 }
 
-void os_file_read(FileHandle file_desc, U64 size, U8 *buffer)
+U32 os_file_read(FileHandle file_desc, U64 size, U8 *buffer, Result *res)
 {
+    ClearResult(res);
     DWORD bytes_read = 0;
-    Assert(ReadFile(file_desc, buffer, size, &bytes_read, NULL), "error code: %lu", GetLastError());
+    BOOL out = ReadFile(file_desc, buffer, size, &bytes_read, NULL);
+    Win32Trap(res, out);
+    return bytes_read;
 }
 
-U64 os_file_size(FileHandle file_desc)
+U64 os_file_size(FileHandle file_desc, Result *res)
 {
+    ClearResult(res);
     LARGE_INTEGER size = {0};
-    GetFileSizeEx(file_desc, &size);
+    BOOL out = GetFileSizeEx(file_desc, &size);
+    Win32Trap(res, out);
     return size.QuadPart;
 }
 
@@ -307,25 +336,33 @@ void os_file_rename(String old_path, String new_path)
     Assert(MoveFileEx(CStrCast(old_path), CStrCast(new_path), flags), "error code: %lu", GetLastError());
 }
 
-OSMmap os_file_map(FileHandle file_desc, U64 size)
+OSMmap os_file_map(FileHandle file_desc, U64 size, Result *res)
 {
+    ClearResult(res);
+    void *map = NULL;
     // NOTE: store size as size_high:size_low format
     DWORD size_high = (DWORD)((size >> 32) & 0xFFFFFFFF);
     DWORD size_low = (DWORD)(size & 0xFFFFFFFF);
 
     HANDLE handle = CreateFileMappingA(file_desc, NULL, PAGE_READWRITE, size_high, size_low, NULL);
-    if (handle == NULL)
-    {
-        U32 err = GetLastError();
-        Assert(0, "CreateFileMappingA failed %p, error code: 0x%X (%u)", file_desc, err, err);
-    }
+    Win32Trap(res, handle);
+    if (!res->success)
+        goto Return;
 
-    void *map = MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, size);
-    if (map == NULL)
+    map = MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, size);
+    Win32Trap(res, map);
+    if (!res->success)
+        goto Cleanup;
+
+    goto Return;
+
+Cleanup:
+    if (handle)
     {
-        U32 err = GetLastError();
-        Assert(0, "MapViewOfFile failed %p, error code: 0x%X (%u)", handle, err, err);
+        BOOL out = CloseHandle(handle);
+        handle = NULL;
     }
+Return:
     return {.data = map,
             .size = size,
             .map_handle = handle};
