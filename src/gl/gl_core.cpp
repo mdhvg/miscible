@@ -39,7 +39,7 @@ void gl_push(GLArgs args, B32 wait)
     if (wait)
     {
         args.wait = 1;
-        args.sem  = os_semaphore_alloc(0, S32_MAX);
+        args.sem = os_semaphore_alloc(0, S32_MAX);
     }
 
     EnterCriticalSection(&gl_state.mutex);
@@ -77,25 +77,26 @@ void gl_tex_data(GLA_tex args)
     switch (args.channels)
     {
     case 1:
-        format          = GL_RED;
+        format = GL_RED;
         internal_format = GL_R8;
         swizzle_mask[1] = GL_RED;
         swizzle_mask[2] = GL_RED;
         swizzle_mask[3] = GL_ONE;
         break;
     case 2:
-        format          = GL_RG;
+        format = GL_RG;
         internal_format = GL_RG8;
+        swizzle_mask[1] = GL_RED;
         swizzle_mask[2] = GL_RED;
-        swizzle_mask[3] = GL_ONE;
+        swizzle_mask[3] = GL_GREEN;
         break;
     case 3:
-        format          = GL_RGB;
+        format = GL_RGB;
         internal_format = GL_RGB8;
         swizzle_mask[3] = GL_ONE;
         break;
     case 4:
-        format          = GL_RGBA;
+        format = GL_RGBA;
         internal_format = GL_RGBA8;
         break;
     default:
@@ -114,7 +115,7 @@ ThreadFunc(gl_tex_path)
     GLA_tex params1;
 
     params1.texture = args0.texture;
-    params1.data    = stbi_load(CStrCast(args0.path), &params1.width, &params1.height, &params1.channels, 0);
+    params1.data = stbi_load(CStrCast(args0.path), &params1.width, &params1.height, &params1.channels, 0);
     Assert(params1.data, "image data is NULL (%.*s)", StringSpr(args0.path));
 
     gl_push({GLArgs_tex, params1});
