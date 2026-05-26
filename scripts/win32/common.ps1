@@ -54,7 +54,7 @@ $ThirdpartyLibs = @(
     "libcurl-d.lib"
 )
 
-$LinkerBase = @("/link", "/LIBPATH:.", "/DEBUG", "-incremental:no")
+$LinkerBase = @("/link", "/LIBPATH:.", "/DEBUG", "/INCREMENTAL:NO")
 $CFLAGS = @()
 $DEFINES = @("-D_CRT_SECURE_NO_WARNINGS=1", "-DSQLITE_CORE=1", "-DCURL_STATICLIB")
 
