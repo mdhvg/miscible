@@ -54,25 +54,27 @@ void *arena_push(Arena *a, U64 size, U8 zero, U64 align)
     align = MAX(align, 8);
     U64 start = AlignOf(((U64)a->base + a->used), align);
     U64 end = start + size;
+    U64 need_size = end - ((U64)a->base + a->used);
+    Assert(end <= a->capacity + (U64)a->base, "(Out of memory) Used: %zu/%zu, Need: %zu (%zu more)\n", a->used, a->capacity, need_size, need_size - a->capacity);
+
     // NOTE: cmt_size is arena aligned NOT base aligned
-    U64 req_size = end - (U64)a;
-    U64 cmt_size = AlignOf(req_size, os_info.page_size);
+    U64 commit_size = end - (U64)a;
+    commit_size = AlignOf(commit_size, os_info.page_size);
 
-    Assert(end <= a->capacity + (U64)a->base, "(Out of memory) Used: %zu/%zu, Need: %zu (%zu more)\n", a->used, a->capacity, req_size, req_size - a->capacity);
-
-    if (cmt_size > a->cmt_size)
+    if (commit_size > a->cmt_size)
     {
         // Then we need to commit more memory
         // mscbl_log_dbg(Arena, "Commiting memory: 0x%X\tsize: %zu", a->base, cmt_size);
-        os_commit(a, cmt_size);
+        os_commit(a, commit_size);
     }
 
     void *result = (void *)(start);
 
-    a->used = req_size;
-    a->cmt_size = cmt_size;
+    a->used += need_size;
+    a->cmt_size = commit_size;
 
-    if (zero) MemoryZero(result, size);
+    if (zero)
+        MemoryZero(result, size);
     return result;
 }
 
@@ -98,6 +100,12 @@ void arena_pop(Arena *a, U64 pos)
 
 void arena_free(Arena *a)
 {
+#if ARENA_DBG
+    Arena *parent = arena_head;
+    while (parent->next != a)
+        parent = parent->next;
+    parent->next = a->next;
+#endif
     os_release(a, a->cmt_size);
 }
 
@@ -135,11 +143,12 @@ ArenaArray arena_array_alloc(U64 capacity, U64 size)
 
 void arena_array_free(ArenaArray aa)
 {
-    for (U64 i = aa.size - 1; i >= 0; i--)
+    for (U64 i = aa.size - 1; i >= 1; i--)
     {
         arena_free(aa.v[i]);
         aa.v[i] = NULL;
     }
+    arena_free(aa.v[0]);
 }
 
 void arena_array_clear(ArenaArray aa)
