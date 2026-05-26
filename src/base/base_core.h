@@ -292,6 +292,6 @@ Date timestamp_to_date(U64 timestamp);
 
 #define ATLAS_CAPACITY 100
 #define ATLAS_SIZE     2560
-#define ATLAS_CHANNELS 3
+#define ATLAS_CHANNELS 4
 #define THUMB_PER_SIDE 10
 #define THUMB_SIZE     256

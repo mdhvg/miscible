@@ -48,12 +48,12 @@ ThreadFunc(read_image)
     }
 
     U8 *resize_data = push_size(read_arena, (ATLAS_CHANNELS * resize_height * resize_width), U8);
-    stbir_resize_uint8_linear(img_data, w, h, 0, resize_data, resize_width, resize_height, 0, STBIR_RGB);
+    stbir_resize_uint8_linear(img_data, w, h, 0, resize_data, resize_width, resize_height, 0, STBIR_RGBA);
     stbi_image_free(img_data);
 
     row->width = w;
     row->height = h;
-    row->channels = c;
+    row->channels = ATLAS_CHANNELS;
     row->data = resize_data;
     row->resize_width = resize_width;
     row->resize_height = resize_height;
