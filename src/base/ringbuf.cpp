@@ -14,7 +14,9 @@ B32 _rb_push(RingBufferHeader *rb, S64 max_size, U64 t_size, void *data)
 
 S64 _rb_pop(RingBufferHeader *rb, S64 max_size)
 {
+    S64 res = rb->head;
     rb->size--;
-    ++rb->head %= max_size;
-    return (rb->head - 1) % max_size;
+    rb->head++;
+    rb->head %= max_size;
+    return res;
 }
