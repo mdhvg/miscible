@@ -12,6 +12,7 @@
 
 #include "clip.h"
 #include "base/arena.h"
+#include "error.h"
 #include "ggml-alloc.h"
 #include "ggml-backend.h"
 
@@ -301,21 +302,36 @@ void clip_load_vision_model(Arena *arena, clip_ctx *clip, clip_vision_model *vis
 }
 
 // read and create ggml_context containing the tensors and their data
-void clip_model_load(Arena *arena, clip_ctx *clip, String model_path)
+Result clip_model_load(Arena *arena, clip_ctx *clip, String model_path)
 {
+    Result res = ResultSuccess();
+
+    S32 n_tensors = 0, n_kv = 0, ftype = 0, idx_desc = 0, idx_name = 0, idx = 0;
+
+    U64 text_model_mem_size = 0;
+    U64 vision_model_mem_size = 0;
+    void *text_model_mem_buffer = NULL;
+    void *vision_model_mem_buffer = NULL;
+
     ggml_context *temp_ctx = NULL;
-    gguf_init_params params = {
-        .no_alloc = false,
-        .ctx = &temp_ctx};
+    gguf_init_params params = {.no_alloc = false,
+                               .ctx = &temp_ctx};
 
     gguf_context *gguf_ctx = gguf_init_from_file(CStrCast(model_path), params);
-    Assert(gguf_ctx, "gguf_ctx is NULL");
+    if (!gguf_ctx)
+    {
+        res = {.success = 0,
+               .domain = Domain_App,
+               .code = AppError_NullPtr,
+               .context = "gguf_ctx"};
+        goto Cleanup;
+    }
 
-    S32 n_tensors = gguf_get_n_tensors(gguf_ctx);
-    S32 n_kv = gguf_get_n_kv(gguf_ctx);
-    S32 ftype = get_u32(gguf_ctx, KEY_FTYPE);
-    S32 idx_desc = get_key_idx(gguf_ctx, KEY_DESCRIPTION);
-    S32 idx_name = gguf_find_key(gguf_ctx, KEY_NAME);
+    n_tensors = gguf_get_n_tensors(gguf_ctx);
+    n_kv = gguf_get_n_kv(gguf_ctx);
+    ftype = get_u32(gguf_ctx, KEY_FTYPE);
+    idx_desc = get_key_idx(gguf_ctx, KEY_DESCRIPTION);
+    idx_name = gguf_find_key(gguf_ctx, KEY_NAME);
     if (idx_name != -1)
         mscbl_log_dbg("model name:   %s", gguf_get_val_str(gguf_ctx, idx_name));
     mscbl_log_dbg("description:  %s", gguf_get_val_str(gguf_ctx, idx_desc));
@@ -342,7 +358,7 @@ void clip_model_load(Arena *arena, clip_ctx *clip, String model_path)
     }
 
     // model size and capabilities
-    S32 idx = get_key_idx(gguf_ctx, KEY_HAS_TEXT_ENC);
+    idx = get_key_idx(gguf_ctx, KEY_HAS_TEXT_ENC);
     clip->has_text_encoder = gguf_get_val_bool(gguf_ctx, idx);
 
     idx = get_key_idx(gguf_ctx, KEY_HAS_VIS_ENC);
@@ -355,8 +371,8 @@ void clip_model_load(Arena *arena, clip_ctx *clip, String model_path)
     mscbl_log_dbg("vision_encoder: %d", clip->has_vision_encoder);
     mscbl_log_dbg("model size:     %.2f MB", gguf_get_meta_size(gguf_ctx) / (float)MB(1));
 
-    U64 text_model_mem_size = 0;
-    U64 vision_model_mem_size = 0;
+    text_model_mem_size = 0;
+    vision_model_mem_size = 0;
     for (S32 i = 0; i < n_tensors; ++i)
     {
         const char *name = gguf_get_tensor_name(gguf_ctx, i);
@@ -370,17 +386,31 @@ void clip_model_load(Arena *arena, clip_ctx *clip, String model_path)
     text_model_mem_size *= ggml_tensor_overhead();
     vision_model_mem_size *= ggml_tensor_overhead();
 
-    void *text_model_mem_buffer = arena_push(arena, text_model_mem_size, 0, GGML_MEM_ALIGN);
+    text_model_mem_buffer = arena_push(arena, text_model_mem_size, 0, GGML_MEM_ALIGN);
     clip->text_model.ctx_ggml = ggml_init({.mem_size = text_model_mem_size,
                                            .mem_buffer = text_model_mem_buffer,
                                            .no_alloc = true});
-    Assert(clip->text_model.ctx_ggml, "text_model.ggml_ctx is NULL");
+    if (!clip->text_model.ctx_ggml)
+    {
+        res = {.success = 0,
+               .domain = Domain_App,
+               .code = AppError_NullPtr,
+               .context = "text_model.ggml_ctx"};
+        goto Cleanup;
+    }
 
-    void *vision_model_mem_buffer = arena_push(arena, vision_model_mem_size, 0, GGML_MEM_ALIGN);
+    vision_model_mem_buffer = arena_push(arena, vision_model_mem_size, 0, GGML_MEM_ALIGN);
     clip->vision_model.ctx_ggml = ggml_init({.mem_size = vision_model_mem_size,
                                              .mem_buffer = vision_model_mem_buffer,
                                              .no_alloc = true});
-    Assert(clip->vision_model.ctx_ggml, "vision_model.ggml_ctx is NULL");
+    if (!clip->vision_model.ctx_ggml)
+    {
+        res = {.success = 0,
+               .domain = Domain_App,
+               .code = AppError_NullPtr,
+               .context = "vision_model.ggml_ctx"};
+        goto Cleanup;
+    }
 
     for (S32 i = 0; i < n_tensors; ++i)
     {
@@ -408,8 +438,12 @@ void clip_model_load(Arena *arena, clip_ctx *clip, String model_path)
 
     mscbl_log_dbg("Used mem: %zu", ggml_used_mem(temp_ctx));
 
-    ggml_free(temp_ctx);
-    gguf_free(gguf_ctx);
+Cleanup:
+    if (temp_ctx)
+        ggml_free(temp_ctx);
+    if (gguf_ctx)
+        gguf_free(gguf_ctx);
+    return res;
 }
 
 // TODO: This is definitely cursed

@@ -1,4 +1,6 @@
+#include "base/base_core.h"
 #include "config.h"
+#include "error.h"
 #include "ggml.h"
 #include "sha2.h"
 #include "libfyaml.h"
@@ -21,6 +23,7 @@ CLIPModel model = {0};
 Arena *model_arena = NULL;
 
 #define EMBED_BATCH_SIZE 8
+#define DOWNLOAD_RETRIES 10
 
 struct preprocess_params
 {
@@ -95,28 +98,18 @@ ThreadFunc(preprocess_image)
 
 void model_insert_embedding_impl(Arena *arena)
 {
+    if (!model.clip)
+        return; // TODO: prompt failure (with reason) on UI
+
     arena_clear(arena);
 
     ModelConfig *clip_cfg = &mscbl_config.model_group.clip_model;
-    if (!model_clip_exists(arena) && !model_download(arena, clip_cfg))
-    {
-        // TODO: prompt failure (with reason) on UI
-        return;
-    }
 
     ImageRow *inserted = NULL;
 
     // TODO: This only needs id and path, so maybe ImageRow is redundant for it
     sqlite3_stmt *stmt = db_prepare("SELECT id, path FROM Images WHERE embedding IS NULL;");
     db_run_stmt(stmt, 1, push_imagerow, &inserted, arena);
-
-    if (!model_arena)
-        arena_alloc(MB(100), model_arena);
-    if (!model.clip)
-    {
-        model.clip = push_struct(model_arena, clip_ctx);
-        clip_model_load(model_arena, model.clip, clip_cfg->path);
-    }
 
     clip_vision_model *vision_model = &model.clip->vision_model;
     clip_vision_hparams hparams = vision_model->hparams;
@@ -245,11 +238,13 @@ ThreadFunc(model_insert_embedding)
 {
     if (ins_atomic_u32_eval_cond_assign(&m_embed.is_running, 1, 0) == 0)
     {
-        // NOTE: This thread is first to run it
+        // This thread is first to run it
+        if (!model.clip && !model_download(arena, &mscbl_config.model_group.clip_model))
+            return;
         do
         {
             ins_atomic_u32_eval_assign(&m_embed.needs_rerun, 0);
-            // NOTE: Embed images here
+            // Embed images here
             model_insert_embedding_impl(arena);
         } while (ins_atomic_u32_eval(&m_embed.needs_rerun) != 0);
         ins_atomic_u32_eval_assign(&m_embed.is_running, 0);
@@ -294,6 +289,7 @@ Result model_parse_manifest(Arena *arena, String content, Manifest *manifest)
     U8 *str_buf = push_array(arena, KB(4), U8);
 
     fyd = fy_document_build_from_string(NULL, CStrCast(content), content.size);
+    root = fy_document_root(fyd);
     if (!root)
     {
         res = {
@@ -303,7 +299,6 @@ Result model_parse_manifest(Arena *arena, String content, Manifest *manifest)
             .context = "YAML document root is missing or empty"};
         goto Cleanup;
     }
-    root = fy_document_root(fyd);
 
     manifest->filename = yaml_scan_string(arena, root, str_buf, "/filename");
     manifest->total_size = yaml_scan_int(root, "/total_size");
@@ -340,7 +335,7 @@ Return:
 }
 
 // TODO: switch from asserts regarding http/s errors to false result
-Result model_download_manifest(Arena *arena, StringBuilder *manifest, String url, String path)
+Result model_download_manifest(Arena *arena, StringBuilder *manifest_content, String url, String path)
 {
     Result res = ResultSuccess();
     Result cleanup_res = ResultSuccess();
@@ -352,8 +347,6 @@ Result model_download_manifest(Arena *arena, StringBuilder *manifest, String url
     sha512_ctx ctx = {0};
     U8 manifest_hash_found[SHA512_DIGEST_SIZE] = {0};
     U8 *manifest_hash_actual = mscbl_config.model_group.clip_model.manifest_hash;
-
-    StringBuilder base = string_empty(arena, KB(4));
 
     curl = curl_easy_init();
     if (!curl)
@@ -378,7 +371,7 @@ Result model_download_manifest(Arena *arena, StringBuilder *manifest, String url
     curl_err = curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     if (curl_err != CURLE_OK) goto CurlError;
 
-    curl_err = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &base);
+    curl_err = curl_easy_setopt(curl, CURLOPT_WRITEDATA, manifest_content);
     if (curl_err != CURLE_OK) goto CurlError;
 
     curl_err = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, manifest_cb);
@@ -388,21 +381,21 @@ Result model_download_manifest(Arena *arena, StringBuilder *manifest, String url
     if (curl_err != CURLE_OK) goto CurlError;
 
     sha512_init(&ctx);
-    sha512_update(&ctx, base.v, base.size);
+    sha512_update(&ctx, manifest_content->v, manifest_content->size);
     sha512_final(&ctx, manifest_hash_found);
 
     if (memcmp(manifest_hash_found, manifest_hash_actual, SHA512_DIGEST_SIZE) != 0)
     {
         res = {.success = 0,
                .domain = Domain_App,
-               .code = 400,
+               .code = AppError_ChecksumFail,
                .context = "Manifest checksum verification failed (corrupt download)"};
         goto Cleanup;
     }
 
     file = os_file_open(path, FileAccess_Write, FileMode_OpenAlways, &res);
     CheckAndClearResult(res);
-    os_file_write(file, StringSpr(base), &res);
+    os_file_write(file, StringSpr(*manifest_content), &res);
     CheckAndClearResult(res);
     os_file_close(file, &res);
     CheckAndClearResult(res);
@@ -441,6 +434,7 @@ Result model_read_manifest(Arena *arena, StringBuilder *manifest_content, String
 
     string_growto(manifest_content, manifest_file_size);
     os_file_read(file, manifest_file_size, manifest_content->v, &res);
+    manifest_content->size = manifest_file_size;
     CheckAndClearResult(res);
 
     os_file_close(file, &res);
@@ -456,15 +450,6 @@ Cleanup:
 Return:
     return res;
 }
-
-struct download_params
-{
-    String model_url;
-    FileHandle file_desc;
-    S64 idx;
-    U8 *state;
-    Block block;
-};
 
 struct cbk_params
 {
@@ -485,6 +470,16 @@ static U64 download_cb(U8 *data, U64 n, U64 l, void *userp)
     return n * l;
 }
 
+struct download_params
+{
+    S64 idx;
+    U8 *state;
+    Block block;
+    String model_url;
+    // Result *result_arr;
+    FileHandle file_desc;
+};
+
 ThreadFunc(download_worker)
 {
     arena_clear(arena);
@@ -493,47 +488,64 @@ ThreadFunc(download_worker)
 
     U64 start = params0->block.start;
     U64 end = start + params0->block.size - 1;
-    StringBuilder range = string_empty(arena, 256);
+    StringBuilder range = string_empty(arena, 128);
     string_format(&range, "%zu-%zu", start, end);
 
     String model_url = params0->model_url;
     FileHandle file_desc = params0->file_desc;
 
     U8 *array = push_array(arena, params0->block.size, U8);
-    cbk_params params1 = {.buffer = array, .used = 0};
 
-    CURL *curl = curl_easy_init();
-    Assert(curl, "curl is NULL");
+    ArenaScoped(arena)
+    {
+        CURL *curl = NULL;
+        sha512_ctx ctx = {0};
+        U8 hash_found[SHA512_DIGEST_SIZE] = {0};
+        for (U32 i = 0; i < DOWNLOAD_RETRIES; i++)
+        {
+            if (curl)
+                curl_easy_cleanup(curl);
 
-    CURLcode res;
-    res = curl_easy_setopt(curl, CURLOPT_URL, CStrCast(model_url));
-    Assert(res == CURLE_OK, "curl fail");
-    curl_easy_setopt(curl, CURLOPT_RANGE, CStrCast(range));
-    Assert(res == CURLE_OK, "curl fail");
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    Assert(res == CURLE_OK, "curl fail");
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &params1);
-    Assert(res == CURLE_OK, "curl fail");
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, download_cb);
-    Assert(res == CURLE_OK, "curl fail"); // TODO: replace with some return or something
+            curl = curl_easy_init();
+            if (!curl)
+                continue;
 
-    res = curl_easy_perform(curl);
-    Assert(res == CURLE_OK, "curl fail");
+            if (curl_easy_setopt(curl, CURLOPT_URL, CStrCast(model_url)) != CURLE_OK)
+                continue;
+            if (curl_easy_setopt(curl, CURLOPT_RANGE, CStrCast(range)) != CURLE_OK)
+                continue;
+            if (curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L) != CURLE_OK)
+                continue;
 
-    curl_easy_cleanup(curl);
+            cbk_params params1 = {.buffer = array, .used = 0};
+            if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, &params1) != CURLE_OK)
+                continue;
+            if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, download_cb) != CURLE_OK)
+                continue;
 
-    Assert(params1.used == params0->block.size, "not filled completely");
+            if (curl_easy_perform(curl) != CURLE_OK)
+                continue;
 
-    sha512_ctx ctx = {0};
-    U8 calculated_hash[SHA512_DIGEST_SIZE] = {0};
-    sha512_init(&ctx);
-    sha512_update(&ctx, array, params1.used);
-    sha512_final(&ctx, calculated_hash);
+            curl_easy_cleanup(curl);
 
-    Assert(!memcmp(params0->block.hash, calculated_hash, SHA512_DIGEST_SIZE), "hashes don't match"); // TODO: replace with something to set bitfield
-    BitFieldSet(params0->state, params0->idx);
+            if (params1.used != params0->block.size)
+                continue;
 
-    os_file_write(file_desc, params1.used, params1.buffer, params0->block.start);
+            sha512_init(&ctx);
+            sha512_update(&ctx, array, params1.used);
+            sha512_final(&ctx, hash_found);
+
+            Assert(!memcmp(params0->block.hash, hash_found, SHA512_DIGEST_SIZE), "hashes don't match"); // TODO: replace with something to set bitfield
+            BitFieldSet(params0->state, params0->idx);
+
+            Result res_write = ResultSuccess();
+            os_file_write(file_desc, params1.used, params1.buffer, &res_write, params0->block.start);
+            if (!res_write.success)
+                continue;
+
+            break; // Success
+        }
+    }
 }
 
 Result model_download_impl(Arena *arena, Manifest *manifest, String model_url, ModelConfig *model_cfg)
@@ -582,17 +594,14 @@ Result model_download_impl(Arena *arena, Manifest *manifest, String model_url, M
             if (BitFieldGet(state_array, i))
                 continue;
             download_params *params = push_struct(arena, download_params);
-            *params = {.model_url = model_url,
-                       .file_desc = tempfile_desc,
-                       .idx = i,
+            *params = {.idx = i,
                        .state = state_array,
-                       .block = manifest->blocks[i]};
+                       .block = manifest->blocks[i],
+                       .model_url = model_url,
+                       .file_desc = tempfile_desc};
             AsyncTask task = {.func = download_worker,
-                              .data =
-                                  {
-                                      .kind = TPData_ANY,
-                                      .val_any = params,
-                                  },
+                              .data = {.kind = TPData_ANY,
+                                       .val_any = params},
                               .batch_size = &batch_size,
                               .batch_complete = wait};
             threadpool_enqueue(TaskPriority_Low, task);
@@ -611,13 +620,14 @@ Result model_download_impl(Arena *arena, Manifest *manifest, String model_url, M
         res = {
             .success = 0,
             .domain = Domain_App,
+            .code = AppError_PartialDownload,
             .context = "Download finished but data blocks are incomplete"};
         goto Cleanup;
     }
 
     os_file_unmap(map, &res);
     CheckAndClearResult(res);
-    map = (OSMmap){0};
+    map = {0};
 
     os_file_close(statefile_desc, &res);
     CheckAndClearResult(res);
@@ -632,9 +642,12 @@ Result model_download_impl(Arena *arena, Manifest *manifest, String model_url, M
     goto Return;
 
 Cleanup:
-    os_file_unmap(map, &cleanup_res);
-    if (!cleanup_res.success)
-        res = cleanup_res;
+    if (map.handle)
+    {
+        os_file_unmap(map, &cleanup_res);
+        if (!cleanup_res.success)
+            res = cleanup_res;
+    }
 
     os_file_close(statefile_desc, &cleanup_res);
     if (!cleanup_res.success)
@@ -651,52 +664,66 @@ Return:
 B32 model_download(Arena *arena, ModelConfig *model_cfg)
 {
     S64 url_idx = 0;
-    B32 manifest_exist = 0;
+    B32 manifest_exist = 0, model_exist = 0;
     Manifest manifest = {0};
-    StringBuilder manifest_content = string_empty(arena, KB(4));
-    StringBuilder manifest_path = string_init(arena, model_cfg->path);
 
     Result res = ResultSuccess();
     ArenaScoped(arena)
     {
+        StringBuilder manifest_content = string_empty(arena, KB(4));
+        StringBuilder manifest_path = string_init(arena, model_cfg->path);
         string_push(&manifest_path, ".yaml");
 
-        manifest_exist = os_path_exists(StringCast(manifest_path), &res);
+        model_exist = os_path_exists(model_cfg->path, &res);
         CheckAndClearResult(res);
-        if (manifest_exist)
+        if (!model_exist)
         {
-            res = model_read_manifest(arena, &manifest_content, StringCast(manifest_path));
+            // NOTE: if model doesn't exist, download it. for that, it needs to
+            // have the manifest object
+            manifest_exist = os_path_exists(StringCast(manifest_path), &res);
             CheckAndClearResult(res);
-        }
-        else
-        {
+            if (manifest_exist)
+            {
+                // NOTE: read manifest if found
+                res = model_read_manifest(arena, &manifest_content, StringCast(manifest_path));
+                CheckAndClearResult(res);
+            }
+            else
+            {
+                // NOTE: otherwise download it
+                url_idx = 0;
+                res.success = 0;
+                while (url_idx < da_getsize(model_cfg->manifest_url) && !res.success)
+                {
+                    String manifest_url = model_cfg->manifest_url[url_idx];
+                    res = model_download_manifest(arena, &manifest_content, manifest_url, StringCast(manifest_path));
+                    url_idx++;
+                }
+                CheckAndClearResult(res);
+            }
+            res = model_parse_manifest(arena, StringCast(manifest_content), &manifest);
+            CheckAndClearResult(res);
+
             url_idx = 0;
             res.success = 0;
-            while (url_idx < da_getsize(model_cfg->manifest_url) && !res.success)
+            while (url_idx < da_getsize(model_cfg->model_url) && !res.success)
             {
-                String manifest_url = model_cfg->manifest_url[url_idx];
-                res = model_download_manifest(arena, &manifest_content, manifest_url, StringCast(manifest_path));
+                String model_url = model_cfg->model_url[url_idx];
+                res = model_download_impl(arena, &manifest, model_url, model_cfg);
                 url_idx++;
             }
             CheckAndClearResult(res);
         }
 
-        res = model_parse_manifest(arena, StringCast(manifest_content), &manifest);
-        CheckAndClearResult(res);
-
-        url_idx = 0;
-        res.success = 0;
-        while (url_idx < da_getsize(model_cfg->model_url) && !res.success)
-        {
-            String model_url = model_cfg->model_url[url_idx];
-            res = model_download_impl(arena, &manifest, model_url, model_cfg);
-            url_idx++;
-        }
+        // TODO: make this call more generic for any kind of model
+        if (!model_arena)
+            arena_alloc(MB(100), model_arena);
+        model.clip = push_struct(model_arena, clip_ctx);
+        res = clip_model_load(model_arena, model.clip, model_cfg->path);
         CheckAndClearResult(res);
 
     Cleanup:;
     }
-Return:
     return res.success;
 }
 
@@ -714,15 +741,6 @@ Embedding model_embed_text(Arena *arena, String text)
     if (!text.size)
         return {0};
 
-    if (!model_arena)
-        arena_alloc(MB(100), model_arena);
-
-    if (!model.clip)
-    {
-        model.clip = push_struct(model_arena, clip_ctx);
-        clip_model_load(model_arena, model.clip, mscbl_config.model_group.clip_model.path);
-    }
-
     clip_tokens tokens;
     clip_tokenize(model.clip, &text, &tokens);
 
@@ -732,16 +750,4 @@ Embedding model_embed_text(Arena *arena, String text)
     // sqlite3_bind_blob(stmt, 1, embedding, 512 * sizeof(F32), SQLITE_STATIC);
     // mscbl_log_dbg("Returned %zu rows", db_run_stmt(stmt, 1, print_dist));
     return embedding;
-}
-
-B32 model_clip_exists(Arena *arena)
-{
-    B32 res = 0;
-    ArenaScoped(arena)
-    {
-        StringBuilder path = string_init(arena, mscbl_config.model_group.base_dir);
-        path_join(&path, mscbl_config.model_group.clip_model.filename);
-        res = os_path_exists(StringCast(path));
-    }
-    return res;
 }

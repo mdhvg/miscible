@@ -149,7 +149,7 @@ struct Embedding
     S32 count;
 };
 
-void clip_model_load(Arena *arena, clip_ctx *clip, String model_path);
+Result clip_model_load(Arena *arena, clip_ctx *clip, String model_path);
 
 void clip_free(clip_ctx *ctx);
 

@@ -177,6 +177,7 @@ enum ResultDomain
 {
     Domain_None,
     Domain_OS,
+    Domain_App,
     Domain_Network,
     Domain_YAML,
 };
@@ -189,7 +190,7 @@ struct Result
     const char *context;
 };
 
-#define ResultSuccess() ((Result){.success = 1})
+#define ResultSuccess() {.success = 1}
 #define CheckAndClearResult(res)   \
     do                             \
     {                              \
