@@ -22,7 +22,7 @@ struct OSMmap
 {
     void *data;
     U64 size;
-    HANDLE map_handle;
+    HANDLE handle;
 };
 
 struct OSInfo

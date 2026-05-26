@@ -144,9 +144,10 @@ B32 os_path_exists(String path, Result *res)
     if (attrs == INVALID_FILE_ATTRIBUTES)
     {
         U32 err = GetLastError();
-        _Win32Trap(res, (err != ERROR_FILE_NOT_FOUND && err != ERROR_PATH_NOT_FOUND),
+        _Win32Trap(res, (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND),
                    // NOTE: otherwise it's a real error
                    err);
+        return false;
     }
     return true;
 }
@@ -365,12 +366,16 @@ Cleanup:
 Return:
     return {.data = map,
             .size = size,
-            .map_handle = handle};
+            .handle = handle};
 }
 
-void os_file_unmap(OSMmap map)
+void os_file_unmap(OSMmap map, Result *res)
 {
+    ClearResult(res);
+    if (map.handle == INVALID_HANDLE_VALUE || map.handle == 0)
+        return;
     FlushViewOfFile(map.data, map.size);
     UnmapViewOfFile(map.data);
-    CloseHandle(map.map_handle);
+    BOOL out = CloseHandle(map.handle);
+    Win32Trap(res, out);
 }
