@@ -58,9 +58,56 @@ void os_mkdir(String path)
     Assert(CreateDirectoryA(CStrCast(path), NULL) || GetLastError() == ERROR_ALREADY_EXISTS, "Failed to create directory (%.*s)", path.size, path.v);
 }
 
-void os_loadlib(const char *filename, const char *func_name, void *func)
+// NOTE: windows locks a .dll file once it's opened using loadlibrary, so every
+// re-build creates a new file with a random number (pagesXXX.dll) and the file
+// that is modified last is picked and loaded. This is not required on UNIX
+LibHandle os_loadlib(const char *filename)
 {
-    LoadLibraryA(filename);
+    WIN32_FIND_DATA fdFile = {0};
+    HANDLE hFind = INVALID_HANDLE_VALUE;
+
+    const char *postfix = "*.dll";
+    String filename_str = sv(filename);
+    MemoryCopy(scratch, filename, filename_str.size);
+    MemoryCopy((U8 *)scratch + filename_str.size, postfix, sizeof(postfix) + 1);
+    String exp = {.v = (U8 *)scratch, .size = filename_str.size + sizeof(postfix) + 1};
+
+    U64 mtime = 0;
+    String libfile = {0};
+    hFind = FindFirstFile(CStrCast(exp), &fdFile);
+
+    do
+    {
+        if (hFind == INVALID_HANDLE_VALUE)
+            break;
+
+        String cur_file = sv(fdFile.cFileName);
+
+        if (match_front(cur_file, ".") || match_front(cur_file, ".."))
+            continue;
+
+        if ((fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
+        {
+            U64 file_mtime = fdFile.ftLastWriteTime.dwHighDateTime;
+            file_mtime <<= 32;
+            file_mtime |= fdFile.ftLastWriteTime.dwLowDateTime;
+
+            if (file_mtime > mtime)
+            {
+                mtime = file_mtime;
+                MemoryCopy(scratch, CStrCast(cur_file), cur_file.size + 1);
+                libfile = {.v = (U8 *)scratch, .size = filename_str.size};
+            }
+        }
+
+    } while (FindNextFile(hFind, &fdFile) != 0);
+    FindClose(hFind);
+
+    Assert(libfile.size, "libfile not found by name");
+
+    HMODULE lib = LoadLibrary(CStrCast(libfile));
+    Assert(lib, "lib is invalid");
+    return lib;
 }
 
 local_v U64 os_now_microseconds(void)

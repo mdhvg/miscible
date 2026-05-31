@@ -54,11 +54,11 @@ if ($Mode -eq "release") {
         $LinkerBase $CommonLibs $ThirdpartyLibs `
         /OUT:libmiscible.dll /IMPLIB:libmiscible.lib
 
-    Write-Host "Building pages.dll"
+    Write-Host "Building pages${Seed}.dll"
     & $CXX -LD $CXXFLAGS $DEFINES $INCLUDES `
         $ProjectDir/src/ui/pages/pages.cpp `
         $LinkerBase libmiscible.lib `
-        /OUT:pages.dll
+        /OUT:pages${Seed}.dll
 
     Write-Host "Building Miscible"
     & $CXX $CXXFLAGS $DEFINES $INCLUDES `

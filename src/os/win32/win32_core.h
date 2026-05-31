@@ -38,10 +38,6 @@ inline void win32_sleep_ms(U64 ms)
 
 MSCBL_API void win32_format_path(StringBuilder *dir);
 
-inline LibHandle os_loadlib(const char *filename)
-{
-    return LoadLibrary(filename);
-}
 inline LibAddress os_libfunc(LibHandle lib, const char *symbol)
 {
     return GetProcAddress(lib, symbol);

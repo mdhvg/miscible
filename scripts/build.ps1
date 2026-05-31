@@ -50,6 +50,9 @@ if (-not (Test-Path $script)) {
     exit 1
 }
 
-& ".\$script" -Mode $Mode
+del -Force -Recurse ..\build\pages* *> $null
+$Seed = Get-Random -Minimum 1 -Maximum 1000
+
+& ".\$script" -Mode $Mode -Seed $Seed
 popd
 exit 0
