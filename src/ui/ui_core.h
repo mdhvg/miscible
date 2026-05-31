@@ -1,12 +1,13 @@
 #pragma once
 #include "db/view.h"
 #include "base/string.h"
+#include "base/ringbuf.h"
 #include "ui/pages/pages.h"
 
 struct UIFilter
 {
     B32 active;
-    U32 next;
+    UIFilter *next;
 
     FilterType type;
     B32 exclude;
@@ -15,6 +16,7 @@ struct UIFilter
         StringBuilder val_str;
         Date val_date;
         ByteSize val_bytes;
+        F32 val_float;
     };
 };
 

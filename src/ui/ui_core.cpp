@@ -3,10 +3,8 @@
 #include "base/arena.h"
 #include "base/array.h"
 #include "base/string.h"
+#include "config.h"
 #include "ui/ui_utils.h"
-// #include "index/index.h"
-#include "sqlite3.h"
-#include "ui/theme.h"
 #include "IconsMaterialSymbols.h"
 
 // .h
@@ -17,14 +15,6 @@
 #include "base/base_core.h"
 #include "db/db_helpers.h"
 #include "stb_image.h"
-
-#if OS_WINDOWS
-#elif OS_LINUX
-#include <dlfcn.h>
-#endif
-
-// sort_params current_sort = {1, 0, OrderBy_Filename, ui_arena};
-StringBuilder strbuf = {0};
 
 // .c, .cpp
 #include "gl/gl_core.cpp"
@@ -47,51 +37,40 @@ void ui_init()
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
-    (void)io;
-    io.IniFilename = NULL;
-    io.LogFilename = NULL;
+    // io.IniFilename = NULL;
+    // io.LogFilename = NULL;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     // io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;	  // Enable
     // Multi-Viewport
 
-    io.ConfigErrorRecoveryEnableTooltip = true;
     io.ConfigErrorRecovery = true;
+    io.ConfigErrorRecoveryEnableTooltip = true;
     io.ConfigErrorRecoveryEnableDebugLog = true;
 
     // Setup Platform/Renderer bindings
     ImGui_ImplGlfw_InitForOpenGL(win.handle, true);
     ImGui_ImplOpenGL3_Init("#version 330");
 
-    static const ImWchar icons_ranges[] = {ICON_MIN_MS, ICON_MAX_MS, 0};
-    float icon_font_size = 16 * 1.5f;
+    F32 icon_font_size = mscbl_config.settings.font_size * 1.2f;
     ImFontConfig icon_font_config;
     icon_font_config.MergeMode = true;
     icon_font_config.PixelSnapH = true;
-    icon_font_config.GlyphOffset.y = 5;
-    icon_font_config.GlyphOffset.x = 2;
+    icon_font_config.GlyphOffset.y = 3;
     // icon_font_config.GlyphMinAdvanceX = icon_font_size;
+    static const ImWchar icons_ranges[] = {ICON_MIN_MS, ICON_MAX_MS, 0};
 #if DBG
-    ui_state.title_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist-VariableFont_wght.ttf", 16, NULL, io.Fonts->GetGlyphRangesDefault());
+    ui_state.title_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist-VariableFont_wght.ttf", mscbl_config.settings.font_size, NULL, io.Fonts->GetGlyphRangesDefault());
     ui_state.icon_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf", icon_font_size, &icon_font_config, icons_ranges);
-    ui_state.title_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist-VariableFont_wght.ttf", 36, NULL, io.Fonts->GetGlyphRangesDefault());
+    ui_state.title_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist-VariableFont_wght.ttf", mscbl_config.settings.font_size * 2.0f, NULL, io.Fonts->GetGlyphRangesDefault());
 #else
-    ui_state.ui_font = io.Fonts->AddFontFromMemoryCompressedTTF(inter_font_compressed_data, inter_font_compressed_size, 16, NULL, io.Fonts->GetGlyphRangesDefault());
+    ui_state.ui_font = io.Fonts->AddFontFromMemoryCompressedTTF(inter_font_compressed_data, mscbl_config.settings.font_size, NULL, io.Fonts->GetGlyphRangesDefault());
     ui_state.icon_font = io.Fonts->AddFontFromMemoryCompressedTTF(material_font_compressed_data, material_font_compressed_size, icon_font_size, &icon_font_config, icons_ranges);
-    ui_state.ui_font = io.Fonts->AddFontFromMemoryCompressedTTF(inter_font_compressed_data, inter_font_compressed_size, 36, NULL, io.Fonts->GetGlyphRangesDefault());
-#endif
+    ui_state.ui_font = io.Fonts->AddFontFromMemoryCompressedTTF(inter_font_compressed_data, mscbl_config.settings.font_size * 2.0f, NULL, io.Fonts->GetGlyphRangesDefault());
 
-    // arena_alloc(MB(1), ui_arena);
-    // ui_state.search_buffer = string_empty(ui_arena, 512);
-    // strbuf                 = string_empty(ui_arena, 512);
-    // current_sort           = {1, 0, OrderBy_Filename, ui_arena};
-    // async_job(os_info.pool, index_fill, NULL);
-
-#if !DBG
     restyle();
 #endif
-
-    // TODO: Fill data? (This will load all dir names and make ImGui::TreeNode(...)) with it
 
     ui_filterlist_init();
 }
@@ -99,7 +78,6 @@ void ui_init()
 void ui_filterlist_init()
 {
     arena_alloc(MB(1), ui_state.view_query.arena);
-    da_push(ui_state.view_query.arena, ui_state.view_query.filters, {0});
     ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
 }
 

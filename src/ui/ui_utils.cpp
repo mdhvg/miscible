@@ -2,7 +2,6 @@
 #include "base/arena.h"
 #include "ui/ui_core.h"
 #include "ui/ui_utils.h"
-#include "ui/pages/menu/menu.h"
 
 Arena *ui_arena = NULL;
 
