@@ -8,7 +8,6 @@ enum SortType
     SortType_Filename,
     SortType_DateCreated,
     SortType_DateModified,
-    // SortType_EmbeddingDistance,
     SortType_COUNT
 };
 
@@ -17,7 +16,6 @@ enum FilterType
     FilterType_SizeGreater,
 
     FilterType_Path,
-    FilterType_Filename,
 
     FilterType_DateCreatedAfter,
     FilterType_DateModifiedAfter,
@@ -36,6 +34,7 @@ struct ViewFilter
         String val_str;
         Date val_date;
         ByteSize val_bytes;
+        F32 val_float;
     };
 };
 

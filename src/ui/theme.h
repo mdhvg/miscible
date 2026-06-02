@@ -9,8 +9,8 @@
 
 // Text Scaling
 #define REM(x)     ((F32)(mscbl_config.settings.font_size * (x)))
-#define RADIUS(x)  (REM(0.625f) * (float)(x))
-#define SPACING(x) (REM(0.25f) * (float)(x))
+#define RADIUS(x)  (REM(0.625f) * (F32)(x))
+#define SPACING(x) (REM(0.25f) * (F32)(x))
 
 // ----------------------------------------------------------------------------
 // VALUE MACROS
@@ -20,29 +20,29 @@
 #define COLOR_TRANSPARENT RGBA255(0, 0, 0, 0)
 
 // Structural Backgrounds
-#define MSCBL_BACKGROUND       RGBA255(11, 11, 13, 255)
-#define MSCBL_BACKGROUND_HOVER RGBA255(18, 17, 21, 255)
-#define MSCBL_SURFACE          RGBA255(15, 14, 17, 255)
-#define MSCBL_POPOVER          RGBA255(9, 8, 10, 255)
+#define MSCBL_BACKGROUND       RGBA255(13, 13, 16, 255)
+#define MSCBL_BACKGROUND_HOVER RGBA255(18, 17, 22, 255)
+#define MSCBL_SURFACE          RGBA255(22, 21, 28, 255)
+#define MSCBL_POPOVER          RGBA255(10, 10, 12, 255)
 
 // Component Accents & Interactions
 #define MSCBL_PRIMARY            RGBA255(245, 2, 67, 255)
-#define MSCBL_PRIMARY_HOVER      RGBA255(245, 2, 67, 140)
-#define MSCBL_INTERACTION        RGBA255(24, 23, 28, 255)
-#define MSCBL_INTERACTION_HOVER  RGBA255(34, 32, 40, 255)
-#define MSCBL_INTERACTION_ACTIVE RGBA255(44, 41, 52, 255)
+#define MSCBL_PRIMARY_HOVER      RGBA255(245, 2, 67, 40)
+#define MSCBL_INTERACTION        RGBA255(28, 27, 34, 255)
+#define MSCBL_INTERACTION_HOVER  RGBA255(38, 36, 46, 255)
+#define MSCBL_INTERACTION_ACTIVE RGBA255(46, 44, 56, 255)
 
 // Widget Filter Accent States
-#define MSCBL_STATE_ADDITIVE    RGBA255(0, 230, 118, 255)
-#define MSCBL_STATE_SUBTRACTIVE RGBA255(195, 30, 30, 255)
+#define MSCBL_STATE_ADDITIVE    RGBA255(34, 197, 94, 255)
+#define MSCBL_STATE_SUBTRACTIVE RGBA255(239, 68, 68, 255)
 
 // Borders & Division
-#define MSCBL_BORDER       RGBA255(32, 30, 37, 255)
-#define MSCBL_BORDER_MUTED RGBA255(22, 21, 26, 255)
+#define MSCBL_BORDER       RGBA255(46, 44, 54, 255)
+#define MSCBL_BORDER_MUTED RGBA255(26, 25, 31, 255)
 
 // Typography Weights
-#define MSCBL_FOREGROUND       RGBA255(230, 228, 232, 255)
-#define MSCBL_FOREGROUND_MUTED RGBA255(126, 122, 133, 255)
+#define MSCBL_FOREGROUND       RGBA255(242, 240, 245, 255)
+#define MSCBL_FOREGROUND_MUTED RGBA255(148, 144, 158, 255)
 
 // Sizing and spacing
 #define MSCBL_OUTER_PADDING SPACING(2.0f)

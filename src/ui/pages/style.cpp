@@ -91,7 +91,7 @@ MSCBL_EXP void restyle()
     style.Colors[ImGuiCol_TitleBgCollapsed] = MSCBL_BACKGROUND;
 
     // Complex Structural Hierarchies (TreeNodes, Menus, Selectables)
-    style.Colors[ImGuiCol_Header] = MSCBL_SURFACE;
+    style.Colors[ImGuiCol_Header] = MSCBL_INTERACTION;
     style.Colors[ImGuiCol_HeaderHovered] = MSCBL_INTERACTION_HOVER;
     style.Colors[ImGuiCol_HeaderActive] = MSCBL_INTERACTION_ACTIVE;
 
@@ -111,7 +111,7 @@ MSCBL_EXP void restyle()
     style.Colors[ImGuiCol_TabSelectedOverline] = MSCBL_PRIMARY;
     style.Colors[ImGuiCol_TabDimmed] = MSCBL_BACKGROUND;
     style.Colors[ImGuiCol_TabDimmedSelected] = MSCBL_SURFACE;
-    style.Colors[ImGuiCol_TabDimmedSelectedOverline] = MSCBL_BORDER;
+    style.Colors[ImGuiCol_TabDimmedSelectedOverline] = MSCBL_PRIMARY;
 
     // Table Data Matrix Layouts
     style.Colors[ImGuiCol_TableHeaderBg] = MSCBL_BACKGROUND;

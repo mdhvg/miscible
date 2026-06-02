@@ -21,7 +21,6 @@ CREATE TABLE IF NOT EXISTS Images (
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS Image_FTS USING fts5(
-    filename,
     path,
     content='Images',
     content_rowid='id'
@@ -29,23 +28,23 @@ CREATE VIRTUAL TABLE IF NOT EXISTS Image_FTS USING fts5(
 
 DROP TRIGGER IF EXISTS Image_FTS_insert;
 CREATE TRIGGER Image_FTS_insert AFTER INSERT ON Images BEGIN
-    INSERT INTO Image_FTS(rowid, filename, path)
-    VALUES (new.id, new.filename, new.path);
+    INSERT INTO Image_FTS(rowid, path)
+    VALUES (new.id, new.path);
 END;
 
 DROP TRIGGER IF EXISTS Image_FTS_delete;
 CREATE TRIGGER Image_FTS_delete AFTER DELETE ON Images BEGIN
-    INSERT INTO Image_FTS(Image_FTS, rowid, filename, path)
-    VALUES('delete', old.id, old.filename, old.path);
+    INSERT INTO Image_FTS(Image_FTS, rowid, path)
+    VALUES('delete', old.id, old.path);
 END;
 
 DROP TRIGGER IF EXISTS Image_FTS_update;
-CREATE TRIGGER Image_FTS_update AFTER UPDATE OF filename, path ON Images BEGIN
-    INSERT INTO Image_FTS(Image_FTS, rowid, filename, path)
-    VALUES('delete', old.id, old.filename, old.path);
+CREATE TRIGGER Image_FTS_update AFTER UPDATE OF path ON Images BEGIN
+    INSERT INTO Image_FTS(Image_FTS, rowid, path)
+    VALUES('delete', old.id, old.path);
 
-    INSERT INTO Image_FTS(rowid, filename, path)
-    VALUES(new.id, new.filename, new.path);
+    INSERT INTO Image_FTS(rowid, path)
+    VALUES(new.id, new.path);
 END;
 
 INSERT INTO Image_FTS(Image_FTS) VALUES('rebuild');

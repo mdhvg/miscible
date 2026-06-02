@@ -46,17 +46,12 @@ struct UIState
 };
 
 MSCBL_API UIState ui_state;
-// MSCBL_API sort_params current_sort;
 
 MSCBL_API U64 put_dir(StringBuilder dir);
-MSCBL_API void get_filename(U64 id, String *filename);
-
-void ui_filterlist_init();
-void ui_load_images();
+MSCBL_API void ui_add_filter();
+MSCBL_API void ui_viewquery_clear();
 
 void ui_init();
 void ui_close();
 void ui_update();
 void ui_render();
-void ui_after_load();
-void ui_count_atlas();

@@ -47,24 +47,25 @@ void view_set_state(UIViewQuery ui_query)
     view.state.sort_basis = (SortType)ui_query.sort_basis;
     view.state.descending = ui_query.descending;
 
-    for (S64 i = 1; i < da_getsize(ui_query.filters); i++)
+    for (UIFilter *f0 = ui_query.filters; f0 != NULL; f0 = f0->next)
     {
-        UIFilter f0 = ui_query.filters[i];
-        ViewFilter f1 = {.type = f0.type, .exclude = f0.exclude};
-        switch (f0.type)
+        if (!f0->active)
+            continue;
+
+        ViewFilter f1 = {.type = f0->type, .exclude = f0->exclude};
+        switch (f0->type)
         {
         case FilterType_SizeGreater:
-            f1.val_bytes = f0.val_bytes;
+            f1.val_bytes = f0->val_bytes;
             break;
 
         case FilterType_Path:
-        case FilterType_Filename:
-            f1.val_str = string_copy(view.state.arena, StringCast(f0.val_str));
+            f1.val_str = string_copy(view.state.arena, StringCast(f0->val_str));
             break;
 
         case FilterType_DateCreatedAfter:
         case FilterType_DateModifiedAfter:
-            f1.val_date = f0.val_date;
+            f1.val_date = f0->val_date;
             break;
 
         default:
@@ -92,7 +93,6 @@ String *view_serialize_filters(Arena *arena, ViewFilter *filters)
                 da_push(arena, f1, sv(" AND size < ?"));
             break;
         case FilterType_Path:
-        case FilterType_Filename:
             da_push(arena, f1, sv(" AND id"));
             if (f0.exclude)
                 da_push(arena, f1, sv(" NOT"));
@@ -140,11 +140,11 @@ String view_build_default_query(ViewQuery request, Arena *arena, String *filters
     case SortType_Path:
         da_push(arena, queries, sv(" path"));
         break;
-    case SortType_Size:
-        da_push(arena, queries, sv(" size"));
-        break;
     case SortType_Filename:
         da_push(arena, queries, sv(" filename"));
+        break;
+    case SortType_Size:
+        da_push(arena, queries, sv(" size"));
         break;
     case SortType_DateCreated:
         da_push(arena, queries, sv(" ctime"));
@@ -350,7 +350,6 @@ ThreadFunc(view_run_query)
                 sqlite3_bind_int64(stmt, cursor, bytes);
                 break;
             case FilterType_Path:
-            case FilterType_Filename:
                 sqlite3_bind_text(stmt, cursor, CStrCast(f0.val_str), f0.val_str.size, SQLITE_STATIC);
                 break;
             case FilterType_DateCreatedAfter:

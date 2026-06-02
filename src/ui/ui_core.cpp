@@ -1,9 +1,9 @@
 #include "ui/ui_core.h"
 #include "IconsLucide.h"
 #include "base/arena.h"
-#include "base/array.h"
 #include "base/string.h"
 #include "config.h"
+#include "db/view.h"
 #include "ui/ui_utils.h"
 
 // .h
@@ -27,6 +27,12 @@
 #endif
 
 UIState ui_state = {0};
+
+void ui_filterlist_init()
+{
+    arena_alloc(MB(1), ui_state.view_query.arena);
+    ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
+}
 
 void ui_init()
 {
@@ -74,12 +80,6 @@ void ui_init()
     ui_filterlist_init();
 }
 
-void ui_filterlist_init()
-{
-    arena_alloc(MB(1), ui_state.view_query.arena);
-    ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
-}
-
 void ui_close()
 {
     ImGui_ImplOpenGL3_Shutdown();
@@ -102,6 +102,9 @@ void ui_render()
     ImGui::SetNextWindowPos({0, 0});
     ImGui::SetNextWindowSize(viewport->Size);
 
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+
     ImGui::Begin("Window", NULL,
                  ImGuiWindowFlags_NoTitleBar |
                      ImGuiWindowFlags_NoResize |
@@ -109,7 +112,8 @@ void ui_render()
                      ImGuiWindowFlags_NoCollapse |
                      ImGuiWindowFlags_NoBringToFrontOnFocus |
                      ImGuiWindowFlags_NoNavFocus |
-                     ImGuiWindowFlags_NoNav);
+                     ImGuiWindowFlags_NoNav |
+                     ImGuiWindowFlags_NoDocking);
 
     // ImGui::BeginMenuBar();
     // if (ImGui::BeginMenu("File"))
@@ -137,6 +141,8 @@ void ui_render()
 
     arena_clear(ui_state.page_arena);
     ImGui::End();
+
+    ImGui::PopStyleVar(2);
 
     ImGui::ShowDemoWindow();
     ui_debug_arenas();
@@ -168,6 +174,52 @@ void get_filename(U64 id, String *filename)
     sqlite3_stmt *stmt = db_prepare("SELECT filename FROM Images WHERE id = ?;");
     sqlite3_bind_int64(stmt, 1, id);
     db_run_stmt(stmt, 1, get_path, filename);
+}
+
+void ui_add_filter()
+{
+    UIFilter *filter_slot = NULL;
+
+    UIFilter **walk = &ui_state.view_query.filters;
+    UIFilter *last_node = NULL;
+
+    while (*walk != NULL)
+    {
+        if (!(*walk)->active && !filter_slot)
+        {
+            filter_slot = *walk;
+            *walk = filter_slot->next;
+
+            continue;
+        }
+
+        last_node = *walk;
+        walk = &((*walk)->next);
+    }
+
+    if (!filter_slot)
+        filter_slot = push_struct(ui_state.view_query.arena, UIFilter);
+
+    *filter_slot = {
+        .active = 1,
+        .next = NULL,
+        .type = FilterType_SizeGreater,
+        .exclude = 0,
+        .val_bytes = {
+            .value = 0,
+            .unit = Byte,
+        },
+    };
+
+    *walk = filter_slot;
+}
+
+void ui_viewquery_clear()
+{
+    string_clear(ui_state.view_query.search_query);
+    arena_clear(ui_state.view_query.arena);
+    ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
+    ui_state.view_query.filters = NULL;
 }
 
 DBStmtCbk(fetch_info)
