@@ -43,7 +43,8 @@ void gl_push(GLArgs args, B32 wait)
     }
 
     EnterCriticalSection(&gl_state.mutex);
-    Assert(rb_push(gl_state.args, args), "ringbuffer is full");
+    Assert(!rb_isfull(gl_state.args), "ringbuffer is full");
+    rb_push(gl_state.args, args);
     LeaveCriticalSection(&gl_state.mutex);
 
     if (wait)

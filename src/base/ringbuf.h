@@ -21,9 +21,11 @@ struct RingBufferHeader
 // #define _rb_write(rb, x) ((rb.tail %= StaticArrSize(rb.v)))
 #define _rb_header(rb) (((RingBufferHeader *)(&(rb))))
 
+#define rb_top(rb)     ((rb).v[rb.head])
 #define rb_pop(rb)     ((rb).v[_rb_pop(_rb_header(rb), StaticArrSize((rb).v))])
-#define rb_push(rb, x) _rb_push(_rb_header(rb), StaticArrSize((rb).v), sizeof(x), (void *)(&(x)))
+#define rb_push(rb, x) ((rb).v[_rb_push(_rb_header(rb), StaticArrSize((rb).v))] = (x))
 #define rb_getsize(rb) ((rb).size)
+#define rb_isfull(rb)  ((rb).size >= StaticArrSize(rb.v))
 
-B32 _rb_push(RingBufferHeader *rb, S64 max_size, U64 t_size, void *data);
+S64 _rb_push(RingBufferHeader *rb, S64 max_size);
 S64 _rb_pop(RingBufferHeader *rb, S64 max_size);

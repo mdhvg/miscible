@@ -82,7 +82,8 @@
 #define BitFieldSet(arr, i)   ((arr)[(i) / (sizeof((arr)[0]) * 8)] |= (1 << ((i) % (sizeof((arr)[0]) * 8))))
 #define BitFieldReset(arr, i) ((arr)[(i) / (sizeof((arr)[0]) * 8)] &= ~(1 << ((i) % (sizeof((arr)[0]) * 8))))
 
-#define ArenaScoped(arena) for (struct { Temp t; int i; } __it = {.t = temp_begin(arena), .i = 0}; !__it.i; (__it.i += 1, temp_end(__it.t)))
+#define DeferLoop(begin, end) for (int _i_ = ((begin), 0); !_i_; _i_ += 1, (end))
+#define ArenaScoped(arena)    for (struct { Temp t; int i; } __it = {.t = temp_begin(arena), .i = 0}; !__it.i; (__it.i += 1, temp_end(__it.t)))
 
 #define MemoryCopy(dst, src, size) memmove((dst), (src), (size))
 #define MemoryCopyArray(d, s)      MemoryCopy((d), (s), sizeof(d))
@@ -163,7 +164,7 @@ enum Month
 
 struct Date
 {
-    S32 date;
+    U32 date;
     Month month;
     S32 year;
 
@@ -281,6 +282,7 @@ void bytes_as_hex_lower(U8 *data, U64 start, U64 len, char *out);
 void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
 U64 date_to_timestamp(Date date);
 Date timestamp_to_date(U64 timestamp);
+MSCBL_API U32 month_days(Date date);
 
 // TODO: Move these to some other place
 #define APP_NAME Miscible

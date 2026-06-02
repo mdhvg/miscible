@@ -120,3 +120,30 @@ Date timestamp_to_date(U64 timestamp)
 
     return date;
 }
+
+U32 month_days(Date date)
+{
+    switch (date.month)
+    {
+    case Month_Jan:
+    case Month_Mar:
+    case Month_May:
+    case Month_Jul:
+    case Month_Aug:
+    case Month_Oct:
+    case Month_Dec:
+        return 31;
+
+    case Month_Apr:
+    case Month_Jun:
+    case Month_Sep:
+    case Month_Nov:
+        return 30;
+
+    case Month_Feb:
+        if (date.year % 4 == 0 && (date.year % 100 != 0 || date.year % 400 == 0))
+            return 29;
+        else
+            return 28;
+    }
+}
