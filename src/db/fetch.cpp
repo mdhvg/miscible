@@ -71,7 +71,10 @@ DBStmtCbk(push_dirs)
     U64 level = (U64)sqlite3_column_int64(stmt, 1);
     String name = string_copy(fetch_arena, sqlite3_column_text(stmt, 2));
 
-    DirTree node = {id, level, name};
+    if (va_getsize(dir_tree) > id)
+        return;
+
+    DirTree node = {.id = id, .level = level, .name = name};
     DirKey new_idx = va_push(dir_tree, node);
 
     if (new_idx > 1)
