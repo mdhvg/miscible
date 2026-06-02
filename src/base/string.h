@@ -133,7 +133,7 @@ inline String string_copy(Arena *arena, String x)
     return string_copy_str(arena, x);
 }
 
-#define string_clear(x) ((x).size = 0)
+#define string_clear(x) ((x).size = 0, (x).v[0] = 0)
 MSCBL_API StringBuilder string_empty(Arena *arena, U64 size = 1);
 MSCBL_API void string_pop_to(StringBuilder *base, U64 size);
 MSCBL_API inline void string_pop_by(StringBuilder *base, U64 count)
