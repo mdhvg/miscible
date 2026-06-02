@@ -1,12 +1,11 @@
 #!/bin/python3
 import pathlib
-import requests
 import hashlib
 import zipfile
-
-import os
+import urllib.request
 
 # Set cwd as project base dirs
+import os
 __src_path = pathlib.Path(__file__)
 os.chdir(str(__src_path.parent.parent.absolute()))
 
@@ -27,8 +26,8 @@ FILES = [
         "parent": "deps/stb",
     },
     {
-        "url": "https://raw.githubusercontent.com/juliettef/IconFontCppHeaders/refs/heads/main/IconsMaterialSymbols.h",
-        "filename": "IconsMaterialSymbols.h",
+        "url": "https://raw.githubusercontent.com/juliettef/IconFontCppHeaders/refs/heads/main/IconsLucide.h",
+        "filename": "IconsLucide.h",
         "parent": "deps/icons",
     },
     {
@@ -39,8 +38,8 @@ FILES = [
         "extract": "deps/sqlite",
     },
     {
-        "url": "https://github.com/google/material-design-icons/raw/refs/heads/master/variablefont/MaterialSymbolsRounded%5BFILL,GRAD,opsz,wght%5D.ttf",
-        "filename": "MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf",
+        "url": "https://unpkg.com/lucide-static@latest/font/lucide.ttf",
+        "filename": "lucide.ttf",
         "parent": "fonts",
     },
     {
@@ -98,10 +97,13 @@ for file in FILES:
     if not pathlib.Path.exists(pth):
         pathlib.Path.mkdir(pth.parent, parents=True, exist_ok=True)
         print(f"Downloading {file_path=}")
-        r = requests.get(file["url"])
-        with open(file_path, "wb") as f:
-            f.write(r.content)
-            f.close()
+
+        req = urllib.request.Request(
+            file["url"],
+        )
+        with urllib.request.urlopen(req) as response:
+            with open(file_path, "wb") as f:
+                f.write(response.read())
         if "hash" in file:
             calculated_hash = get_sha256hash(file_path)
             if calculated_hash != file["hash"]:

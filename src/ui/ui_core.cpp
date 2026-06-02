@@ -1,11 +1,10 @@
-// ImGUI
 #include "ui/ui_core.h"
+#include "IconsLucide.h"
 #include "base/arena.h"
 #include "base/array.h"
 #include "base/string.h"
 #include "config.h"
 #include "ui/ui_utils.h"
-#include "IconsMaterialSymbols.h"
 
 // .h
 #include "imgui.h"
@@ -24,7 +23,7 @@
 
 #if !DBG
 #include "fonts/inter.cpp"
-#include "fonts/material.cpp"
+#include "fonts/lucide.cpp"
 #endif
 
 UIState ui_state = {0};
@@ -53,20 +52,20 @@ void ui_init()
     ImGui_ImplGlfw_InitForOpenGL(win.handle, true);
     ImGui_ImplOpenGL3_Init("#version 330");
 
-    F32 icon_font_size = mscbl_config.settings.font_size * 1.2f;
     ImFontConfig icon_font_config;
     icon_font_config.MergeMode = true;
     icon_font_config.PixelSnapH = true;
-    icon_font_config.GlyphOffset.y = 3;
+    // icon_font_config.GlyphOffset.x = 1;
+    icon_font_config.GlyphOffset.y = 3.5;
     // icon_font_config.GlyphMinAdvanceX = icon_font_size;
-    static const ImWchar icons_ranges[] = {ICON_MIN_MS, ICON_MAX_MS, 0};
+    static const ImWchar icons_ranges[] = {ICON_MIN_LC, ICON_MAX_LC, 0};
 #if DBG
     ui_state.title_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist-VariableFont_wght.ttf", mscbl_config.settings.font_size, NULL, io.Fonts->GetGlyphRangesDefault());
-    ui_state.icon_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf", icon_font_size, &icon_font_config, icons_ranges);
+    ui_state.icon_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Lucide.ttf", mscbl_config.settings.font_size, &icon_font_config, icons_ranges);
     ui_state.title_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist-VariableFont_wght.ttf", mscbl_config.settings.font_size * 2.0f, NULL, io.Fonts->GetGlyphRangesDefault());
 #else
     ui_state.ui_font = io.Fonts->AddFontFromMemoryCompressedTTF(inter_font_compressed_data, mscbl_config.settings.font_size, NULL, io.Fonts->GetGlyphRangesDefault());
-    ui_state.icon_font = io.Fonts->AddFontFromMemoryCompressedTTF(material_font_compressed_data, material_font_compressed_size, icon_font_size, &icon_font_config, icons_ranges);
+    ui_state.icon_font = io.Fonts->AddFontFromMemoryCompressedTTF(lucide_font_compressed_data, lucide_font_compressed_size, icon_font_size, &icon_font_config, icons_ranges);
     ui_state.ui_font = io.Fonts->AddFontFromMemoryCompressedTTF(inter_font_compressed_data, mscbl_config.settings.font_size * 2.0f, NULL, io.Fonts->GetGlyphRangesDefault());
 
     restyle();
