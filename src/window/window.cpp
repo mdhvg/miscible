@@ -33,10 +33,10 @@ B32 window_init()
     Assert(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress), "Failed to initialize OpenGL loader!");
     win.begint = glfwGetTime();
 
-    mscbl_log_dbg("OpenGL Version: %s", (char *)glGetString(GL_VERSION));
-    mscbl_log_dbg("GLSL Version: %s", (char *)glGetString(GL_SHADING_LANGUAGE_VERSION));
-    mscbl_log_dbg("GPU Vendor: %s", (char *)glGetString(GL_VENDOR));
-    mscbl_log_dbg("Renderer: %s", (char *)glGetString(GL_RENDERER));
+    mscbl_log_dbg("OpenGL Version: %s", glGetString(GL_VERSION));
+    mscbl_log_dbg("GLSL Version: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
+    mscbl_log_dbg("GPU Vendor: %s", glGetString(GL_VENDOR));
+    mscbl_log_dbg("Renderer: %s", glGetString(GL_RENDERER));
     S32 maxTextureUnits = 0;
     glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxTextureUnits);
     mscbl_log_dbg("Maximum texture units: %d", maxTextureUnits);
@@ -49,7 +49,8 @@ B32 window_init()
 
 void window_poll()
 {
-    glfwPollEvents();
+    glfwWaitEvents();
+    // glfwPollEvents();
     glfwGetWindowSize(win.handle, &win.width, &win.height);
     glfwGetWindowPos(win.handle, &win.xpos, &win.ypos);
     GLCall(glViewport(win.xpos, win.ypos, win.width, win.height));
@@ -79,8 +80,8 @@ void window_close()
 
 F64 window_deltatime()
 {
-    F64 now    = glfwGetTime();
-    F64 res    = now - win.begint;
+    F64 now = glfwGetTime();
+    F64 res = now - win.begint;
     win.begint = now;
     return res;
 }
