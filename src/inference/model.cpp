@@ -8,6 +8,7 @@
 #include "stb_image.h"
 #include "stb_image_resize2.h"
 
+#include "ui/ui_core.h"
 #include "yaml.h"
 #include "base/log.h"
 #include "scan/scan.h"
@@ -724,6 +725,12 @@ B32 model_download(Arena *arena, ModelConfig *model_cfg)
 
     Cleanup:;
     }
+
+    if (!res.success)
+    {
+        ui_push_message(res);
+    }
+
     return res.success;
 }
 

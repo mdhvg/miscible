@@ -26,12 +26,34 @@
 #include "fonts/lucide.cpp"
 #endif
 
+struct UIToast
+{
+    F32 time;
+    U32 count;
+    Mutex mutex;
+    Result cur;
+    RingBuffer(Result, queue, KB(1));
+};
+
 UIState ui_state = {0};
+UIToast ui_toast = {0};
 
 void ui_filterlist_init()
 {
     arena_alloc(MB(1), ui_state.view_query.arena);
     ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
+
+void ui_push_message(Result message)
+{
+    EnterCriticalSection(&ui_toast.mutex);
+
+    if (!rb_isfull(ui_toast.queue))
+    {
+        rb_push(ui_toast.queue, message);
+        ins_atomic_u32_inc_eval(&ui_toast.count);
+    }
+
+    LeaveCriticalSection(&ui_toast.mutex);
 }
 
 void ui_init()
@@ -78,6 +100,9 @@ void ui_init()
 #endif
 
     ui_filterlist_init();
+
+    // Toast message init
+    InitializeCriticalSection(&ui_toast.mutex);
 }
 
 void ui_close()
@@ -146,6 +171,49 @@ void ui_render()
 
     ImGui::ShowDemoWindow();
     ui_debug_arenas();
+
+    if (ui_toast.time <= 0.0f)
+    {
+        if (ins_atomic_u32_eval(&ui_toast.count) && TryEnterCriticalSection(&ui_toast.mutex))
+        {
+            ins_atomic_u32_dec_eval(&ui_toast.count);
+            ui_toast.cur = rb_pop(ui_toast.queue);
+            ui_toast.time = 3.0f;
+            LeaveCriticalSection(&ui_toast.mutex);
+        }
+    }
+
+    if (ui_toast.time > 0.0f)
+    {
+        ImGuiViewport *viewport = ImGui::GetMainViewport();
+
+        ImVec2 window_pos = ImVec2(viewport->WorkPos.x + viewport->WorkSize.x - MSCBL_OUTER_PADDING, viewport->WorkPos.y + viewport->WorkSize.y - MSCBL_OUTER_PADDING);
+
+        ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+
+        ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration |
+                                        ImGuiWindowFlags_AlwaysAutoResize |
+                                        ImGuiWindowFlags_NoSavedSettings |
+                                        ImGuiWindowFlags_NoFocusOnAppearing |
+                                        ImGuiWindowFlags_NoNav |
+                                        ImGuiWindowFlags_NoMove;
+
+        ImGui::Begin("message", NULL, window_flags);
+        switch (ui_toast.cur.domain)
+        {
+        case Domain_OS: ImGui::Text("OS Error"); break;
+        case Domain_App: ImGui::Text("App Error"); break;
+        case Domain_Network: ImGui::Text("Network Error"); break;
+        case Domain_YAML: ImGui::Text("YAML Parsing Error"); break;
+        default: break;
+        }
+        ImGui::Separator();
+        ImGui::Text("Code (%d): %s", ui_toast.cur.code, ui_toast.cur.context);
+        ImGui::ProgressBar(ui_toast.time / 3.0f, ImVec2(-FLT_MIN, MSCBL_OUTER_PADDING), "");
+        ImGui::End();
+
+        ui_toast.time -= ImGui::GetIO().DeltaTime;
+    }
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

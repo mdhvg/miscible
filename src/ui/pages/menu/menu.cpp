@@ -126,7 +126,10 @@ void draw_docked_sidebar(ImGuiWindowFlags flags)
 
     if (ImGui::Button(sidebar_open ? ICON_LC_REFRESH_CW "  Rescan Images" : ICON_LC_REFRESH_CW, {ImGui::GetContentRegionAvail().x, 0}))
     {
-        // threadpool_enqueue({cont_scan});
+        // threadpool_enqueue(TaskPriority_High, {.func = cont_scan});
+        ui_push_message({.success = 0, .domain = Domain_App, .code = 1, .context = "implementation pending"});
+    }
+
     }
 
     if (sidebar_open)
@@ -158,6 +161,7 @@ void draw_docked_sidebar(ImGuiWindowFlags flags)
 
         if (ImGui::Button(sidebar_open ? ICON_LC_SETTINGS "  Settings" : ICON_LC_SETTINGS, {avail.x, 0}))
         {
+            ui_push_message({.success = 0, .domain = Domain_App, .code = 1, .context = "implementation pending"});
             // TODO: this
         }
         sidebar_bottom_height = ImGui::GetWindowHeight();

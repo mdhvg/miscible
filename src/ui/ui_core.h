@@ -50,6 +50,7 @@ MSCBL_API UIState ui_state;
 MSCBL_API U64 put_dir(StringBuilder dir);
 MSCBL_API void ui_add_filter();
 MSCBL_API void ui_viewquery_clear();
+MSCBL_API void ui_push_message(Result message);
 
 void ui_init();
 void ui_close();
