@@ -50,9 +50,16 @@ $ThirdpartyLibs = @(
     "glfw3.lib",
     "ggml.lib",
     "ggml-cpu.lib",
-    "ggml-base.lib",
-    "libcurl-d.lib"
+    "ggml-base.lib"
 )
+
+# Why even do this? Why name the library file different for debug and release?
+if ($Mode -eq "release") {
+    $ThirdpartyLibs += @("libcurl.lib")
+}
+else {
+    $ThirdpartyLibs += @("libcurl-d.lib")
+}
 
 $LinkerBase = @("/link", "/LIBPATH:.", "/DEBUG", "/INCREMENTAL:NO")
 $CFLAGS = @()
