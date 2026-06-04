@@ -1,21 +1,18 @@
-#include "scan/scan.h"
-#include "base/arena.h"
 #include "base/log.h"
 #include "db/fetch.h"
 #include "base/array.h"
-#include "base/string.h"
-#include "base/threadpool.h"
 #include "db_helpers.h"
 #include "gl/gl_core.h"
-#include "mscbl/task_graph.h"
-#include "scan/scan.h"
-#include "sqlite3.h"
+#include "base/arena.h"
+#include "base/string.h"
+#include "base/threadpool.h"
 
 Arena *fetch_arena = NULL;
 Image *images = NULL;
 Atlas *atlases = NULL;
 DirTree *dir_tree = NULL;
 
+// FIXME: Can run out of arena/memory if we always load all metadata
 DBStmtCbk(push_image)
 {
     S64 id = sqlite3_column_int64(stmt, 0);
@@ -24,12 +21,32 @@ DBStmtCbk(push_image)
     S64 parent_id = sqlite3_column_int64(stmt, 3);
     S64 root_id = sqlite3_column_int64(stmt, 4);
 
-    Image img;
-    img.id = id;
-    img.atlas_id = atlas_id;
-    img.atlas_idx = atlas_idx;
-    img.parent_id = parent_id;
-    img.root_id = root_id;
+    String path = string_copy(arena, sqlite3_column_text(stmt, 5));
+    String filename = string_copy(arena, sqlite3_column_text(stmt, 6));
+    ByteSize size = size_to_bytesize(sqlite3_column_int64(stmt, 7));
+
+    Date mtime = timestamp_to_date(sqlite3_column_int64(stmt, 8));
+    Date ctime = timestamp_to_date(sqlite3_column_int64(stmt, 9));
+
+    S32 width = sqlite3_column_int(stmt, 10);
+    S32 height = sqlite3_column_int(stmt, 11);
+    S32 channels = sqlite3_column_int(stmt, 12);
+
+    Image img = {
+        .id = id,
+        .atlas_id = atlas_id,
+        .atlas_idx = atlas_idx,
+        .parent_id = parent_id,
+        .root_id = root_id,
+        .path = path,
+        .filename = filename,
+        .size = size,
+        .mtime = mtime,
+        .ctime = ctime,
+        .width = width,
+        .height = height,
+        .channels = channels,
+    };
 
     while (va_getsize(images) < id + 1)
         va_push(images, {0});
@@ -132,8 +149,8 @@ DBStmtCbk(push_pending16)
 
 void db_fetch_images()
 {
-    sqlite3_stmt *stmt = db_prepare("SELECT id, atlas_id, atlas_idx, parent_id, root_id FROM Images;");
-    db_run_stmt(stmt, 1, push_image);
+    sqlite3_stmt *stmt = db_prepare("SELECT id, atlas_id, atlas_idx, parent_id, root_id, path, filename, size, mtime, ctime, width, height, channels FROM Images;");
+    db_run_stmt(stmt, 1, push_image, NULL, fetch_arena);
 }
 
 void db_fetch_atlases()

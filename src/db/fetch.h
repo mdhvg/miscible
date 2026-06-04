@@ -11,7 +11,8 @@ struct Image
     S64 parent_id, root_id;
 
     String path, filename;
-    U64 size, mtime, ctime;
+    ByteSize size;
+    Date mtime, ctime;
     S32 width, height, channels;
 };
 
