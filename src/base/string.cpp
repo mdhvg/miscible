@@ -843,6 +843,7 @@ String month_string(Month month)
     case Month_Oct: return sv("OCT");
     case Month_Nov: return sv("NOV");
     case Month_Dec: return sv("DEC");
+    default: return sv("Err");
     }
 }
 
@@ -856,5 +857,6 @@ String byte_string(ByteUnit unit)
     case GiByte: return sv("GB");
     case TiByte: return sv("TB");
     case PiByte: return sv("PB");
+    default: return sv("Err");
     }
 }

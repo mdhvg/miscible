@@ -138,6 +138,7 @@ enum ByteUnit
     GiByte,
     TiByte,
     PiByte,
+    Byte_COUNT
 };
 
 struct ByteSize
@@ -283,6 +284,7 @@ void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
 U64 date_to_timestamp(Date date);
 Date timestamp_to_date(U64 timestamp);
 MSCBL_API U32 month_days(Date date);
+MSCBL_API ByteSize size_to_bytesize(U64 size);
 
 // TODO: Move these to some other place
 #define APP_NAME Miscible

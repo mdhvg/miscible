@@ -145,5 +145,21 @@ U32 month_days(Date date)
             return 29;
         else
             return 28;
+
+    default: return 0;
     }
+}
+
+ByteSize size_to_bytesize(U64 size)
+{
+    F64 value = (F64)size;
+    U32 units = Byte;
+
+    while (value >= 1024.0f && units < Byte_COUNT)
+    {
+        value /= 1024.0f;
+        units++;
+    }
+
+    return {(F32)value, (ByteUnit)units};
 }
