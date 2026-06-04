@@ -1,14 +1,23 @@
+#include "config.h"
+#include "base/log.h"
 #include "os/os_inc.h"
 #include "scan/scan.h"
 #include "base/array.h"
-#include "base/arena.h"
 #include "base/string.h"
-#include "config.h"
-#include "base/log.h"
-#include "base/threadpool.h"
 #include "db/db_helpers.h"
-#include "base/arena.h"
-#include "sqlite3.h"
+
+// TODO: Make it ignore windows hidden dirs like $RECYCLEBIN, etc and also find
+// a way to avoid recursive symlinks
+
+// Reference: https://stackoverflow.com/a/46024468
+global_v const U64 UNIX_TIME_START = 0x019DB1DED53E8000; //January 1, 1970 (start of Unix epoch) in "ticks"
+global_v const U64 TICKS_PER_SECOND = 10000000;          //a tick is 100ns
+
+global_v void win32_to_unix_timestamp(U64 *win_timestamp)
+{
+    *win_timestamp -= UNIX_TIME_START;
+    *win_timestamp /= TICKS_PER_SECOND;
+}
 
 struct DirInfo
 {
@@ -47,8 +56,8 @@ local_v const char *img_insert_query =
     "RETURNING id, path;";
 
 local_v StringBuilder scratch_str = {0};
-local_v sqlite3_stmt *dir_stmt    = NULL;
-local_v sqlite3_stmt *img_stmt    = NULL;
+local_v sqlite3_stmt *dir_stmt = NULL;
+local_v sqlite3_stmt *img_stmt = NULL;
 
 /*
  *******************************************************************************
@@ -59,8 +68,8 @@ local_v sqlite3_stmt *img_stmt    = NULL;
 DBStmtCbk(get_row)
 {
     ImageRow *row = (ImageRow *)data;
-    row->id       = sqlite3_column_int64(stmt, 0);
-    row->path     = string_copy(arena, sqlite3_column_text(stmt, 1));
+    row->id = sqlite3_column_int64(stmt, 0);
+    row->path = string_copy(arena, sqlite3_column_text(stmt, 1));
 }
 
 // No allocations per stack call
@@ -88,11 +97,11 @@ void recursive_insert(Arena *arena, DirInfo dir)
         dir.root_id = dir.id;
 
     // Loop over files in current dir
-    WIN32_FIND_DATAW fdFile;
-    HANDLE hFind = NULL;
+    WIN32_FIND_DATAW fdFile = {0};
+    HANDLE hFind = INVALID_HANDLE_VALUE;
 
     WString expression = string_formatw(&scratch_str, L"%.*ls\\*.*", WStringSpr(dir.path));
-    hFind              = FindFirstFileW(WCStrCast(expression), &fdFile);
+    hFind = FindFirstFileW(WCStrCast(expression), &fdFile);
 
     do
     {
@@ -111,19 +120,20 @@ void recursive_insert(Arena *arena, DirInfo dir)
         {
             // Recurse into a dir if found
             FILETIME write_time = fdFile.ftLastWriteTime;
-            U64 mtime           = 0;
-            mtime               = write_time.dwHighDateTime;
+            U64 mtime = 0;
+            mtime = write_time.dwHighDateTime;
             mtime <<= 32;
             mtime |= write_time.dwLowDateTime;
+            win32_to_unix_timestamp(&mtime);
 
             WString path = string_formatw(&scratch_str, L"%.*ls\\%.*ls", WStringSpr(dir.path), WStringSpr(filename));
-            DirInfo next = {.id        = 0,
-                            .mtime     = mtime,
-                            .level     = dir.level + 1,
-                            .root_id   = dir.root_id,
+            DirInfo next = {.id = 0,
+                            .mtime = mtime,
+                            .level = dir.level + 1,
+                            .root_id = dir.root_id,
                             .parent_id = dir.id,
-                            .name      = filename,
-                            .path      = path};
+                            .name = filename,
+                            .path = path};
             recursive_insert(arena, next);
         }
         else
@@ -131,7 +141,7 @@ void recursive_insert(Arena *arena, DirInfo dir)
             if (!match_end(filename, L".jpg") && !match_end(filename, L".png"))
                 continue;
 
-            FILETIME make_time  = fdFile.ftCreationTime;
+            FILETIME make_time = fdFile.ftCreationTime;
             FILETIME write_time = fdFile.ftLastWriteTime;
             U64 mtime = 0, ctime = 0, size = 0;
             mtime = write_time.dwHighDateTime;
@@ -143,6 +153,9 @@ void recursive_insert(Arena *arena, DirInfo dir)
             size = fdFile.nFileSizeHigh;
             size <<= 32;
             size |= fdFile.nFileSizeLow;
+
+            win32_to_unix_timestamp(&mtime);
+            win32_to_unix_timestamp(&ctime);
 
             sqlite3_bind_text16(img_stmt, 1, dir.path.v, dir.path.size * sizeof(wchar), SQLITE_STATIC);
             sqlite3_bind_text16(img_stmt, 2, WCStrCast(filename), filename.size * sizeof(wchar), SQLITE_STATIC);
@@ -186,25 +199,26 @@ void first_scan(Arena *arena, WString dir)
 
     // Insert root dir
     FILETIME ftime = attrs.ftLastWriteTime;
-    U64 mtime      = 0;
-    mtime          = ftime.dwHighDateTime;
+    U64 mtime = 0;
+    mtime = ftime.dwHighDateTime;
     mtime <<= 32;
     mtime |= ftime.dwLowDateTime;
+    win32_to_unix_timestamp(&mtime);
 
     WString filename = path;
-    S64 name_start   = string_rfind(filename, L'\\');
+    S64 name_start = string_rfind(filename, L'\\');
     Assert(name_start >= 0, "couldn't find \\ in path");
     filename.v += name_start + 1;
     filename.size -= name_start + 1;
 
     recursive_insert(arena,
-                     {.id        = 0,
-                      .mtime     = mtime,
-                      .level     = 0,
-                      .root_id   = -1,
+                     {.id = 0,
+                      .mtime = mtime,
+                      .level = 0,
+                      .root_id = -1,
                       .parent_id = -1,
-                      .name      = filename,
-                      .path      = path});
+                      .name = filename,
+                      .path = path});
 
     sqlite3_finalize(dir_stmt);
     sqlite3_finalize(img_stmt);
@@ -233,10 +247,11 @@ B32 check_dir(DirInfo dir)
     }
 
     FILETIME ftime = attrs.ftLastWriteTime;
-    U64 mtime      = 0;
-    mtime          = ftime.dwHighDateTime;
+    U64 mtime = 0;
+    mtime = ftime.dwHighDateTime;
     mtime <<= 32;
     mtime |= ftime.dwLowDateTime;
+    win32_to_unix_timestamp(&mtime);
 
     return dir.mtime >= mtime;
 }
@@ -244,13 +259,13 @@ B32 check_dir(DirInfo dir)
 DBStmtCbk(push_paths)
 {
     DirInfo info = {
-        .id        = sqlite3_column_int64(stmt, 0),
-        .mtime     = (U64)sqlite3_column_int64(stmt, 1),
-        .level     = (U64)sqlite3_column_int64(stmt, 2),
-        .root_id   = sqlite3_column_int64(stmt, 3),
+        .id = sqlite3_column_int64(stmt, 0),
+        .mtime = (U64)sqlite3_column_int64(stmt, 1),
+        .level = (U64)sqlite3_column_int64(stmt, 2),
+        .root_id = sqlite3_column_int64(stmt, 3),
         .parent_id = sqlite3_column_int64(stmt, 4),
-        .name      = string_copy(arena, (wchar *)sqlite3_column_text16(stmt, 5)),
-        .path      = string_copy(arena, (wchar *)sqlite3_column_text16(stmt, 6))};
+        .name = string_copy(arena, (wchar *)sqlite3_column_text16(stmt, 5)),
+        .path = string_copy(arena, (wchar *)sqlite3_column_text16(stmt, 6))};
     da_push(arena, saved_dirs, info);
 }
 
