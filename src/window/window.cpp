@@ -1,8 +1,7 @@
 #include "window/window.h"
-#include "base/base_core.h"
 #include "base/log.h"
 #include "gl/gl_core.h"
-#include "window.h"
+#include "ui/ui_core.h"
 
 local_v void glfw_error_callback(S32 error, const char *description)
 {
@@ -49,7 +48,10 @@ B32 window_init()
 
 void window_poll()
 {
-    glfwWaitEvents();
+    if (ui_needs_update())
+        glfwWaitEventsTimeout(1.0f / 30.0f);
+    else
+        glfwWaitEvents();
     // glfwPollEvents();
     glfwGetWindowSize(win.handle, &win.width, &win.height);
     glfwGetWindowPos(win.handle, &win.xpos, &win.ypos);
@@ -85,24 +87,3 @@ F64 window_deltatime()
     win.begint = now;
     return res;
 }
-
-// bool Window::init()
-// {
-// }
-
-// void Window::close()
-// {
-// 	glfwDestroyWindow(win);
-// 	glfwTerminate();
-// }
-
-// void Window::poll()
-// {
-// }
-
-// void Window::update()
-// {
-// 	GLCall(glBindFramebuffer(GL_FRAMEBUFFER, 0));
-// 	glfwMakeContextCurrent(win);
-// 	glfwSwapBuffers(win);
-// }

@@ -55,3 +55,4 @@ void ui_init();
 void ui_close();
 void ui_update();
 void ui_render();
+B32 ui_needs_update();

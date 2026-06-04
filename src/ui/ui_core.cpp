@@ -151,6 +151,12 @@ void ui_render()
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
+B32 ui_needs_update()
+{
+    ImGuiIO &io = ImGui::GetIO();
+    return ImGui::IsAnyItemHovered() || io.WantCaptureMouse || io.WantTextInput;
+}
+
 U64 put_dir(StringBuilder dir)
 {
     sqlite3_stmt *stmt = db_prepare("INSERT INTO Dirs(path) VALUES(?) RETURNING id;");
