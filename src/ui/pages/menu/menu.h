@@ -48,12 +48,11 @@ global_v ZoomLevel zoom_options[] = {
     {Zoom_Large, 256, ICON_LC_SQUARE " Large"},
 };
 
-F32 filter_input_field_units = 32.0f;
-F32 sidebar_fold_units = 12.0f;
+local_v F32 sidebar_fold_units = 12.0f;
+local_v F32 sidebar_open_units = 80.0f;
 
-F32 min_search_input_units = 30.0f;
-F32 max_search_input_units = 850.0f;
+local_v S64 max_semantic_results = 20;
+local_v F32 filter_accent_width = 4.0f;
 
-S64 max_semantic_results = 20;
-F32 filter_accent_width = 4.0f;
-F32 sidebar_open_units = 80.0f;
+local_v F32 min_search_input_units = 30.0f;
+local_v F32 max_search_input_units = 850.0f;

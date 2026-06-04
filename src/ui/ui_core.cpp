@@ -1,4 +1,3 @@
-#include "ui/ui_core.h"
 #include "IconsLucide.h"
 #include "base/arena.h"
 #include "base/string.h"
@@ -12,6 +11,7 @@
 #include "backends/imgui_impl_opengl3.h"
 #include "window/window.h"
 #include "base/base_core.h"
+#include "ui/theme.h"
 #include "db/db_helpers.h"
 #include "stb_image.h"
 
@@ -22,7 +22,7 @@
 #include "ui/widgets.cpp"
 
 #if !DBG
-#include "fonts/inter.cpp"
+#include "fonts/geist.cpp"
 #include "fonts/lucide.cpp"
 #endif
 
@@ -37,11 +37,15 @@ struct UIToast
 
 UIState ui_state = {0};
 UIToast ui_toast = {0};
+UIPreview ui_preview = {0};
 
-void ui_filterlist_init()
+void ui_viewquery_clear()
 {
-    arena_alloc(MB(1), ui_state.view_query.arena);
+    string_clear(ui_state.view_query.search_query);
+    arena_clear(ui_state.view_query.arena);
     ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
+    ui_state.view_query.filters = NULL;
+}
 
 void ui_push_message(Result message)
 {
@@ -92,14 +96,16 @@ void ui_init()
     ui_state.icon_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Lucide.ttf", mscbl_config.settings.font_size, &icon_font_config, icons_ranges);
     ui_state.title_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist-VariableFont_wght.ttf", mscbl_config.settings.font_size * 2.0f, NULL, io.Fonts->GetGlyphRangesDefault());
 #else
-    ui_state.ui_font = io.Fonts->AddFontFromMemoryCompressedTTF(inter_font_compressed_data, mscbl_config.settings.font_size, NULL, io.Fonts->GetGlyphRangesDefault());
-    ui_state.icon_font = io.Fonts->AddFontFromMemoryCompressedTTF(lucide_font_compressed_data, lucide_font_compressed_size, icon_font_size, &icon_font_config, icons_ranges);
-    ui_state.ui_font = io.Fonts->AddFontFromMemoryCompressedTTF(inter_font_compressed_data, mscbl_config.settings.font_size * 2.0f, NULL, io.Fonts->GetGlyphRangesDefault());
+    ui_state.ui_font = io.Fonts->AddFontFromMemoryCompressedTTF(geist_font_compressed_data, geist_font_compressed_size, mscbl_config.settings.font_size, NULL, io.Fonts->GetGlyphRangesDefault());
+    ui_state.icon_font = io.Fonts->AddFontFromMemoryCompressedTTF(lucide_font_compressed_data, lucide_font_compressed_size, mscbl_config.settings.font_size, &icon_font_config, icons_ranges);
+    ui_state.ui_font = io.Fonts->AddFontFromMemoryCompressedTTF(geist_font_compressed_data, geist_font_compressed_size, mscbl_config.settings.font_size * 2.0f, NULL, io.Fonts->GetGlyphRangesDefault());
 
     restyle();
 #endif
 
-    ui_filterlist_init();
+    // Filter list init
+    arena_alloc(MB(1), ui_state.view_query.arena);
+    ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
 
     // Toast message init
     InitializeCriticalSection(&ui_toast.mutex);
@@ -286,32 +292,4 @@ void ui_add_filter()
     };
 
     *walk = filter_slot;
-}
-
-void ui_viewquery_clear()
-{
-    string_clear(ui_state.view_query.search_query);
-    arena_clear(ui_state.view_query.arena);
-    ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
-    ui_state.view_query.filters = NULL;
-}
-
-DBStmtCbk(fetch_info)
-{
-    Image *img = (Image *)data;
-    img->path = string_copy(ui_arena, sqlite3_column_text(stmt, 0));
-    img->filename = string_copy(ui_arena, sqlite3_column_text(stmt, 1));
-    img->size = sqlite3_column_int64(stmt, 2);
-    img->mtime = sqlite3_column_int64(stmt, 3);
-    img->ctime = sqlite3_column_int64(stmt, 4);
-    img->width = sqlite3_column_int(stmt, 5);
-    img->height = sqlite3_column_int(stmt, 6);
-    img->channels = sqlite3_column_int(stmt, 7);
-}
-
-void get_info(U64 id, Image *img)
-{
-    sqlite3_stmt *stmt = db_prepare("SELECT path, filename, size, mtime, ctime, width, height, channels FROM Images WHERE id = ?;");
-    sqlite3_bind_int64(stmt, 1, id);
-    db_run_stmt(stmt, 1, fetch_info, img);
 }

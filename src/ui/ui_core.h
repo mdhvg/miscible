@@ -1,7 +1,8 @@
 #pragma once
 #include "db/view.h"
 #include "base/string.h"
-#include "base/ringbuf.h"
+#include "gl/gl_core.h"
+#include "os/win32/win32_core.h"
 #include "ui/pages/pages.h"
 
 struct UIFilter
@@ -28,7 +29,14 @@ struct UIViewQuery
     SortType sort_basis;
     B32 descending;
     UIFilter *filters;
-    U64 last;
+    U64 semantic_search_limit;
+};
+
+struct UIPreview
+{
+    U32 texture;
+    S64 image_id;
+    gl_args_path render_args;
 };
 
 struct UIState
@@ -46,6 +54,7 @@ struct UIState
 };
 
 MSCBL_API UIState ui_state;
+MSCBL_API UIPreview ui_preview;
 
 MSCBL_API U64 put_dir(StringBuilder dir);
 MSCBL_API void ui_add_filter();

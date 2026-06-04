@@ -1,31 +1,23 @@
-#include "IconsLucide.h"
-
-#include "base/log.h"
+#include "gl/gl_core.h"
+#include "ui/pages/pages.h"
 #include "ui/pages/menu/menu.h"
-#include "imgui.h"
-#include "imgui_internal.h"
+
+#include "config.h"
 #include "db/view.h"
-#include "miscible.h"
+#include "db/fetch.h"
+#include "base/log.h"
 #include "ui/theme.h"
 #include "scan/scan.h"
-#include "ui/ui_core.h"
 #include "base/array.h"
-#include "config.h"
-#include "base/string.h"
-#include "db/fetch.h"
-#include "base/base_core.h"
+#include "ui/ui_core.h"
 
 // Runtime state track
-U32 sidebar_open = 0;
-F32 sidebar_width = 0.0f;
-B32 sidebar_dirtree_openall = 0;
-B32 sidebar_dirtree_foldall = 0;
-F32 sidebar_bottom_height = 0.0f;
+local_v U32 sidebar_open = 0;
+local_v B32 sidebar_dirtree_openall = 0;
+local_v B32 sidebar_dirtree_foldall = 0;
 
-B32 needs_rebuild = 1;
-S32 zoom_index = 1;
-ImVec2 last_work_size = {0, 0};
-DirKey selected_directory = 0;
+local_v S32 zoom_index = 1;
+local_v DirKey selected_directory = 0;
 
 void directory_tree(DirKey cur = 1)
 {
@@ -75,52 +67,14 @@ void directory_tree(DirKey cur = 1)
     directory_tree(dir_tree[cur].next_idx);
 }
 
-void sidebar_directories()
-{
-    ImGui::AlignTextToFramePadding();
-    ImGui::Text("Directories");
-
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(ICON_LC_PLUS).x);
-
-    if (ImGui::Button(ICON_LC_PLUS))
-        scan_new_dir();
-
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {MSCBL_INNER_PADDING, MSCBL_INNER_PADDING});
-    ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, {0, 0});
-
-    ImVec2 avail = ImGui::GetContentRegionAvail();
-    ImGui::BeginChild("Directories", ImVec2(avail.x, avail.y - sidebar_bottom_height - MSCBL_INNER_PADDING), ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY);
-
-    ImGui::PushStyleColor(ImGuiCol_Border, COLOR_TRANSPARENT);
-    directory_tree();
-    ImGui::PopStyleColor();
-
-    ImGui::EndChild();
-
-    ImGui::PopStyleVar(2);
-
-    sidebar_dirtree_openall = 0;
-    sidebar_dirtree_foldall = 0;
-}
-
-void draw_docked_sidebar(ImGuiWindowFlags flags)
+void menu_draw_docked_sidebar(ImGuiWindowFlags flags)
 {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(MSCBL_OUTER_PADDING, MSCBL_OUTER_PADDING));
     ImGui::Begin("SidebarPanel", NULL, flags);
 
     if (ImGui::Button(sidebar_open ? ICON_LC_CHEVRON_LEFT : ICON_LC_CHEVRON_RIGHT, {ImGui::GetContentRegionAvail().x, 0}))
     {
-        if (sidebar_open)
-        {
-            sidebar_open = 0;
-            sidebar_width = SPACING(sidebar_fold_units);
-        }
-        else
-        {
-            sidebar_open = 1;
-            sidebar_width = SPACING(sidebar_open_units);
-        }
-
+        sidebar_open = !sidebar_open;
         needs_rebuild = 1;
     }
 
@@ -130,21 +84,50 @@ void draw_docked_sidebar(ImGuiWindowFlags flags)
         ui_push_message({.success = 0, .domain = Domain_App, .code = 1, .context = "implementation pending"});
     }
 
+    ImGuiStyle &style = ImGui::GetStyle();
+    F32 frame_height = ImGui::GetFrameHeight();
+    F32 sidebar_bottom_height = frame_height;
+    if (sidebar_open)
+    {
+        sidebar_bottom_height += frame_height + style.ItemSpacing.y;
     }
 
     if (sidebar_open)
     {
         ImGui::Separator();
-        sidebar_directories();
+
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("Directories");
+
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(ICON_LC_PLUS).x);
+        if (ImGui::Button(ICON_LC_PLUS))
+        {
+            scan_new_dir();
+        }
+
+        ImVec2 avail = ImGui::GetContentRegionAvail();
+        F32 sidebar_middle_height = avail.y - sidebar_bottom_height - style.ItemSpacing.y;
+
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {MSCBL_INNER_PADDING, MSCBL_INNER_PADDING});
+        ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, {0, 0});
+        DeferLoop(ImGui::BeginChild("Directories", ImVec2(avail.x, sidebar_middle_height), ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY), ImGui::EndChild())
+        {
+            ImGui::PushStyleColor(ImGuiCol_Border, COLOR_TRANSPARENT);
+            directory_tree();
+            ImGui::PopStyleColor();
+        }
+        ImGui::PopStyleVar(2);
+
+        sidebar_dirtree_openall = 0;
+        sidebar_dirtree_foldall = 0;
     }
     else
     {
-        ImGui::Dummy(ImVec2(0, 0));
+        F32 sidebar_middle_height = ImGui::GetContentRegionAvail().y - sidebar_bottom_height - style.ItemSpacing.y;
+        ImGui::Dummy(ImVec2(0.0f, sidebar_middle_height));
     }
 
     ImGui::PushStyleColor(ImGuiCol_ChildBg, COLOR_TRANSPARENT);
-    float target_cursor_y = ImGui::GetCursorPosY() + ImGui::GetContentRegionAvail().y - sidebar_bottom_height;
-    ImGui::SetCursorPosY(target_cursor_y);
     DeferLoop(ImGui::BeginChild("SidebarBottom", ImVec2(ImGui::GetContentRegionAvail().x, 0), ImGuiChildFlags_AutoResizeY), ImGui::EndChild())
     {
         ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -175,12 +158,13 @@ void draw_docked_sidebar(ImGuiWindowFlags flags)
 void main_grid()
 {
     ImVec2 avail = ImGui::GetContentRegionAvail();
+    ImGuiStyle &style = ImGui::GetStyle();
 
-    S32 thumbnail_size = zoom_options[zoom_index].size;
-    S32 cell_width = thumbnail_size + ImGui::GetStyle().ItemSpacing.x;
+    F32 thumbnail_size = zoom_options[zoom_index].size;
+    S32 cell_width = thumbnail_size + style.ItemSpacing.x;
     S32 cols = (avail.x > cell_width) ? ((S32)avail.x / cell_width) : 1;
 
-    F32 req_width = (cell_width * cols);
+    F32 req_width = (cell_width * cols + style.ItemSpacing.x * 2.0f);
     F32 start = (avail.x - req_width) / 2.0f;
 
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + start);
@@ -221,28 +205,41 @@ void main_grid()
             if ((image_id < va_getsize(images)) &&
                 (images[image_id].atlas_id < va_getsize(atlases)))
             {
-                Image img = images[image_id];
-                Atlas atl = atlases[img.atlas_id];
+                Image *img = &images[image_id];
+                Atlas atl = atlases[img->atlas_id];
 
-                F32 x = (F32)(img.atlas_idx % 10);
-                F32 y = (F32)(img.atlas_idx / 10);
+                F32 x = (F32)(img->atlas_idx % THUMB_PER_SIDE);
+                F32 y = (F32)(img->atlas_idx / THUMB_PER_SIDE);
 
-                ImGui::ImageButton(
-                    "##ImgBtn",
-                    atl.tex, {(F32)thumbnail_size, (F32)thumbnail_size}, {x / 10.0f, y / 10.0f}, {(x + 1) / 10.0f, (y + 1) / 10.0f});
+                if (ImGui::ImageButton(
+                        "##ImgBtn",
+                        atl.tex, {thumbnail_size, thumbnail_size}, {x / THUMB_PER_SIDE, y / THUMB_PER_SIDE}, {(x + 1) / THUMB_PER_SIDE, (y + 1) / THUMB_PER_SIDE}))
+                {
+                    ui_state.page = UIPage_PREVIEW;
+                    ui_preview.image_id = image_id;
+
+                    ui_preview.render_args = {
+                        .texture = &ui_preview.texture,
+                        .path = img->path};
+                    AsyncTask task = {
+                        .func = gl_tex_path,
+                        .data = {
+                            .kind = TPData_ANY,
+                            .val_any = &ui_preview.render_args}};
+                    threadpool_enqueue(TaskPriority_Realtime, task);
+                }
+                if (ImGui::BeginItemTooltip())
+                {
+                    ImGui::Text("Filename: %.*s", StringSpr(img->filename));
+                    ImGui::Text("Size: %.2f%s", img->size.value, CStrCast(byte_string(img->size.unit)));
+                    ImGui::EndTooltip();
+                }
             }
             else
             {
                 ImGui::ImageButton(
                     "##ImgEmpty",
                     (ImTextureID)0, {(F32)thumbnail_size, (F32)thumbnail_size});
-            }
-            if (ImGui::IsItemHovered(ImGuiHoveredFlags_Stationary))
-            {
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, RADIUS(0.5));
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {SPACING(1), SPACING(1)});
-                ImGui::SetTooltip("%zu", image_id);
-                ImGui::PopStyleVar(2);
             }
 
             total_rendered++;
@@ -548,11 +545,23 @@ void filters()
 
 void top_control_bar()
 {
-    F32 search_width = ImGui::GetContentRegionAvail().x * 0.7f;
-    if (search_width < SPACING(min_search_input_units))
-        search_width = SPACING(min_search_input_units);
-    if (search_width > SPACING(max_search_input_units))
-        search_width = SPACING(max_search_input_units);
+    ImGuiStyle &style = ImGui::GetStyle();
+    F32 search_width = ImGui::GetContentRegionAvail().x;
+
+    // subtract spacing/padding
+    search_width -= 5.0f * style.ItemSpacing.x;
+    search_width -= 12.0f * style.FramePadding.x;
+
+    // subtract button sizes
+    search_width -= ImGui::CalcTextSize("Search").x;
+    search_width -= ImGui::CalcTextSize("Clear").x;
+    search_width -= ImGui::CalcTextSize(zoom_options[zoom_index].text).x;
+    search_width -= ImGui::CalcTextSize(sort_options[ui_state.view_query.sort_basis].text).x;
+    search_width -= ImGui::CalcTextSize(ICON_LC_CALENDAR_ARROW_UP).x;
+    search_width -= ImGui::CalcTextSize(ICON_LC_LIST_FILTER_PLUS " Add Filter").x;
+
+    // extra safety space
+    search_width -= SPACING(5.0f);
 
     DeferLoop(ImGui::BeginGroup(), ImGui::EndGroup())
     {
@@ -610,8 +619,7 @@ void top_control_bar()
         view_reload();
     }
 
-    F32 filter_btn_width = ImGui::CalcTextSize(ICON_LC_LIST_FILTER_PLUS " Add Filter").x + ImGui::GetStyle().FramePadding.x * 2.0f;
-    ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - filter_btn_width);
+    ImGui::SameLine();
     if (ImGui::Button(ICON_LC_LIST_FILTER_PLUS " Add Filter"))
     {
         ui_add_filter();
@@ -620,7 +628,7 @@ void top_control_bar()
     filters();
 }
 
-void draw_docked_main(ImGuiWindowFlags flags)
+void menu_draw_docked_main(ImGuiWindowFlags flags)
 {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(MSCBL_OUTER_PADDING, MSCBL_OUTER_PADDING));
     ImGui::Begin("MainPanel", NULL, flags);
@@ -634,31 +642,50 @@ void draw_docked_main(ImGuiWindowFlags flags)
     ImGui::PopStyleVar();
 }
 
-void draw_docked_status(ImGuiWindowFlags flags)
+void menu_draw_docked_status(ImGuiWindowFlags flags)
 {
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, MSCBL_SURFACE);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(MSCBL_INNER_PADDING, MSCBL_INNER_PADDING));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(MSCBL_OUTER_PADDING, MSCBL_INNER_PADDING));
 
     ImGui::Begin("StatusPanel", NULL, flags);
 
-    ImGui::TextDisabled(ICON_LC_INFO " STATUS: ");
-    ImGui::SameLine();
-    ImGui::Text("READY");
+    ImGui::Text("All tasks done");
 
     ImGui::End();
     ImGui::PopStyleVar();
-    ImGui::PopStyleColor();
 }
 
-MSCBL_EXP void ui_menu()
+MSCBL_EXP void page_menu()
 {
     ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
     ImGuiViewport *viewport = ImGui::GetMainViewport();
+    if (last_work_size.x != viewport->WorkSize.x || last_work_size.y != viewport->WorkSize.y)
+        needs_rebuild = 1;
+    last_work_size = viewport->WorkSize;
 
-    // Safely check and populate fallback width configurations on startup loops
-    if (sidebar_width == 0.0f)
+    F32 sidebar_width = sidebar_open ? SPACING(sidebar_open_units) : SPACING(sidebar_fold_units);
+
+    if (ImGui::DockBuilderGetNode(dockspace_id) == NULL || needs_rebuild)
     {
-        sidebar_width = sidebar_open ? SPACING(sidebar_open_units) : SPACING(sidebar_fold_units);
+        needs_rebuild = 0;
+
+        ImGui::DockBuilderRemoveNode(dockspace_id);
+        ImGui::DockBuilderAddNode(dockspace_id);
+        ImGui::DockBuilderSetNodeSize(dockspace_id, last_work_size);
+
+        ImGuiID dock_main_id = dockspace_id;
+
+        F32 sidebar_ratio = sidebar_width / last_work_size.x;
+        ImGuiID dock_id_sidebar = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, sidebar_ratio, NULL, &dock_main_id);
+
+        F32 target_status_height = ImGui::GetFrameHeight();
+        F32 status_bar_ratio = target_status_height / last_work_size.y;
+        ImGuiID dock_id_status = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Down, status_bar_ratio, NULL, &dock_main_id);
+
+        ImGui::DockBuilderDockWindow("SidebarPanel", dock_id_sidebar);
+        ImGui::DockBuilderDockWindow("StatusPanel", dock_id_status);
+        ImGui::DockBuilderDockWindow("MainPanel", dock_main_id);
+
+        ImGui::DockBuilderFinish(dockspace_id);
     }
 
     ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_NoResize |
@@ -679,35 +706,7 @@ MSCBL_EXP void ui_menu()
 
     ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
 
-    if (last_work_size.x != viewport->WorkSize.x || last_work_size.y != viewport->WorkSize.y)
-        needs_rebuild = 1;
-    last_work_size = viewport->WorkSize;
-
-    if (ImGui::DockBuilderGetNode(dockspace_id) == NULL || needs_rebuild)
-    {
-        needs_rebuild = 0;
-
-        ImGui::DockBuilderRemoveNode(dockspace_id);
-        ImGui::DockBuilderAddNode(dockspace_id, dockspace_flags);
-        ImGui::DockBuilderSetNodeSize(dockspace_id, last_work_size);
-
-        ImGuiID dock_main_id = dockspace_id;
-
-        F32 sidebar_ratio = sidebar_width / last_work_size.x;
-        ImGuiID dock_id_sidebar = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, sidebar_ratio, NULL, &dock_main_id);
-
-        F32 target_status_height = ImGui::GetFrameHeight();
-        F32 status_bar_ratio = target_status_height / last_work_size.y;
-        ImGuiID dock_id_status = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Down, status_bar_ratio, NULL, &dock_main_id);
-
-        ImGui::DockBuilderDockWindow("SidebarPanel", dock_id_sidebar);
-        ImGui::DockBuilderDockWindow("StatusPanel", dock_id_status);
-        ImGui::DockBuilderDockWindow("MainPanel", dock_main_id);
-
-        ImGui::DockBuilderFinish(dockspace_id);
-    }
-
-    draw_docked_sidebar(window_flags);
-    draw_docked_main(window_flags);
-    draw_docked_status(window_flags);
+    menu_draw_docked_sidebar(window_flags);
+    menu_draw_docked_main(window_flags);
+    menu_draw_docked_status(window_flags);
 }

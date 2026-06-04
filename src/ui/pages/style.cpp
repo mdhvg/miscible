@@ -127,7 +127,7 @@ MSCBL_EXP void restyle()
     style.Colors[ImGuiCol_PlotHistogramHovered] = MSCBL_INTERACTION_ACTIVE;
 
     // Global Overlays & Anchors
-    style.Colors[ImGuiCol_ResizeGrip] = ImVec4(0, 0, 0, 0); // Hide sizing corner dots
+    style.Colors[ImGuiCol_ResizeGrip] = COLOR_TRANSPARENT; // Hide sizing corner dots
     style.Colors[ImGuiCol_ResizeGripHovered] = MSCBL_PRIMARY_HOVER;
     style.Colors[ImGuiCol_ResizeGripActive] = MSCBL_PRIMARY;
     style.Colors[ImGuiCol_DragDropTarget] = MSCBL_PRIMARY;

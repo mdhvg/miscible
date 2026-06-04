@@ -1,4 +1,4 @@
 #include "ui/pages/pages.h"
 #include "ui/pages/menu/menu.cpp"
 #include "ui/pages/style.cpp"
-#include "ui/pages/preview.cpp"
+#include "ui/pages/preview/preview.cpp"
