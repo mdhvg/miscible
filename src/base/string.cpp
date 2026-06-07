@@ -348,6 +348,8 @@ U64 string_assign_string(StringBuilder *base, String push)
 
 WString string_view_wcstr(const wchar *c, S64 size)
 {
+    if (!c)
+        return {0};
     if (size >= 0)
         return {(U16 *)c, (U64)size};
     U64 len = 0;
@@ -358,6 +360,8 @@ WString string_view_wcstr(const wchar *c, S64 size)
 
 String string_view_cstr(const char *c, S64 size)
 {
+    if (!c)
+        return {0};
     if (size >= 0)
         return {(U8 *)c, (U64)size};
     U64 len = 0;
@@ -366,14 +370,25 @@ String string_view_cstr(const char *c, S64 size)
     return {(U8 *)c, len};
 }
 
-WString string_copy_wcstr(Arena *arena, const wchar *c)
+WString string_copy_wcstr(Arena *arena, const wchar *c, S64 size)
 {
+    if (!c)
+        return {0};
+
     U64 len = 0;
-    while (c[len])
-        len++;
+    if (size >= 0)
+    {
+        len = size;
+    }
+    else
+    {
+        while (c[len])
+            len++;
+    }
 
     StringBuilder b = {.arena = arena};
     string_growby(&b, (len + 1) * sizeof(wchar));
+
     MemoryCopy(b.v, c, len * sizeof(wchar));
     b.size = len;
     ((U16 *)b.v)[b.size] = 0;
@@ -381,17 +396,28 @@ WString string_copy_wcstr(Arena *arena, const wchar *c)
     return WStringCast(b);
 }
 
-String string_copy_cstr(Arena *arena, const char *c)
+String string_copy_cstr(Arena *arena, const char *c, S64 size)
 {
+    if (!c)
+        return {0};
     U64 len = 0;
-    while (c[len])
-        len++;
+    if (size >= 0)
+    {
+        len = size;
+    }
+    else
+    {
+        while (c[len])
+            len++;
+    }
 
     StringBuilder b = {.arena = arena};
     string_growby(&b, len + 1);
+
     MemoryCopy(b.v, c, len);
     b.size = len;
     b.v[b.size] = 0;
+
     return StringCast(b);
 }
 
@@ -562,6 +588,18 @@ String string_format(StringBuilder *base, const char *fmt, ...)
 //     va_end(args);
 //     return CStrCast(StringCast(s));
 // }
+
+S64 string_find_cstr(String s, const char *f)
+{
+    for (U64 i = 0; i < s.size; i++)
+    {
+        if (match_front(s, f))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
 
 S64 string_rfind_wstr(WString s, wchar f)
 {

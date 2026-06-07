@@ -108,21 +108,21 @@ inline String sv(const unsigned char *x, S64 size = -1)
     return string_view_cstr((char *)x, size);
 }
 
-MSCBL_API WString string_copy_wcstr(Arena *arena, const wchar *c);
-MSCBL_API String string_copy_cstr(Arena *arena, const char *c);
+MSCBL_API WString string_copy_wcstr(Arena *arena, const wchar *c, S64 size);
+MSCBL_API String string_copy_cstr(Arena *arena, const char *c, S64 size);
 MSCBL_API WString string_copy_wstr(Arena *arena, WString s);
 MSCBL_API String string_copy_str(Arena *arena, String s);
-inline WString string_copy(Arena *arena, const wchar *x)
+inline WString string_copy(Arena *arena, const wchar *x, S64 size = -1)
 {
-    return string_copy_wcstr(arena, x);
+    return string_copy_wcstr(arena, x, size);
 }
-inline String string_copy(Arena *arena, const char *x)
+inline String string_copy(Arena *arena, const char *x, S64 size = -1)
 {
-    return string_copy_cstr(arena, x);
+    return string_copy_cstr(arena, x, size);
 }
-inline String string_copy(Arena *arena, const unsigned char *x)
+inline String string_copy(Arena *arena, const unsigned char *x, S64 size = -1)
 {
-    return string_copy_cstr(arena, (const char *)x);
+    return string_copy_cstr(arena, (const char *)x, size);
 }
 inline WString string_copy(Arena *arena, WString x)
 {
@@ -183,6 +183,17 @@ MSCBL_API inline const char *format_cstr(StringBuilder *base, const char *fmt, .
     string_formatv(base, fmt, args);
     va_end(args);
     return CStrCast(*base);
+}
+
+MSCBL_API S64 string_find_str(String s, String f);
+inline S64 string_find(String s, String f)
+{
+    return string_find_str(s, f);
+}
+MSCBL_API S64 string_find_cstr(String s, const char *f);
+inline S64 string_find(String s, const char *f)
+{
+    return string_find_cstr(s, f);
 }
 
 MSCBL_API S64 string_rfind_wstr(WString s, wchar f);
@@ -252,7 +263,11 @@ inline B32 match_end(String base, const char *match)
 inline void path_join(StringBuilder *base, String part)
 {
     if (!match_end_cstr(StringCast(*base), "/") && !match_end_cstr(StringCast(*base), "\\"))
-        string_push(base, "/");
+#if OS_WINDOWS
+        string_push(base, '\\');
+#elif OS_LINUX
+        string_push(base, '/');
+#endif
     string_push(base, part);
 }
 
