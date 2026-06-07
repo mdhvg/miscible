@@ -53,6 +53,16 @@ $ThirdpartyLibs = @(
     "ggml-base.lib"
 )
 
+$LogoPath = "../data/Miscible.ico"
+$LogoRcPath = "./resources.rc"
+
+if ($Mode -eq "release") {
+    $LogoResPath = "./resources.res"
+}
+else {
+    $LogoResPath = ""
+}
+
 # Why even do this? Why name the library file different for debug and release?
 if ($Mode -eq "release") {
     $ThirdpartyLibs += @("libcurl.lib")

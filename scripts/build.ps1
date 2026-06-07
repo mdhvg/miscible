@@ -4,6 +4,7 @@ param (
 )
 
 $start = Get-Date
+$exitStat = 0
 
 $ScriptDir = $PSScriptRoot
 . "$ScriptDir/win32/util.ps1"
@@ -36,23 +37,33 @@ if (-not $compiler) {
 $compilerFmt = Format-AnsiString -Text $compiler -R 230 -G 178 -B 45
 Write-Host "Detected compiler: $compilerFmt"
 
-pushd $ScriptDir
+Write-Host ""
+if ($Mode -in @("release")) {
+    $IconScript = "$ScriptDir/win32/icon-$compiler.ps1"
 
-if ($Mode -in @("test")) {
-    $script = "win32/test-$compiler.ps1"
-} else {
-    $script = "win32/build-$compiler.ps1"
+    if (-not (Test-Path $IconScript)) {
+        $exitStat = 1
+        Write-Host "$IconScript not found" -ForegroundColor Red
+    } else {
+        & "$IconScript" -Mode $Mode
+    }
 }
 
-if (-not (Test-Path $script)) {
-    Write-Host "$script not found" -ForegroundColor Red
-    popd
-    exit 1
-}
-
+Write-Host ""
 del -Force -Recurse ..\build\pages* *> $null
 $Seed = Get-Random -Minimum 1 -Maximum 1000
 
-& ".\$script" -Mode $Mode -Seed $Seed
-popd
-exit 0
+if ($Mode -in @("test")) {
+    $BuildScript = "$ScriptDir/win32/test-$compiler.ps1"
+} else {
+    $BuildScript = "$ScriptDir/win32/build-$compiler.ps1"
+}
+
+if (-not (Test-Path $BuildScript)) {
+    $exitStat = 1
+    Write-Host "$BuildScript not found" -ForegroundColor Red
+} else {
+    & "$BuildScript" -Mode $Mode -Seed $Seed
+}
+
+exit $exitStat

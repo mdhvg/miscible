@@ -1,7 +1,10 @@
-#include "window/window.h"
 #include "base/log.h"
 #include "gl/gl_core.h"
 #include "ui/ui_core.h"
+#include "window/window.h"
+
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
 
 local_v void glfw_error_callback(S32 error, const char *description)
 {
@@ -28,6 +31,23 @@ B32 window_init()
     glfwSetWindowCloseCallback(win.handle, win_close_callback);
     glfwMakeContextCurrent(win.handle);
     glfwSwapInterval(1); // Enable vsync
+
+    // TODO: Switch to native window init for win32
+#if OS_WINDOWS
+    HWND hwnd = glfwGetWin32Window(win.handle);
+    HINSTANCE hInst = GetModuleHandle(NULL);
+    HICON hAppIcon = LoadIcon(hInst, MAKEINTRESOURCE(1));
+
+    if (hAppIcon)
+    {
+        SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hAppIcon);
+        SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hAppIcon);
+    }
+    else
+    {
+        mscbl_log_error("Failed to load icon resource ID 1. Windows Error: %lu", (GetLastError()));
+    }
+#endif
 
     Assert(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress), "Failed to initialize OpenGL loader!");
     win.begint = glfwGetTime();

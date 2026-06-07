@@ -42,6 +42,7 @@ if ($Mode -eq "release") {
     & $CXX $CXXFLAGS $DEFINES $INCLUDES `
         "$ProjectDir/src/main.cpp" "$ProjectDir/src/miscible.cpp" deps_c.obj deps_cxx.obj `
         $ProjectDir/src/ui/pages/pages.cpp `
+        $LogoResPath `
         $LinkerBase $CommonLibs $ThirdpartyLibs `
         /OUT:Miscible.exe
 } else {
