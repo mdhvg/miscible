@@ -1,10 +1,52 @@
 #include <ShObjIdl.h>
 #include <wchar.h>
 
-#include "base/string.h"
-#include "os/os_inc.h"
-#include "base/log.h"
 #include "base/base_core.h"
+#include "base/log.h"
+#include "os/os_inc.h"
+#include "base/array.h"
+#include "base/string.h"
+
+U64 os_now_microseconds(void)
+{
+    U64 result = 0;
+    LARGE_INTEGER large_int_counter;
+    if (QueryPerformanceCounter(&large_int_counter))
+    {
+        result = (large_int_counter.QuadPart * Mil(1)) / os_info.microsecond_resolution;
+    }
+    return result;
+}
+
+global_v U32 win32_sleep_ms_from_us(U64 end_us)
+{
+    if (end_us == U64_MAX)
+        return INFINITE;
+
+    U32 sleep_ms = 0;
+    U64 begint = os_now_microseconds();
+    if (begint < end_us)
+    {
+        U64 sleep_us = end_us - begint;
+        sleep_ms = (U32)((sleep_us + 999) / 1000);
+    }
+    return sleep_ms;
+}
+
+// Reference: https://stackoverflow.com/a/46024468
+global_v const U64 UNIX_TIME_START = 0x019DB1DED53E8000; //January 1, 1970 (start of Unix epoch) in "ticks"
+global_v const U64 TICKS_PER_SECOND = 10000000;          //a tick is 100ns
+
+global_v void win32_to_unix_timestamp(U64 *win_timestamp)
+{
+    *win_timestamp -= UNIX_TIME_START;
+    *win_timestamp /= TICKS_PER_SECOND;
+}
+
+void win32_format_path(StringBuilder *dir)
+{
+    string_replace(dir, "\\", "/");
+}
 
 Guid os_make_guid()
 {
@@ -34,6 +76,7 @@ void os_prelaunch()
     SYSTEM_INFO sysinfo = {0};
     GetSystemInfo(&sysinfo);
     os_info.page_size = sysinfo.dwPageSize;
+    os_info.worker_count = sysinfo.dwNumberOfProcessors;
 
     // Set terminal UTF-8
     SetConsoleOutputCP(CP_UTF8);
@@ -53,9 +96,77 @@ const char *os_gethome()
     return getenv("USERPROFILE");
 }
 
-void os_mkdir(String path)
+String os_env_var(const char *name, Arena *arena)
 {
-    Assert(CreateDirectoryA(CStrCast(path), NULL) || GetLastError() == ERROR_ALREADY_EXISTS, "Failed to create directory (%.*s)", path.size, path.v);
+    char buffer[KB(4)];
+
+    U64 size = GetEnvironmentVariable(name, buffer, KB(4));
+    return string_copy(arena, buffer, size);
+}
+
+void os_mkdirs(String path)
+{
+    char buffer[KB(4)] = {0};
+    MemoryCopy(buffer, path.v, path.size);
+
+    for (U64 i = 0; i < path.size; i++)
+    {
+        if (buffer[i] == '\\' || buffer[i] == '/')
+        {
+            char cur = buffer[i];
+            buffer[i] = 0;
+
+            BOOL success = CreateDirectory(buffer, NULL);
+            DWORD err = GetLastError();
+
+            Assert(success || err == ERROR_ALREADY_EXISTS, "Failed to create directory (%s)", buffer);
+            buffer[i] = cur;
+        }
+    }
+}
+
+U64 os_get_timestamp()
+{
+    FILETIME ft;
+    GetSystemTimeAsFileTime(&ft);
+    U64 time = ft.dwHighDateTime;
+    time <<= 32;
+    time |= ft.dwLowDateTime;
+
+    win32_to_unix_timestamp(&time);
+
+    return time;
+}
+
+Time os_get_localtime()
+{
+    SYSTEMTIME local_time;
+    GetLocalTime(&local_time);
+
+    return {
+        .date = local_time.wDay,
+        .month = (Month)(local_time.wMonth - 1),
+        .year = local_time.wYear,
+
+        .hour = local_time.wHour,
+        .minute = local_time.wMinute,
+        .second = local_time.wSecond,
+        .milsec = local_time.wMilliseconds,
+    };
+}
+
+U64 os_get_ticks_now()
+{
+    LARGE_INTEGER count;
+    QueryPerformanceCounter(&count);
+    return count.QuadPart;
+}
+
+U64 os_get_ticks_freq()
+{
+    LARGE_INTEGER freq;
+    QueryPerformanceFrequency(&freq);
+    return freq.QuadPart;
 }
 
 // NOTE: windows locks a .dll file once it's opened using loadlibrary, so every
@@ -63,14 +174,15 @@ void os_mkdir(String path)
 // that is modified last is picked and loaded. This is not required on UNIX
 LibHandle os_loadlib(const char *filename)
 {
+    char buffer[KB(4)] = {0};
     WIN32_FIND_DATA fdFile = {0};
     HANDLE hFind = INVALID_HANDLE_VALUE;
 
     const char *postfix = "*.dll";
     String filename_str = sv(filename);
-    MemoryCopy(scratch, filename, filename_str.size);
-    MemoryCopy((U8 *)scratch + filename_str.size, postfix, sizeof(postfix) + 1);
-    String exp = {.v = (U8 *)scratch, .size = filename_str.size + sizeof(postfix) + 1};
+    MemoryCopy(buffer, filename, filename_str.size);
+    MemoryCopy(buffer + filename_str.size, postfix, sizeof(postfix) + 1);
+    String exp = {.v = (U8 *)buffer, .size = filename_str.size + sizeof(postfix) + 1};
 
     U64 mtime = 0;
     String libfile = {0};
@@ -95,8 +207,8 @@ LibHandle os_loadlib(const char *filename)
             if (file_mtime > mtime)
             {
                 mtime = file_mtime;
-                MemoryCopy(scratch, CStrCast(cur_file), cur_file.size + 1);
-                libfile = {.v = (U8 *)scratch, .size = filename_str.size};
+                MemoryCopy(buffer, CStrCast(cur_file), cur_file.size + 1);
+                libfile = {.v = (U8 *)buffer, .size = filename_str.size};
             }
         }
 
@@ -110,33 +222,7 @@ LibHandle os_loadlib(const char *filename)
     return lib;
 }
 
-local_v U64 os_now_microseconds(void)
-{
-    U64 result = 0;
-    LARGE_INTEGER large_int_counter;
-    if (QueryPerformanceCounter(&large_int_counter))
-    {
-        result = (large_int_counter.QuadPart * Mil(1)) / os_info.microsecond_resolution;
-    }
-    return result;
-}
-
-local_v U32 win32_sleep_ms_from_us(U64 end_us)
-{
-    if (end_us == U64_MAX)
-        return INFINITE;
-
-    U32 sleep_ms = 0;
-    U64 begint = os_now_microseconds();
-    if (begint < end_us)
-    {
-        U64 sleep_us = end_us - begint;
-        sleep_ms = (U32)((sleep_us + 999) / 1000);
-    }
-    return sleep_ms;
-}
-
-OSString os_select_dir(const wchar *title, const wchar *default_path)
+WString os_select_dir(const wchar *title, const wchar *default_path, Arena *arena)
 {
     PWSTR path = NULL;
     IShellItem *res_psi = NULL;
@@ -157,15 +243,16 @@ OSString os_select_dir(const wchar *title, const wchar *default_path)
 
     if (FAILED(pfd->Show(NULL)))
         return {0};
+
     Assert(SUCCEEDED(pfd->GetResult(&res_psi)), "selection box GetResult() failed");
     res_psi->GetDisplayName(SIGDN_FILESYSPATH, &path);
 
-    MemoryCopy(scratch, path, (wcslen(path) + 1) * sizeof(wchar));
-    WString res = sv(scratch);
+    WString res = string_copy(arena, path);
 
     CoTaskMemFree(path);
     res_psi->Release();
     pfd->Release();
+
     return res;
 }
 
@@ -197,11 +284,6 @@ B32 os_path_exists(String path, Result *res)
         return false;
     }
     return true;
-}
-
-void win32_format_path(StringBuilder *dir)
-{
-    string_replace(dir, "\\", "/");
 }
 
 void *os_reserve(void *ptr, U64 size)
@@ -313,6 +395,8 @@ FileHandle os_file_open(String path, FileAccess access, FileMode mode, Result *r
         desired_access |= GENERIC_READ;
     if (access & FileAccess_Write)
         desired_access |= GENERIC_WRITE;
+    if (access & FileAccess_Append)
+        desired_access |= FILE_APPEND_DATA;
     Assert(desired_access, "needs to have read/write/both access");
 
     DWORD creation_mode = 0;
@@ -332,6 +416,12 @@ FileHandle os_file_open(String path, FileAccess access, FileMode mode, Result *r
 
     Win32Trap(res, (handle != INVALID_HANDLE_VALUE));
     return handle;
+}
+
+void os_file_delete(String path, Result *res)
+{
+    BOOL out = DeleteFile(CStrCast(path));
+    Win32Trap(res, out);
 }
 
 void os_file_close(FileHandle file_desc, Result *res)
@@ -382,6 +472,52 @@ void os_file_rename(String old_path, String new_path)
 {
     DWORD flags = MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED;
     Assert(MoveFileEx(CStrCast(old_path), CStrCast(new_path), flags), "error code: %lu", GetLastError());
+}
+
+FileMTime *os_list_by_pattern(String pattern, String base, Arena *arena)
+{
+    FileMTime *res = NULL;
+
+    WIN32_FIND_DATA fdFile = {0};
+    HANDLE hFind = INVALID_HANDLE_VALUE;
+
+    hFind = FindFirstFile(CStrCast(pattern), &fdFile);
+
+    do
+    {
+        if (hFind == INVALID_HANDLE_VALUE)
+            break;
+
+        String filename = sv(fdFile.cFileName);
+
+        if (match_front(filename, ".") || match_front(filename, ".."))
+            continue;
+
+        // mscbl_log_info("Logfile: %.*ls", WStringSpr(filename));
+
+        if ((fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
+        {
+            LARGE_INTEGER file_id = {0};
+            FILETIME write_time = fdFile.ftLastWriteTime;
+            U64 mtime = 0;
+            mtime = write_time.dwHighDateTime;
+            mtime <<= 32;
+            mtime |= write_time.dwLowDateTime;
+
+            win32_to_unix_timestamp(&mtime);
+
+            StringBuilder file_path = string_init(arena, base);
+            path_join(&file_path, filename);
+
+            FileMTime entry = {
+                .path = StringCast(file_path),
+                .mtime = mtime};
+            da_push(arena, res, entry);
+        }
+    } while (FindNextFile(hFind, &fdFile));
+    FindClose(hFind);
+
+    return res;
 }
 
 OSMmap os_file_map(FileHandle file_desc, U64 size, Result *res)

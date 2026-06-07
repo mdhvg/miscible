@@ -304,7 +304,7 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
             }
             B32 write_success = ToBool(stbi_write_tga(CStrCast(row.path), ATLAS_SIZE, ATLAS_SIZE, ATLAS_CHANNELS, atlas_data));
             Assert(write_success, "failed to save image (%.*s)", StringSpr(row.path));
-            mscbl_log_dbg("Written atlas: %.*s", StringSpr(row.path));
+            mscbl_log_info("Written atlas: %.*s", StringSpr(row.path));
 
             // NOTE: only writes to DB if everything up till here succeeds
             db_run("COMMIT;");

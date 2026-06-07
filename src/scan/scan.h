@@ -8,10 +8,6 @@
 
 extern Arena *scan_arena;
 
-// Visible functions
-// MSCBL_API void scan_restart();
-// void scan_update();
-
 struct ImageRow
 {
     S64 id;
@@ -31,7 +27,7 @@ ThreadFunc(read_image);
 ThreadFunc(draw_image);
 ThreadFunc(scan_routine);
 DBStmtCbk(push_imagerow);
-MSCBL_API void scan_new_dir();
+MSCBL_API void scan_new_dir(Arena *arena);
 void scan_atlas_bake(Arena *arena, ImageRow *inserted);
 
 // Atlas building

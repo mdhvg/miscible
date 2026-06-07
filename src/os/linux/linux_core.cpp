@@ -32,7 +32,7 @@ void os_cleanup()
 {
 }
 
-void os_mkdir(String path)
+void os_mkdirs(String path)
 {
     struct stat st = {};
     if (stat(CStrCast(path), &st) == -1)

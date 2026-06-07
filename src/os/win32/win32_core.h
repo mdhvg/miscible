@@ -37,6 +37,7 @@ inline void win32_sleep_ms(U64 ms)
 }
 
 MSCBL_API void win32_format_path(StringBuilder *dir);
+global_v void win32_to_unix_timestamp(U64 *win_timestamp);
 
 inline LibAddress os_libfunc(LibHandle lib, const char *symbol)
 {

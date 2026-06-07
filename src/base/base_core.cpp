@@ -21,15 +21,15 @@ void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out)
     }
 }
 
-U64 date_to_timestamp(Date date)
+U64 time_to_timestamp(Time time)
 {
     // NOTE: it's only a calculation of days since 1 Jan 1970 (UNIX epoch)
-    U64 days_since = (date.year - 1970) * 365;
-    U64 leap_years = ((date.year - 1) / 4) - ((date.year - 1) / 100) + ((date.year - 1) / 400) - 477;
+    U64 days_since = (time.year - 1970) * 365;
+    U64 leap_years = ((time.year - 1) / 4) - ((time.year - 1) / 100) + ((time.year - 1) / 400) - 477;
 
     days_since += leap_years;
 
-    for (S32 mon = Month_Jan; mon < date.month; mon++)
+    for (S32 mon = Month_Jan; mon < time.month; mon++)
     {
         switch (mon)
         {
@@ -51,7 +51,7 @@ U64 date_to_timestamp(Date date)
             break;
 
         case Month_Feb:
-            if (date.year % 4 == 0 && (date.year % 100 != 0 || date.year % 400 == 0))
+            if (time.year % 4 == 0 && (time.year % 100 != 0 || time.year % 400 == 0))
                 days_since += 29;
             else
                 days_since += 28;
@@ -60,26 +60,26 @@ U64 date_to_timestamp(Date date)
     }
 
     // NOTE: -1 means first second of the day
-    days_since += date.date - 1;
+    days_since += time.date - 1;
 
     return days_since * 86400;
 }
 
-Date timestamp_to_date(U64 timestamp)
+Time timestamp_to_time(U64 timestamp)
 {
     // NOTE: it's only a calculation of days since 1 Jan 1970 (UNIX epoch)
     U64 days_size = timestamp / 86400;
 
-    Date date = {.date = 1, .month = Month_Jan, .year = 1970};
+    Time time = {.date = 1, .month = Month_Jan, .year = 1970};
 
     while (1)
     {
-        U32 days_in_year = (date.year % 4 == 0 && (date.year % 100 != 0 || date.year % 400 == 0)) ? 366 : 365;
+        U32 days_in_year = (time.year % 4 == 0 && (time.year % 100 != 0 || time.year % 400 == 0)) ? 366 : 365;
         if (days_size < days_in_year)
             break;
 
         days_size -= days_in_year;
-        date.year++;
+        time.year++;
     }
 
     for (U32 mon = Month_Jan; mon <= Month_Dec; mon++)
@@ -103,27 +103,27 @@ Date timestamp_to_date(U64 timestamp)
             days_in_mon = 30;
             break;
         case Month_Feb:
-            days_in_mon = (date.year % 4 == 0 && (date.year % 100 != 0 || date.year % 400 == 0)) ? 29 : 28;
+            days_in_mon = (time.year % 4 == 0 && (time.year % 100 != 0 || time.year % 400 == 0)) ? 29 : 28;
             break;
         }
 
         if (days_size < days_in_mon)
         {
-            date.month = (Month)mon;
+            time.month = (Month)mon;
             break;
         }
         days_size -= days_in_mon;
     }
 
     // NOTE: +1 adjust for 0 indexing
-    date.date = days_size + 1;
+    time.date = days_size + 1;
 
-    return date;
+    return time;
 }
 
-U32 month_days(Date date)
+U32 month_days(Time time)
 {
-    switch (date.month)
+    switch (time.month)
     {
     case Month_Jan:
     case Month_Mar:
@@ -141,7 +141,7 @@ U32 month_days(Date date)
         return 30;
 
     case Month_Feb:
-        if (date.year % 4 == 0 && (date.year % 100 != 0 || date.year % 400 == 0))
+        if (time.year % 4 == 0 && (time.year % 100 != 0 || time.year % 400 == 0))
             return 29;
         else
             return 28;

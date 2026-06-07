@@ -163,7 +163,7 @@ String view_build_default_query(ViewQuery request, Arena *arena, String *filters
     for (S64 i = 0; i < da_getsize(queries); i++)
         string_push(&query, queries[i]);
 
-    mscbl_log_dbg("Query: %.*s", StringSpr(query));
+    mscbl_log_info("Query: %.*s", StringSpr(query));
 
     return StringCast(query);
 }
@@ -207,7 +207,7 @@ String view_build_fts_query(ViewQuery request, Arena *arena, String *filters)
     for (S64 i = 0; i < da_getsize(queries); i++)
         string_push(&query, queries[i]);
 
-    mscbl_log_dbg("Query: %.*s", StringSpr(query));
+    mscbl_log_info("Query: %.*s", StringSpr(query));
 
     return StringCast(query);
 }
@@ -227,7 +227,7 @@ String view_build_embedding_query(ViewQuery request, Arena *arena, String *filte
     for (S64 i = 0; i < da_getsize(queries); i++)
         string_push(&query, queries[i]);
 
-    mscbl_log_dbg("Query: %.*s", StringSpr(query));
+    mscbl_log_info("Query: %.*s", StringSpr(query));
 
     return StringCast(query);
 }
@@ -300,8 +300,8 @@ DBStmtCbk(view_push_result)
         da_push(view.back.arena, view.back.groups, group);
     }
 
-    // mscbl_log_dbg("|%3zu|%.*s|%.*s|%07zu|%10zu|%10zu|%02zu|%2.4f|", id, StringSpr(path), StringSpr(filename), size, ctime, mtime, source, distance);
-    // mscbl_log_dbg("|%3zu|%02d|%2.4f|", id, source, distance);
+    // mscbl_log_info("|%3zu|%.*s|%.*s|%07zu|%10zu|%10zu|%02zu|%2.4f|", id, StringSpr(path), StringSpr(filename), size, ctime, mtime, source, distance);
+    // mscbl_log_info("|%3zu|%02d|%2.4f|", id, source, distance);
 }
 
 ThreadFunc(view_run_query)
@@ -354,7 +354,7 @@ ThreadFunc(view_run_query)
                 break;
             case FilterType_DateCreatedAfter:
             case FilterType_DateModifiedAfter:
-                sqlite3_bind_int64(stmt, cursor, date_to_timestamp(f0.val_date));
+                sqlite3_bind_int64(stmt, cursor, time_to_timestamp(f0.val_date));
                 break;
             case FilterType_EmbeddingDistanceGreater:
                 // TODO: This case

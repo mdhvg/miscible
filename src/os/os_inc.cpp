@@ -2,7 +2,6 @@
 #include "os/os_inc.h"
 
 OSInfo os_info = {0};
-OSchar scratch[KB(16)] = {0};
 
 #if OS_WINDOWS
 #include "os/win32/win32_core.cpp"

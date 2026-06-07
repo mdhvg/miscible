@@ -170,14 +170,14 @@ void clip_load_text_model(Arena *arena, clip_ctx *clip, clip_text_model *text_mo
         vocab->token_to_id[token] = id;
     }
 
-    mscbl_log_dbg("text model hparams");
-    mscbl_log_dbg("n_vocab            %d", hparams->n_vocab);
-    mscbl_log_dbg("num_positions      %d", hparams->num_positions);
-    mscbl_log_dbg("t_hidden_size      %d", hparams->hidden_size);
-    mscbl_log_dbg("t_n_intermediate   %d", hparams->n_intermediate);
-    mscbl_log_dbg("t_projection_dim   %d", hparams->projection_dim);
-    mscbl_log_dbg("t_n_head           %d", hparams->n_head);
-    mscbl_log_dbg("t_n_layer          %d", hparams->n_layer);
+    mscbl_log_info("text model hparams");
+    mscbl_log_info("n_vocab            %d", hparams->n_vocab);
+    mscbl_log_info("num_positions      %d", hparams->num_positions);
+    mscbl_log_info("t_hidden_size      %d", hparams->hidden_size);
+    mscbl_log_info("t_n_intermediate   %d", hparams->n_intermediate);
+    mscbl_log_info("t_projection_dim   %d", hparams->projection_dim);
+    mscbl_log_info("t_n_head           %d", hparams->n_head);
+    mscbl_log_info("t_n_layer          %d", hparams->n_layer);
 
     text_model->token_embeddings = get_tensor(model_ctx, format_cstr(&keys, TN_TOKEN_EMBD, "t"));
     text_model->position_embeddings = get_tensor(model_ctx, format_cstr(&keys, TN_POS_EMBD, "t"));
@@ -207,8 +207,8 @@ void clip_load_text_model(Arena *arena, clip_ctx *clip, clip_text_model *text_mo
         layer->ff_o_b = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "t", il, "bias"));
     }
 
-    mscbl_log_dbg("Used mem: %zu", ggml_used_mem(model_ctx));
-    mscbl_log_dbg("Backend Size: %zu", ggml_backend_buffer_get_size(text_model->backend_buf));
+    mscbl_log_info("Used mem: %zu", ggml_used_mem(model_ctx));
+    mscbl_log_info("Backend Size: %zu", ggml_backend_buffer_get_size(text_model->backend_buf));
 
     U64 mem_size = ggml_tensor_overhead() * GGML_DEFAULT_GRAPH_SIZE + ggml_graph_overhead();
     text_model->graph_ctx = ggml_init({.mem_size = mem_size,
@@ -252,14 +252,14 @@ void clip_load_vision_model(Arena *arena, clip_ctx *clip, clip_vision_model *vis
         clip->image_std[i] = ((F32 *)gguf_get_arr_data(gguf_ctx, idx_std))[i];
     }
 
-    mscbl_log_dbg("vision model hparams");
-    mscbl_log_dbg("image_size         %d", hparams->image_size);
-    mscbl_log_dbg("patch_size         %d", hparams->patch_size);
-    mscbl_log_dbg("v_hidden_size      %d", hparams->hidden_size);
-    mscbl_log_dbg("v_n_intermediate   %d", hparams->n_intermediate);
-    mscbl_log_dbg("v_projection_dim   %d", hparams->projection_dim);
-    mscbl_log_dbg("v_n_head           %d", hparams->n_head);
-    mscbl_log_dbg("v_n_layer          %d", hparams->n_layer);
+    mscbl_log_info("vision model hparams");
+    mscbl_log_info("image_size         %d", hparams->image_size);
+    mscbl_log_info("patch_size         %d", hparams->patch_size);
+    mscbl_log_info("v_hidden_size      %d", hparams->hidden_size);
+    mscbl_log_info("v_n_intermediate   %d", hparams->n_intermediate);
+    mscbl_log_info("v_projection_dim   %d", hparams->projection_dim);
+    mscbl_log_info("v_n_head           %d", hparams->n_head);
+    mscbl_log_info("v_n_layer          %d", hparams->n_layer);
 
     vision_model->patch_embeddings = get_tensor(model_ctx, TN_PATCH_EMBD);
     vision_model->class_embedding = get_tensor(model_ctx, TN_CLASS_EMBD);
@@ -292,8 +292,8 @@ void clip_load_vision_model(Arena *arena, clip_ctx *clip, clip_vision_model *vis
         layer->ff_o_b = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "v", il, "bias"));
     }
 
-    mscbl_log_dbg("Used mem: %zu", ggml_used_mem(model_ctx));
-    mscbl_log_dbg("Backend Size: %zu", ggml_backend_buffer_get_size(vision_model->backend_buf));
+    mscbl_log_info("Used mem: %zu", ggml_used_mem(model_ctx));
+    mscbl_log_info("Backend Size: %zu", ggml_backend_buffer_get_size(vision_model->backend_buf));
 
     U64 mem_size = ggml_tensor_overhead() * GGML_DEFAULT_GRAPH_SIZE + ggml_graph_overhead();
     vision_model->graph_ctx = ggml_init({.mem_size = mem_size,
@@ -333,19 +333,19 @@ Result clip_model_load(Arena *arena, clip_ctx *clip, String model_path)
     idx_desc = get_key_idx(gguf_ctx, KEY_DESCRIPTION);
     idx_name = gguf_find_key(gguf_ctx, KEY_NAME);
     if (idx_name != -1)
-        mscbl_log_dbg("model name:   %s", gguf_get_val_str(gguf_ctx, idx_name));
-    mscbl_log_dbg("description:  %s", gguf_get_val_str(gguf_ctx, idx_desc));
-    mscbl_log_dbg("GGUF version: %d", gguf_get_version(gguf_ctx));
-    mscbl_log_dbg("alignment:    %zu", gguf_get_alignment(gguf_ctx));
-    mscbl_log_dbg("n_tensors:    %d", n_tensors);
-    mscbl_log_dbg("n_kv:         %d", n_kv);
-    mscbl_log_dbg("ftype:        %s", get_ftype(ftype));
+        mscbl_log_info("model name:   %s", gguf_get_val_str(gguf_ctx, idx_name));
+    mscbl_log_info("description:  %s", gguf_get_val_str(gguf_ctx, idx_desc));
+    mscbl_log_info("GGUF version: %d", gguf_get_version(gguf_ctx));
+    mscbl_log_info("alignment:    %zu", gguf_get_alignment(gguf_ctx));
+    mscbl_log_info("n_tensors:    %d", n_tensors);
+    mscbl_log_info("n_kv:         %d", n_kv);
+    mscbl_log_info("ftype:        %s", get_ftype(ftype));
 
     // kv
     for (S32 i = 0; i < n_kv; ++i)
     {
         const char *key = gguf_get_key(gguf_ctx, i);
-        mscbl_log_dbg("kv[%d]: key = %s", i, key);
+        // mscbl_log_info("kv[%d]: key = %s", i, key);
     }
 
     // data
@@ -354,7 +354,7 @@ Result clip_model_load(Arena *arena, clip_ctx *clip, String model_path)
         const char *name = gguf_get_tensor_name(gguf_ctx, i);
         const size_t offset = gguf_get_tensor_offset(gguf_ctx, i);
 
-        mscbl_log_dbg("tensor[%d]: name = %s, offset=%zu", i, name, offset);
+        // mscbl_log_info("tensor[%d]: name = %s, offset=%zu", i, name, offset);
     }
 
     // model size and capabilities
@@ -367,9 +367,9 @@ Result clip_model_load(Arena *arena, clip_ctx *clip, String model_path)
     idx = get_key_idx(gguf_ctx, KEY_USE_GELU);
     clip->use_gelu = gguf_get_val_bool(gguf_ctx, idx);
 
-    mscbl_log_dbg("text_encoder:   %d", clip->has_text_encoder);
-    mscbl_log_dbg("vision_encoder: %d", clip->has_vision_encoder);
-    mscbl_log_dbg("model size:     %.2f MB", gguf_get_meta_size(gguf_ctx) / (float)MB(1));
+    mscbl_log_info("text_encoder:   %d", clip->has_text_encoder);
+    mscbl_log_info("vision_encoder: %d", clip->has_vision_encoder);
+    mscbl_log_info("model size:     %.2f MB", gguf_get_meta_size(gguf_ctx) / (float)MB(1));
 
     text_model_mem_size = 0;
     vision_model_mem_size = 0;
@@ -436,7 +436,7 @@ Result clip_model_load(Arena *arena, clip_ctx *clip, String model_path)
     if (clip->has_vision_encoder)
         clip_load_vision_model(arena, clip, &clip->vision_model, temp_ctx, gguf_ctx);
 
-    mscbl_log_dbg("Used mem: %zu", ggml_used_mem(temp_ctx));
+    mscbl_log_info("Used mem: %zu", ggml_used_mem(temp_ctx));
 
 Cleanup:
     if (temp_ctx)

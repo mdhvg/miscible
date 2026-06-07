@@ -32,7 +32,7 @@ struct ViewFilter
     union {
         // NOTE: order from largest to smallest
         String val_str;
-        Date val_date;
+        Time val_date;
         ByteSize val_bytes;
         F32 val_float;
     };

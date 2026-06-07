@@ -25,8 +25,8 @@ DBStmtCbk(push_image)
     String filename = string_copy(arena, sqlite3_column_text(stmt, 6));
     ByteSize size = size_to_bytesize(sqlite3_column_int64(stmt, 7));
 
-    Date mtime = timestamp_to_date(sqlite3_column_int64(stmt, 8));
-    Date ctime = timestamp_to_date(sqlite3_column_int64(stmt, 9));
+    Time mtime = timestamp_to_time(sqlite3_column_int64(stmt, 8));
+    Time ctime = timestamp_to_time(sqlite3_column_int64(stmt, 9));
 
     S32 width = sqlite3_column_int(stmt, 10);
     S32 height = sqlite3_column_int(stmt, 11);
@@ -79,7 +79,7 @@ DBStmtCbk(push_atlas)
         threadpool_enqueue(TaskPriority_Realtime, task);
     }
     else
-        mscbl_log_dbg("Skipped atlas [%zu] %.*s", id, StringSpr(path));
+        mscbl_log_info("Skipped atlas [%zu] %.*s", id, StringSpr(path));
 }
 
 DBStmtCbk(push_dirs)

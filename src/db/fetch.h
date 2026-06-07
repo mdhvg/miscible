@@ -12,7 +12,7 @@ struct Image
 
     String path, filename;
     ByteSize size;
-    Date mtime, ctime;
+    Time mtime, ctime;
     S32 width, height, channels;
 };
 

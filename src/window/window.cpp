@@ -52,16 +52,16 @@ B32 window_init()
     Assert(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress), "Failed to initialize OpenGL loader!");
     win.begint = glfwGetTime();
 
-    mscbl_log_dbg("OpenGL Version: %s", glGetString(GL_VERSION));
-    mscbl_log_dbg("GLSL Version: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
-    mscbl_log_dbg("GPU Vendor: %s", glGetString(GL_VENDOR));
-    mscbl_log_dbg("Renderer: %s", glGetString(GL_RENDERER));
+    mscbl_log_info("OpenGL Version: %s", glGetString(GL_VERSION));
+    mscbl_log_info("GLSL Version: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
+    mscbl_log_info("GPU Vendor: %s", glGetString(GL_VENDOR));
+    mscbl_log_info("Renderer: %s", glGetString(GL_RENDERER));
     S32 maxTextureUnits = 0;
     glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxTextureUnits);
-    mscbl_log_dbg("Maximum texture units: %d", maxTextureUnits);
+    mscbl_log_info("Maximum texture units: %d", maxTextureUnits);
     S32 maxLayers;
     glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &maxLayers);
-    mscbl_log_dbg("Maximum texture array layers supported: %d", maxLayers);
+    mscbl_log_info("Maximum texture array layers supported: %d", maxLayers);
     win.active = 1;
     return 1;
 }

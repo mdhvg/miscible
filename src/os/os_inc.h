@@ -22,6 +22,12 @@ union Guid {
     U8 v[16];
 };
 
+struct FileMTime
+{
+    String path;
+    U64 mtime;
+};
+
 #if OS_WINDOWS
 #include "os/win32/win32_core.h"
 #elif OS_LINUX
@@ -56,14 +62,21 @@ typedef struct OSMmap OSMmap;
 Guid os_make_guid();
 void os_prelaunch();
 void os_cleanup();
+
+String os_env_var(const char *name, Arena *arena);
 const char *os_gethome();
-void os_mkdir(String path);
+void os_mkdirs(String path);
+U64 os_get_timestamp();
+Time os_get_localtime();
+
+U64 os_get_ticks_now();
+U64 os_get_ticks_freq();
 
 LibHandle os_loadlib(const char *filename);
 LibAddress os_libfunc(LibHandle lib, const char *symbol);
 void os_closelib(LibHandle lib);
 
-MSCBL_API OSString os_select_dir(const OSchar *title, const OSchar *default_path);
+MSCBL_API OSString os_select_dir(const OSchar *title, const OSchar *default_path, Arena *arena);
 B32 os_path_exists(String path, Result *res);
 
 MSCBL_API void *os_reserve(void *ptr, U64 size);
@@ -83,6 +96,7 @@ enum
 {
     FileAccess_Read = (1 << 0),
     FileAccess_Write = (1 << 1),
+    FileAccess_Append = (1 << 2),
 };
 
 enum FileMode
@@ -92,11 +106,13 @@ enum FileMode
 };
 
 FileHandle os_file_open(String path, FileAccess access, FileMode mode, Result *res, U64 size = 0);
+void os_file_delete(String path, Result *res);
 void os_file_close(FileHandle file_desc, Result *res);
 U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset = 0);
 U32 os_file_read(FileHandle file_desc, U64 size, U8 *buffer, Result *res);
 U64 os_file_size(FileHandle file_desc, Result *res);
 void os_file_rename(String old_path, String new_path);
+FileMTime *os_list_by_pattern(String pattern, String base, Arena *arena);
 
 #define os_map_get_data(map) (map.data)
 // NOTE: Linux requires file to be of `size` size, so use `ftruncate` first

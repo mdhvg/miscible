@@ -1,6 +1,5 @@
-#include "base/array.h"
-#include "db/fetch.h"
 #include "db/view.h"
+#include "db/fetch.h"
 #include "scan/scan.h"
 #include "base/string.h"
 #include "base/threadpool.h"
@@ -33,7 +32,7 @@ ThreadFunc(scan_routine)
 #if OS_WINDOWS
     sqlite3_bind_text16(stmt, 1, dir.v, dir.size * sizeof(wchar), SQLITE_STATIC);
 #elif OS_LINUX
-    sqlite3_bind_text(stmt, 1, dir.v, dir.size, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 1, CStrCast(dir.v), dir.size, SQLITE_STATIC);
 #endif
     db_run_stmt(stmt, 1);
 
@@ -47,20 +46,25 @@ ThreadFunc(scan_routine)
     threadpool_enqueue(TaskPriority_Low, {.func = model_insert_embedding});
 }
 
-void scan_new_dir()
+void scan_new_dir(Arena *arena)
 {
-    OSString dir = os_select_dir(W("Select Directory"), NULL);
+    OSString dir = os_select_dir(W("Select Directory"), NULL, arena);
     if (dir.size)
     {
         sqlite3_stmt *stmt = db_prepare("INSERT INTO DirSelect(path) VALUES(?);");
 #if OS_WINDOWS
         sqlite3_bind_text16(stmt, 1, dir.v, dir.size * sizeof(wchar), SQLITE_STATIC);
 #elif OS_LINUX
-        sqlite3_bind_text(stmt, 1, dir.v, dir.size, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, 1, CStrCast(dir), dir.size, SQLITE_STATIC);
 #endif
         db_run_stmt(stmt, 1);
 
-        TPData args = {.kind = TPData_OSString, .val_os_str = dir};
-        threadpool_enqueue(TaskPriority_High, {scan_routine, args});
+        AsyncTask task = {
+            .func = scan_routine,
+            .data = {
+                .kind = TPData_OSString,
+                .val_os_str = dir,
+            }};
+        threadpool_enqueue(TaskPriority_High, task);
     }
 }

@@ -110,7 +110,7 @@ int trace_callback(unsigned int type, void *context, void *p, void *x)
     {
         sqlite3_stmt *stmt = (sqlite3_stmt *)p;
         char *sql = sqlite3_expanded_sql(stmt);
-        mscbl_log_dbg("STMT: %s", sql);
+        mscbl_log_info("STMT: %s", sql);
         sqlite3_free(sql);
     }
 

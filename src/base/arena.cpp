@@ -64,7 +64,7 @@ void *arena_push(Arena *a, U64 size, U8 zero, U64 align)
     if (commit_size > a->cmt_size)
     {
         // Then we need to commit more memory
-        // mscbl_log_dbg(Arena, "Commiting memory: 0x%X\tsize: %zu", a->base, cmt_size);
+        // mscbl_log_info(Arena, "Commiting memory: 0x%X\tsize: %zu", a->base, cmt_size);
         os_commit(a, commit_size);
     }
 

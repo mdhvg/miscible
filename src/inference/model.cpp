@@ -118,7 +118,7 @@ void model_insert_embedding_impl(Arena *arena)
     ggml_gallocr_t allocr = ggml_gallocr_new(ggml_backend_get_default_buffer_type(vision_model->backend));
     ggml_gallocr_alloc_graph(allocr, graph);
 
-    // mscbl_log_dbg("Graph context mem usage: %zu/%zu (%.2f%%)",
+    // mscbl_log_info("Graph context mem usage: %zu/%zu (%.2f%%)",
     //               ggml_used_mem(graph_ctx), ggml_get_mem_size(graph_ctx),
     //               (float)ggml_used_mem(graph_ctx) / (float)ggml_get_mem_size(graph_ctx) * 100.0f);
 
@@ -736,7 +736,7 @@ B32 model_download(Arena *arena, ModelConfig *model_cfg)
 
 DBStmtCbk(print_dist)
 {
-    mscbl_log_dbg(
+    mscbl_log_info(
         "id: %zu, path: %s, distance: %.6f",
         sqlite3_column_int64(stmt, 0),
         sqlite3_column_text(stmt, 1),
@@ -755,6 +755,6 @@ Embedding model_embed_text(Arena *arena, String text)
 
     // sqlite3_stmt *stmt = db_prepare("SELECT id, path, distance_cosine_f32(embedding, ?) AS distance FROM Images WHERE embedding IS NOT NULL ORDER BY distance ASC LIMIT 10;");
     // sqlite3_bind_blob(stmt, 1, embedding, 512 * sizeof(F32), SQLITE_STATIC);
-    // mscbl_log_dbg("Returned %zu rows", db_run_stmt(stmt, 1, print_dist));
+    // mscbl_log_info("Returned %zu rows", db_run_stmt(stmt, 1, print_dist));
     return embedding;
 }

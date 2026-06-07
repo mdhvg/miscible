@@ -163,16 +163,16 @@ enum Month
     Month_Dec,
 };
 
-struct Date
+struct Time
 {
     U32 date;
     Month month;
     S32 year;
 
-    // NOTE: Later, maybe add time also?
-    // U32 hour;
-    // U32 minute;
-    // U32 second;
+    U32 hour;
+    U32 minute;
+    U32 second;
+    U32 milsec;
 };
 
 enum ResultDomain
@@ -281,15 +281,14 @@ struct Result
 
 void bytes_as_hex_lower(U8 *data, U64 start, U64 len, char *out);
 void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
-U64 date_to_timestamp(Date date);
-Date timestamp_to_date(U64 timestamp);
-MSCBL_API U32 month_days(Date date);
+U64 time_to_timestamp(Time date);
+Time timestamp_to_time(U64 timestamp);
+MSCBL_API U32 month_days(Time date);
 MSCBL_API ByteSize size_to_bytesize(U64 size);
 
 // TODO: Move these to some other place
 #define APP_NAME Miscible
 
-// #define MODEL_PATH  ROOT_DIR "/CLIP-ViT-B-32-laion2B-s34B-b79K.gguf"
 #define ATLAS_DIR   "atlas"
 #define DB_FILE     "miscible.sqlite"
 #define CONFIG_FILE "miscible.yaml"
@@ -299,3 +298,14 @@ MSCBL_API ByteSize size_to_bytesize(U64 size);
 #define ATLAS_CHANNELS 4
 #define THUMB_PER_SIDE 10
 #define THUMB_SIZE     256
+
+#if OS_WINDOWS
+#define LOG_BASE_ENV "LOCALAPPDATA"
+#define LOG_APPEND   Stringify(APP_NAME) "\\logs\\"
+#elif OS_LINUX
+#define LOG_BASE_ENV "HOME"
+#define LOG_APPEND   ".local/share/" Stringify(APP_NAME) "/logs/"
+#endif
+
+#define LOG_FILE_NAME_PRE Stringify(APP_NAME) "_log_"
+#define LOG_FILE_NAME_EXT ".log"
