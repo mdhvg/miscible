@@ -24,18 +24,18 @@ SizeUnits formatted_size(U64 size)
 
 #if DBG
 global_v LibHandle pages = 0;
-global_v UIfn restyle = NULL;
+global_v PageFn restyle = NULL;
 
 void ui_reload()
 {
     if (pages)
         os_closelib(pages);
     pages = os_loadlib("build/pages");
-    restyle = (UIfn)os_libfunc(pages, "restyle");
+    restyle = (PageFn)os_libfunc(pages, "restyle");
 
     for (S32 i = 0; i < UIPage_COUNT; i++)
     {
-        page_data[i].fn = (UIfn)os_libfunc(pages, page_data[i].fn_name);
+        page_data[i].fn = (PageFn)os_libfunc(pages, page_data[i].fn_name);
     }
     arena_clear(ui_state.arena);
 }

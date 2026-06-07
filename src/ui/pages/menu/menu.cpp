@@ -1,3 +1,4 @@
+#include "base/base_core.h"
 #include "gl/gl_core.h"
 #include "ui/pages/pages.h"
 #include "ui/pages/menu/menu.h"
@@ -43,6 +44,7 @@ void directory_tree(DirKey cur = 1)
     ImGui::SameLine();
     DirTree dir = dir_tree[cur];
     StringBuilder sb = string_empty(ui_state.page_arena);
+    // TODO: Make this dirname use stack buffer
     const char *dirname = format_cstr(&sb, ICON_LC_FOLDER " %.*s", StringSpr(dir.name));
     Assert(dirname, "dirname is null");
 
@@ -102,7 +104,7 @@ void menu_draw_docked_sidebar(ImGuiWindowFlags flags)
         ImGui::SameLine(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(ICON_LC_PLUS).x);
         if (ImGui::Button(ICON_LC_PLUS))
         {
-            scan_new_dir();
+            scan_new_dir(ui_state.arena);
         }
 
         ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -173,7 +175,6 @@ void main_grid()
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 
-    StringBuilder sb = string_empty(ui_state.page_arena);
     S64 total_rendered = 0;
 
     ViewResult view_result = view_get_result();
@@ -215,7 +216,7 @@ void main_grid()
                         "##ImgBtn",
                         atl.tex, {thumbnail_size, thumbnail_size}, {x / THUMB_PER_SIDE, y / THUMB_PER_SIDE}, {(x + 1) / THUMB_PER_SIDE, (y + 1) / THUMB_PER_SIDE}))
                 {
-                    ui_state.page = UIPage_PREVIEW;
+                    switch_page = 1;
                     ui_preview.image_id = image_id;
 
                     ui_preview.render_args = {
@@ -656,6 +657,7 @@ void menu_draw_docked_status(ImGuiWindowFlags flags)
 
 MSCBL_EXP void page_menu()
 {
+    switch_page = 0;
     ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
     ImGuiViewport *viewport = ImGui::GetMainViewport();
     if (last_work_size.x != viewport->WorkSize.x || last_work_size.y != viewport->WorkSize.y)
@@ -709,4 +711,10 @@ MSCBL_EXP void page_menu()
     menu_draw_docked_sidebar(window_flags);
     menu_draw_docked_main(window_flags);
     menu_draw_docked_status(window_flags);
+
+    if (switch_page)
+    {
+        needs_rebuild = 1;
+        ui_state.page = UIPage_PREVIEW;
+    }
 }

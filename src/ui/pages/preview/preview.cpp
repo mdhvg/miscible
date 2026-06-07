@@ -1,3 +1,4 @@
+#include "imgui.h"
 #include "ui/pages/pages.h"
 #include "ui/pages/preview/preview.h"
 
@@ -11,7 +12,6 @@
 #define MAX_ZOOM   10.0f
 
 local_v Image *image = NULL;
-local_v B32 switch_page = 0;
 local_v B32 infobar_open = 0;
 local_v F32 canvas_zoom = 1.0f;
 local_v ImVec2 canvas_offset = {0.0f, 0.0f};
@@ -222,7 +222,11 @@ MSCBL_EXP void page_preview()
 
     if (switch_page)
     {
-        ui_state.page = UIPage_MENU;
+        canvas_offset = ImVec2(0.0f, 0.0f);
+        canvas_zoom = 0.0f;
         image = NULL;
+
+        needs_rebuild = 1;
+        ui_state.page = UIPage_MENU;
     }
 }

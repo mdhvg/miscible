@@ -4,7 +4,7 @@
 
 #include "base/base_core.h"
 
-typedef void (*UIfn)(void);
+typedef void (*PageFn)(void);
 
 enum UIPage
 {
@@ -17,7 +17,7 @@ enum UIPage
 struct PageData
 {
     const char *fn_name;
-    UIfn fn;
+    PageFn fn;
 };
 
 global_v PageData page_data[] = {
@@ -29,10 +29,12 @@ MSCBL_EXP void restyle();
 MSCBL_EXP void page_menu();
 MSCBL_EXP void page_preview();
 
-global_v pagefn page_data[] = {
+global_v PageFn page_data[] = {
     page_menu,
-    page_preview};
+    page_preview,
+};
 #endif
 
+local_v B32 switch_page = 0;
 local_v B32 needs_rebuild = 1;
 local_v ImVec2 last_work_size = {0, 0};
