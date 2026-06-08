@@ -6,7 +6,7 @@
 
 Arena *arena_head = NULL;
 
-#if ARENA_DBG
+#if DBG
 void _arena_alloc(U64 capacity, Arena **arena, const char *name)
 #else
 void _arena_alloc(U64 capacity, Arena **arena)
@@ -25,7 +25,7 @@ void _arena_alloc(U64 capacity, Arena **arena)
     a->min_cmt = os_info.page_size;
     a->cmt_size = cmt_size;
 
-#if ARENA_DBG
+#if DBG
     a->next = NULL;
     a->name = name;
 
@@ -100,7 +100,7 @@ void arena_pop(Arena *a, U64 pos)
 
 void arena_free(Arena *a)
 {
-#if ARENA_DBG
+#if DBG
     Arena *parent = arena_head;
     while (parent->next != a)
         parent = parent->next;
@@ -158,29 +158,3 @@ void arena_array_clear(ArenaArray aa)
         arena_clear(aa.v[i]);
     }
 }
-
-// void arena_db_alloc(ArenaDoubleBuffer *arena, U64 capacity)
-// {
-//     arena_alloc(capacity, arena->buffer[0]);
-//     arena_alloc(capacity, arena->buffer[1]);
-//     arena->front  = arena->buffer[0];
-//     arena->back   = arena->buffer[1];
-//     arena->active = 0;
-// }
-//
-// void arena_db_switch(ArenaDoubleBuffer *arena)
-// {
-//     if (arena->active == 1)
-//     {
-//         arena->front  = arena->buffer[0];
-//         arena->back   = arena->buffer[1];
-//         arena->active = 0;
-//     }
-//     else
-//     {
-//         arena->front  = arena->buffer[1];
-//         arena->back   = arena->buffer[0];
-//         arena->active = 1;
-//     }
-//     arena_clear(arena->front);
-// }

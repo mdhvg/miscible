@@ -6,6 +6,7 @@ struct Settings
 {
     U64 scan_depth;
     F32 font_size;
+    U64 log_age_days;
 };
 
 struct ViewSettings

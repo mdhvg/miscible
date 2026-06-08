@@ -123,6 +123,11 @@ void os_mkdirs(String path)
             buffer[i] = cur;
         }
     }
+
+    BOOL success = CreateDirectory(buffer, NULL);
+    DWORD err = GetLastError();
+
+    Assert(success || err == ERROR_ALREADY_EXISTS, "Failed to create directory (%s)", buffer);
 }
 
 U64 os_get_timestamp()

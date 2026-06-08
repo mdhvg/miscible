@@ -124,7 +124,9 @@ void db_init(String path, const char *command)
     char *err = NULL;
     Assert(init_sqlite(dbP, &err, NULL) == SQLITE_OK, "%s", err);
     _db_run_bypass(command, true);
-    // sqlite3_trace_v2(dbP, SQLITE_TRACE_STMT, trace_callback, NULL);
+#if DBG
+    sqlite3_trace_v2(dbP, SQLITE_TRACE_STMT, trace_callback, NULL);
+#endif
     db_initialized = true;
     db_cv.notify_all();
 }

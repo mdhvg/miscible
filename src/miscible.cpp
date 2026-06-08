@@ -2,6 +2,8 @@
 
 #include "base/arena.h"
 #include "base/base_core.cpp"
+#include "base/log.h"
+#include "base/log.cpp"
 #include "base/threadpool.h"
 #include "gl/gl_core.h"
 #include "os/os_inc.h"
@@ -47,18 +49,19 @@ void prelaunch()
     threadpool_free(),  \
         ui_close(),     \
         window_close(), \
-        gl_close()
+        gl_close(),     \
+        mscbl_log_deinit()
 
 S32 mscbl_start(S32 argc, char **argv)
 {
-    cli_args = make_default_args();
+    // cli_args = make_default_args();
 
     // Parse arguments
-    if (!parse_args(argc, argv, &cli_args) || cli_args.help)
-    {
-        print_help(argv[0]);
-        return 1;
-    }
+    // if (!parse_args(argc, argv, &cli_args) || cli_args.help)
+    // {
+    //     print_help(argv[0]);
+    //     return 1;
+    // }
 
 #if defined(RDOC)
 #if OS_WINDOWS
@@ -73,7 +76,8 @@ S32 mscbl_start(S32 argc, char **argv)
 
     prelaunch();
 
-    os_info.worker_count = 4;
+    mscbl_log_init();
+
     threadpool_init(os_info.worker_count);
     // TODO: Make a single task function (probably with a queue) in threadpool also
     if (!window_init())
@@ -82,24 +86,15 @@ S32 mscbl_start(S32 argc, char **argv)
     db_make();
     ui_init();
     view_init();
-    // scan_restart();
-
     init_mscbl();
-    // threadpool_taskgraph();
-
-    // F32 *sample = push_array(mscbl.persistent_arena, 512, F32);
-    // db_run("SELECT Images.embedding FROM Images LIMIT 1;", get_sample, sample);
-    // sqlite3_stmt *stmt = db_prepare("SELECT id, path, distance_cosine_f32(embedding, ?) AS distance FROM Images WHERE embedding IS NOT NULL AND distance < 0.5 ORDER BY distance ASC;");
-    // sqlite3_bind_blob(stmt, 1, sample, 512 * sizeof(F32), SQLITE_STATIC);
-    // db_run_stmt(stmt, 1, print_dist);
 
     while (win.active)
     {
-        // scan_update();
         // Do non-UI things here
         window_poll();
         ui_update();
         ui_render();
+
         // Do stuff here for UI
         window_update();
 

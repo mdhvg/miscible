@@ -18,8 +18,11 @@
 // .c, .cpp
 #include "gl/gl_core.cpp"
 #include "ui/ui_utils.cpp"
-#include "ui/ui_debug.cpp"
 #include "ui/widgets.cpp"
+
+#if DBG
+#include "ui/ui_debug.cpp"
+#endif
 
 #if !DBG
 #include "fonts/geist.cpp"
@@ -175,8 +178,10 @@ void ui_render()
 
     ImGui::PopStyleVar(2);
 
+#if DBG
     ImGui::ShowDemoWindow();
     ui_debug_arenas();
+#endif
 
     if (ui_toast.time <= 0.0f)
     {

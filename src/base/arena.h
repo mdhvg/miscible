@@ -1,8 +1,6 @@
 #pragma once
 #include "base/base_core.h"
 
-#define ARENA_DBG 1
-
 struct Arena
 {
     U8 *base;
@@ -11,11 +9,15 @@ struct Arena
     U64 cmt_size;
     U64 min_cmt;
     U64 capacity;
-#if ARENA_DBG
+#if DBG
     Arena *next;
     const char *name;
 #endif
 };
+
+#if DBG
+MSCBL_API Arena *arena_head;
+#endif
 
 struct ArenaArray
 {
@@ -29,17 +31,7 @@ struct Temp
     U64 pos;
 };
 
-// struct ArenaDoubleBuffer
-// {
-//     Arena *buffer[2];
-//     Arena *front;
-//     Arena *back;
-//     U8 active;
-// };
-
-MSCBL_API Arena *arena_head;
-
-#if ARENA_DBG
+#if DBG
 void _arena_alloc(U64 capacity, Arena **arena, const char *name);
 #define arena_alloc(capacity, arena) _arena_alloc(capacity, &(arena), Stringify(arena))
 #else

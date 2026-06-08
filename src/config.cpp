@@ -78,7 +78,8 @@ Config default_config()
         .db_path = yaml_scan_string(config_arena, config_root, str_buf, "/DBPath"),
 
         .settings = {.scan_depth = yaml_scan_int(config_root, "/Settings/ScanDepth"),
-                     .font_size = yaml_scan_float(config_root, "/Settings/FontSize")},
+                     .font_size = yaml_scan_float(config_root, "/Settings/FontSize"),
+                     .log_age_days = yaml_scan_int(config_root, "/Settings/LogAge")},
 
         .view_settings = {
             .sort_basis = (SortType)yaml_scan_int(config_root, "/ViewSettings/SortBasis"),
@@ -90,19 +91,6 @@ Config default_config()
         },
     };
 
-    // Config config = {
-    //     .app_data = sv("~/Miscible"),
-    //     .atlas_dir = sv("$/atlas"),
-    //     .db_path = sv("$/miscible.sqlite"),
-    //     .settings = {
-    //         .scan_depth = 15,
-    //         .font_size = 16.0f},
-    //     .view_settings = {
-    //         .sort_basis = SortType_DateModified,
-    //         .descending = 0,
-    //     },
-    //     .model_dir = sv("$/models"),
-    //     .models = da_init(config_arena, ModelConfig, {.model_url = da_init(config_arena, String, sv("http://192.168.29.5:8080/test/model.gguf")), .manifest_url = da_init(config_arena, String, sv("http://192.168.29.5:8080/test/model.gguf.yaml"))})};
     return config;
 }
 
@@ -139,15 +127,15 @@ void setup_dirs(Config *config)
     StringBuilder clip_model_path = string_init(config_arena, StringCast(model_base));
     path_join(&clip_model_path, config->model_group.clip_model.filename);
 
-    os_mkdir(StringCast(app_data));
-    os_mkdir(StringCast(atlas_dir));
-    os_mkdir(StringCast(model_base));
+    os_mkdirs(StringCast(app_data));
+    os_mkdirs(StringCast(atlas_dir));
+    os_mkdirs(StringCast(model_base));
 
     config->app_data = StringCast(app_data);
     config->atlas_dir = StringCast(atlas_dir);
     config->db_path = StringCast(db_path);
     config->model_group.base_dir = StringCast(model_base);
-    config->model_group.clip_model.path= StringCast(clip_model_path);
+    config->model_group.clip_model.path = StringCast(clip_model_path);
 }
 
 void config_init()
