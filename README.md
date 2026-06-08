@@ -1,92 +1,95 @@
 # Miscible
 
-Miscible is a smart (and personal) photo gallery. It aims to provide image gallery features provided by (Web based) applications like Google Photos, Windows Photos, etc, while keeping everything running locally (and smoothly).
+<p align="center">
+    <img width="80%" src="docs/Header.png" alt="Miscible Header">
+</p>
+
+**Miscible** is a next-generation, high-performance gallery application which brings on device semantic search and extensive filtering features to your local media. Built in C++, it delivers lightning-fast responsiveness and an incredibly light footprint all within a ~8MB binary. It brings the advanced features typically locked behind cloud-based commercial products like Google Photos, OneDrive, and Microsoft Photos to your local machine, completely offline and privacy-first.
 
 <p align="center">
     <img src="docs/Screenshot.png" alt="Miscible Screenshot">
-</p>
-<p align="center">
     <i>Miscible running on Windows 10</i>
 </p>
 
-> [!CAUTION]
-> Miscible is still very much under development. Many of the (even basic) features can cause crashes.
+### Why Miscible?
+*I made this because nothing like this exists and I love taking pictures 📸*
 
-## Features
+> [!NOTE]
+> **Development Status:** Miscible is currently in an active alpha stage, things are expected to fail/break. Make sure to report any findings on the [issues](https://github.com/mdhvg/miscible/issues) page.
 
-- **Automatic directory scanning**
-- **Image thumbnail atlas generation for fast preview load**
-- **Automatic image embedding creation**
+## Development
 
-## Building
-
-> Currently there are only ways to build and no installation method on any OS.
+Miscible only supports Windows and Linux because these are the only operating systems I have available, out of which Windows is the one I actively use to develop Miscible (for now), so **Linux build is currently broken and outdated**. *(contributions are welcome)*
 
 ### Requirements
 
-- git
-- cmake
-- gcc or msvc (on Windows)
-- python3 + python3-requests (maybe in a virtual environment)
+- [git](https://git-scm.com/)
+- [cmake](https://cmake.org)
+- [python3](https://www.python.org/) ([uv](https://docs.astral.sh/uv/) preferred)
 
-- Clone the repo
+### Setup
 
+- Recursively Clone the repo
 ```bash
 git clone --recursive https://github.com/mdhvg/miscible
 cd miscible
-
 ```
 
 - Run the setup script
-
 ```bash
 python3 ./scripts/setup.py
-
 ```
 
-- Run the build script
-
-*Linux*
+**OR**
 
 ```bash
-bash ./scripts/build.sh
-
+uv run ./scripts/setup.py
 ```
 
-*Windows*
+### Build - Windows
+
+Build script automatically detects installed compiler. Supported ones are [msvc](https://visualstudio.microsoft.com/vs/features/cplusplus) and [clang-cl](https://clang.llvm.org). `Miscible.exe` is built in `(project root)/build` directory.
+
 ```powershell
-.\scripts\build.ps1
-
+./scripts/build.ps1 [debug|release] [msvc|clang-cl]
 ```
+
+### Build - Linux
+
+_TODO_
 
 ## Usage
 
-Binary is built in the `./build` directory and can be ran from there.
+- From the first launch, Miscible will start downloading the [`laion/CLIP-ViT-B-32-laion2B-s34B-b79K`](https://huggingface.co/laion/CLIP-ViT-B-32-laion2B-s34B-b79K) automatically in the background.
+- To get some images displaying in Miscible, click the ➕ button in the sidebar and select an and let it automatically scan the directories and populate the thumbnail previews.
 
-Setup script doesn't automatically download the CLIP model, so it can be manually downloaded from [Hugging Face🤗](https://huggingface.co/laion/CLIP-ViT-B-32-laion2B-s34B-b79K) and placed at `(project root)/CLIP-ViT-B-32-laion2B-s34B-b79K.gguf`.
+<p align="center">
+    <img src="docs/Step-AddImages.png" alt="Add images to miscible">
+</p>
 
-#### Usage Options
+- Use the **Search/Sort/Add Filter** buttons according to requirements to view results with different constraints (inclusion or exclusion).
 
-Normal run
+<p align="center">
+    <img width="90%" src="docs/Step-SearchQuery.png" alt="Query Images in miscible">
+</p>
 
-```bash
-./build/Miscible
-```
+- Press **Clear** button to go back to viewing all images again.
 
-Skip embeddings
+## Found bugs?
 
-```bash
-./build/Miscible --no-embed
-```
+Create an [issue](https://github.com/mdhvg/miscible/issues) and paste in the logs relevant to that bug.
+
+| Operating System | Log file location               |
+| :--------------- | :------------------------------ |
+| **Windows**      | `%LOCALAPPDATA%/Miscible/logs/` |
+| **Linux**        | `~/.local/share/Miscible/logs/` |
 
 ## Credits
 
 Although there are many things that need refactoring to follow the style (#TODO), the code style and build procedure in this software is heavily inspired by [@Casey Muratori's](https://caseymuratori.com/about) [Handmade Hero series](https://hero.handmade.network) ([YouTube](https://www.youtube.com/watch?v=Ee3EtYb8d1o)).
 
 A lot of core code snippets come from [EpicGamesExt/raddebugger](https://github.com/EpicGamesExt/raddebugger).
-
 ### Other sources which were referenced
 
-- `src/base/arena.*` from [Enter The Arena: Simplifying Memory Management (2023)](https://www.youtube.com/watch?v=TZ5a3gCCZYo) by [@Ryan Fleury](https://x.com/rfleury).
-- `src/base/arena.*` also from [tsoding/arena](https://github.com/tsoding/arena) by [@tsoding](https://www.twitch.tv/tsoding).
+- `src/base/arena.*` from [Enter The Arena: Simplifying Memory Management (2023)](https://www.youtube.com/watch?v=TZ5a3gCCZYo) by [@Ryan Fleury](https://x.com/rfleury) and from [tsoding/arena](https://github.com/tsoding/arena) by [@tsoding](https://www.twitch.tv/tsoding).
 - `src/base/string.*`, `src/base/array.h` from [Vjekoslav Krajačić – File Pilot: Inside the Engine – BSC 2025](https://youtube.com/watch?v=bUOOaXf9qIM) at [@BSC](https://www.youtube.com/@BetterSoftwareConference) 2025 talk by [@Vjekoslav Krajačić](https://x.com/vkrajacic).
