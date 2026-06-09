@@ -2,8 +2,8 @@
 import pathlib
 import hashlib
 import zipfile
-import urllib.request
-
+import aiohttp
+import asyncio
 # Set cwd as project base dirs
 import os
 __src_path = pathlib.Path(__file__)
@@ -65,7 +65,9 @@ FILES = [
 ]
 
 
-def get_sha256hash(path):
+def get_sha256hash(path: str) -> str:
+    # Check Integrity of the file using sha256 hash
+
     hasher = hashlib.sha256()
     with open(path, "rb") as file:
         for chunk in iter(lambda: file.read(4096), b""):
@@ -73,7 +75,7 @@ def get_sha256hash(path):
     return hasher.hexdigest()
 
 
-def extract_files_flat(zip_path, target_dir):
+def extract_files_flat(zip_path: str, target_dir: str) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     with zipfile.ZipFile(zip_path, "r") as z:
@@ -91,26 +93,44 @@ def extract_files_flat(zip_path, target_dir):
                 dst.write(src.read())
 
 
-for file in FILES:
+async def setup_file(file:dict ) -> None:
     pth = pathlib.Path(file["parent"]) / file["filename"]
     file_path = str(pth)
     if not pathlib.Path.exists(pth):
         pathlib.Path.mkdir(pth.parent, parents=True, exist_ok=True)
         print(f"Downloading {file_path=}")
 
-        req = urllib.request.Request(
-            file["url"],
-        )
-        with urllib.request.urlopen(req) as response:
-            with open(file_path, "wb") as f:
-                f.write(response.read())
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(file["url"]) as response:
+                if response.status != 200:
+                    print(f"Failed to download {file['url']}, status code: {response.status}")
+                    return
+                content = await response.read()
+                with open(file_path, "wb") as f:
+                    f.write(content)
+
         if "hash" in file:
             calculated_hash = get_sha256hash(file_path)
             if calculated_hash != file["hash"]:
                 print(f"Hashes don't match for {file_path=}")
                 print(f"expected_hash={file['hash']}")
                 print(f"{calculated_hash=}")
+
     if "extract" in file:
         extract_path = pathlib.Path(file["extract"])
         print(f"Extracting {file_path=} to {str(extract_path)}")
         extract_files_flat(pth, extract_path)
+        
+        #clean up zip file
+        print(f"Removing {file_path=}")
+        pathlib.Path.unlink(pth)
+
+async def main():
+    tasks = [setup_file(file) for file in FILES]
+    for task in asyncio.as_completed(tasks):
+        await task
+
+if __name__ == "__main__":
+    asyncio.run(main())
+    
