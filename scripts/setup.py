@@ -66,8 +66,6 @@ FILES = [
 
 
 def get_sha256hash(path: str) -> str:
-    # Check Integrity of the file using sha256 hash
-
     hasher = hashlib.sha256()
     with open(path, "rb") as file:
         for chunk in iter(lambda: file.read(4096), b""):
@@ -75,7 +73,7 @@ def get_sha256hash(path: str) -> str:
     return hasher.hexdigest()
 
 
-def extract_files_flat(zip_path: str, target_dir: str) -> None:
+def extract_files_flat(zip_path: pathlib.Path, target_dir: pathlib.Path) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     with zipfile.ZipFile(zip_path, "r") as z:
@@ -96,7 +94,7 @@ def extract_files_flat(zip_path: str, target_dir: str) -> None:
 async def setup_file(file:dict ) -> None:
     pth = pathlib.Path(file["parent"]) / file["filename"]
     file_path = str(pth)
-    if not pathlib.Path.exists(pth):
+    if not pth.exists():
         pathlib.Path.mkdir(pth.parent, parents=True, exist_ok=True)
         print(f"Downloading {file_path=}")
 
