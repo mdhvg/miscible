@@ -2,7 +2,9 @@
 import pathlib
 import hashlib
 import zipfile
-import urllib.request
+import urllib.request 
+from concurrent.futures import ThreadPoolExecutor
+
 
 # Set cwd as project base dirs
 import os
@@ -65,7 +67,8 @@ FILES = [
 ]
 
 
-def get_sha256hash(path):
+def get_sha256hash(path: str) -> str:
+
     hasher = hashlib.sha256()
     with open(path, "rb") as file:
         for chunk in iter(lambda: file.read(4096), b""):
@@ -73,7 +76,7 @@ def get_sha256hash(path):
     return hasher.hexdigest()
 
 
-def extract_files_flat(zip_path, target_dir):
+def extract_files_flat(zip_path: pathlib.Path, target_dir: pathlib.Path) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     with zipfile.ZipFile(zip_path, "r") as z:
@@ -91,10 +94,10 @@ def extract_files_flat(zip_path, target_dir):
                 dst.write(src.read())
 
 
-for file in FILES:
+def setup_file(file: dict) -> None:
     pth = pathlib.Path(file["parent"]) / file["filename"]
     file_path = str(pth)
-    if not pathlib.Path.exists(pth):
+    if not pth.exists():
         pathlib.Path.mkdir(pth.parent, parents=True, exist_ok=True)
         print(f"Downloading {file_path=}")
 
@@ -114,3 +117,14 @@ for file in FILES:
         extract_path = pathlib.Path(file["extract"])
         print(f"Extracting {file_path=} to {str(extract_path)}")
         extract_files_flat(pth, extract_path)
+        # Cleanup zip file
+        print(f"Cleaning up {file_path=}")
+        pth.unlink()
+
+def supervisor() -> None:
+    with ThreadPoolExecutor() as executor:
+        executor.map(setup_file, FILES)
+        
+if __name__ == "__main__":
+    supervisor()
+    
