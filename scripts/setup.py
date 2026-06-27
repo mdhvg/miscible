@@ -33,19 +33,13 @@ FILES = [
     {
         "url": "https://sqlite.org/2025/sqlite-amalgamation-3490100.zip",
         "filename": "sqlite.zip",
-        "parent": "deps/",
+        "parent": "deps/sqlite",
         "hash": "6cebd1d8403fc58c30e93939b246f3e6e58d0765a5cd50546f16c00fd805d2c3",
-        "extract": "deps/sqlite",
     },
     {
         "url": "https://unpkg.com/lucide-static@latest/font/lucide.ttf",
         "filename": "lucide.ttf",
         "parent": "fonts",
-    },
-    {
-        "url": "https://raw.githubusercontent.com/gouwsxander/easy-args/1b776957e13200a8d0d192dc909c46672baeb065/includes/easyargs.h",
-        "filename": "easyargs.h",
-        "parent": "deps/easy-args",
     },
     {
         "url": "https://raw.githubusercontent.com/doctest/doctest/1da23a3e8119ec5cce4f9388e91b065e20bf06f5/doctest/doctest.h",
@@ -61,6 +55,11 @@ FILES = [
         "url": "https://raw.githubusercontent.com/ogay/sha2/b90991f90967a46d0955dc981e9e3cd53c13b061/sha2.h",
         "filename": "sha2.h",
         "parent": "deps/sha2",
+    },
+    {
+        "url": "https://raw.githubusercontent.com/zserge/jsmn/refs/heads/master/jsmn.h",
+        "filename": "jsmn.h",
+        "parent": "deps/jsmn"
     }
 ]
 
@@ -92,25 +91,23 @@ def extract_files_flat(zip_path, target_dir):
 
 
 for file in FILES:
-    pth = pathlib.Path(file["parent"]) / file["filename"]
-    file_path = str(pth)
-    if not pathlib.Path.exists(pth):
-        pathlib.Path.mkdir(pth.parent, parents=True, exist_ok=True)
-        print(f"Downloading {file_path=}")
+    parent = pathlib.Path(file["parent"])
+    file_path = pathlib.Path(file["parent"]) / file["filename"]
+    if not pathlib.Path.exists(file_path):
+        pathlib.Path.mkdir(parent, parents=True, exist_ok=True)
+        print(f"Downloading {str(file_path)=}")
 
-        req = urllib.request.Request(
-            file["url"],
-        )
+        req = urllib.request.Request(file["url"])
+        print(f"Fetching from {file["url"]}")
         with urllib.request.urlopen(req) as response:
-            with open(file_path, "wb") as f:
+            with open(str(file_path), "wb") as f:
                 f.write(response.read())
         if "hash" in file:
-            calculated_hash = get_sha256hash(file_path)
+            calculated_hash = get_sha256hash(str(file_path))
             if calculated_hash != file["hash"]:
-                print(f"Hashes don't match for {file_path=}")
+                print(f"Hashes don't match for {str(file_path)=}")
                 print(f"expected_hash={file['hash']}")
                 print(f"{calculated_hash=}")
     if "extract" in file:
-        extract_path = pathlib.Path(file["extract"])
-        print(f"Extracting {file_path=} to {str(extract_path)}")
-        extract_files_flat(pth, extract_path)
+        print(f"Extracting {str(file_path)=} to {str(parent)=}")
+        extract_files_flat(file_path, parent)

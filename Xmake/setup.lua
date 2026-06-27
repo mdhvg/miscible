@@ -89,11 +89,6 @@ on_run(function()
 			parent = "fonts",
 		},
 		{
-			url = "https://raw.githubusercontent.com/gouwsxander/easy-args/1b776957e13200a8d0d192dc909c46672baeb065/includes/easyargs.h",
-			filename = "easyargs.h",
-			parent = "deps/easy-args",
-		},
-		{
 			url = "https://raw.githubusercontent.com/doctest/doctest/1da23a3e8119ec5cce4f9388e91b065e20bf06f5/doctest/doctest.h",
 			filename = "doctest.h",
 			parent = "deps/doctest",
