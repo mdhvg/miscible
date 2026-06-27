@@ -19,3 +19,6 @@
 [submodule "deps/curl"]
 	path = deps/curl
 	url = https://github.com/curl/curl
+[submodule "deps/onnxruntime"]
+	path = deps/onnxruntime
+	url = https://github.com/microsoft/onnxruntime

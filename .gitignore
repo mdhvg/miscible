@@ -3,11 +3,12 @@ bin
 imgui
 deps/stb
 deps/sha2
+deps/jsmn
 deps/icons
-deps/sqlite.zip
 deps/sqlite
 deps/easy-args
 deps/doctest
+deps/openvino
 
 test_imgs
 wallpapers
@@ -24,3 +25,4 @@ Testing
 *.vim
 
 .vs
+.xmake
