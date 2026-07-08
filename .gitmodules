@@ -23,3 +23,6 @@
 [submodule "deps/onnxruntime"]
 	path = deps/onnxruntime
 	url = https://github.com/microsoft/onnxruntime
+[submodule "deps/onnxruntime-extensions"]
+	path = deps/onnxruntime-extensions
+	url = https://github.com/microsoft/onnxruntime-extensions
