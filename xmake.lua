@@ -1,5 +1,6 @@
 includes("Xmake/setup.lua")
 includes("Xmake/cmake-build.lua")
+includes("Xmake/config-setup.lua")
 
 add_rules("mode.debug", "mode.release")
 
@@ -13,7 +14,8 @@ set_objectdir("$(projectdir)/build")
 
 add_defines("SQLITE_CORE=1")
 add_defines("CURL_STATICLIB")
-add_defines('IMGUI_USER_CONFIG="mscbl_imconfig.h"')
+add_defines('IMGUI_USER_CONFIG="app/mscbl_imconfig.h"')
+add_defines("_CRT_SECURE_NO_WARNINGS=1")
 
 if not is_mode("release") then
 	add_defines("DBG=1")
@@ -26,7 +28,6 @@ add_includedirs("deps/sha2")
 add_includedirs("deps/icons")
 add_includedirs("deps/imgui")
 add_includedirs("deps/sqlite")
-add_includedirs("deps/doctest")
 add_includedirs("deps/glad/src")
 add_includedirs("deps/glad/include")
 add_includedirs("deps/glfw/include")
@@ -39,6 +40,8 @@ add_includedirs("deps/usearch/include")
 add_includedirs("deps/usearch/fp16/include")
 add_includedirs("deps/usearch/stringzilla/include")
 add_includedirs("deps/onnxruntime/include")
+add_includedirs("deps/onnxruntime/include/onnxruntime/core/session")
+add_includedirs("deps/onnxruntime-extensions/include")
 
 -- tests
 target("tests")
@@ -46,6 +49,18 @@ set_kind("binary")
 add_defines("MSCBL_CORE=1")
 add_files("tests/all.cpp")
 add_files("tests/**/*.cpp")
+add_includedirs("deps/doctest")
+
+-- C target
+target("ctarget")
+set_kind("binary")
+set_languages("c++20", "c11")
+add_defines("MSCBL_CORE=1")
+add_files("src/ctarget.c")
+add_files("src/os/os_inc.cpp")
+add_files("src/base/arena.cpp")
+add_files("src/base/string.cpp")
+-- add_files("src/base/ringbuf.cpp")
 
 -- Miscible.i
 target("preprocess")
@@ -53,7 +68,7 @@ set_kind("phony")
 on_build(function(target)
 	import("core.tool.compiler")
 	import("core.project.depend")
-	local sourcefile = "src/miscible.cpp"
+	local sourcefile = "src/app/miscible.cpp"
 	local outputfile = "build/miscible.i"
 	depend.on_changed(function()
 		local flags = compiler.compflags(sourcefile, { target = target })
@@ -62,14 +77,28 @@ on_build(function(target)
 	end, { files = sourcefile })
 end)
 
+target("libmiscible_c")
+set_kind("static")
+add_defines("MSCBL_CORE=1")
+add_files("src/deps_unity.c")
+add_files("src/app/miscible.c")
+
 -- libmiscible.dll
 target("libmiscible")
 set_kind("shared", { inherited = true })
 add_defines("MSCBL_CORE=1")
-add_files("src/deps_unity.c")
 add_files("src/deps_unity.cpp")
-add_files("src/miscible.cpp")
+add_files("src/app/miscible.cpp")
+
+add_links("noexcep_operators.lib")
+add_links("ocos_operators.lib")
+add_links("ortcustomops.lib")
+add_links("ortextensions.lib")
+add_links("build/onnx*")
+
 add_deps("preprocess")
+add_deps("libmiscible_c")
+
 add_packages("glfw_local")
 add_packages("ggml_local")
 add_packages("curl_local")
@@ -88,7 +117,11 @@ before_build(function(target)
 		local pattern = path.join(target:targetdir(), "*pages_*")
 		cprintf("${bright red}Deleting all files matching %s${clear}\n", pattern)
 		for _, file in ipairs(os.files(pattern)) do
-			os.rm(file)
+			try({
+				function()
+					os.rm(file)
+				end,
+			})
 		end
 	end
 end)
@@ -99,6 +132,7 @@ add_files("src/ui/pages/pages.cpp")
 target("miscible")
 set_kind("binary")
 set_basename("Miscible")
+add_rules("create_config")
 add_files("src/main.cpp")
 if is_mode("release") then
 	if is_plat("windows") then
@@ -115,7 +149,8 @@ if is_mode("release") then
 		end)
 	end
 
-	add_files("src/miscible.cpp")
+	add_files("src/app/miscible.c")
+	add_files("src/app/miscible.cpp")
 	add_files("src/deps_unity.c")
 	add_files("src/deps_unity.cpp")
 	add_files("src/ui/pages/pages.cpp")
@@ -124,7 +159,14 @@ if is_mode("release") then
 	add_packages("ggml_local")
 	add_packages("curl_local")
 	add_packages("libfyaml_local")
-	add_deps("onnxruntime")
+
+	add_links("noexcep_operators.lib")
+	add_links("ocos_operators.lib")
+	add_links("ortcustomops.lib")
+	add_links("ortextensions.lib")
+	add_links("build/onnx*")
+
+	add_deps("onnxruntime", { inherited = false })
 else
 	add_deps("pages", { inherited = false })
 	add_deps("libmiscible")

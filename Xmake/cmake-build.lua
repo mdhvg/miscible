@@ -108,11 +108,36 @@ on_build(function(target)
 		print("uv", table.unpack(args))
 		os.execv("uv", args)
 
-		local onnx_output_dir = path.join("build/onnxruntime", cfg)
+		cprintf("${bright green}Building ONNXRuntime-Extensions manually...${clear}\n")
+		os.execv("cmake", {
+			"-S",
+			"deps/onnxruntime-extensions",
+			"-B",
+			"build/onnxruntime-extensions",
+			"-GNinja",
+			"-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+
+			"-DOCOS_ENABLE_C_API=ON",
+			"-DOCOS_BUILD_SHARED_LIB=ON",
+			"-DOCOS_ENABLE_GPT2_TOKENIZER=ON",
+			"-DOCOS_ENABLE_SPM_TOKENIZER=OFF",
+			"-DOCOS_ENABLE_AUDIO=ON",
+			"-DOCOS_ENABLE_VISION=ON",
+			"-DOCOS_ENABLE_DLIB=ON",
+		})
+
+		os.execv("cmake", {
+			"--build",
+			"build/onnxruntime-extensions",
+		})
+
 		local app_bin_dir = target:targetdir()
 
 		cprintf("${bright green}Copying required ONNXRuntime DLLs to %s...${clear}\n", app_bin_dir)
+		os.cp(path.join("build/onnxruntime", cfg, "*.dll"), app_bin_dir)
+		os.cp(path.join("build/onnxruntime", cfg, "*.lib"), app_bin_dir)
 
-		os.cp(path.join(onnx_output_dir, "*.dll"), app_bin_dir)
+		os.cp(path.join("build/onnxruntime-extensions/lib", "*.dll"), app_bin_dir)
+		os.cp(path.join("build/onnxruntime-extensions/lib", "*.lib"), app_bin_dir)
 	end
 end)
