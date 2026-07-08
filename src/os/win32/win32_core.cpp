@@ -37,7 +37,7 @@ global_v U32 win32_sleep_ms_from_us(U64 end_us)
 global_v const U64 UNIX_TIME_START = 0x019DB1DED53E8000; //January 1, 1970 (start of Unix epoch) in "ticks"
 global_v const U64 TICKS_PER_SECOND = 10000000;          //a tick is 100ns
 
-global_v void win32_to_unix_timestamp(U64 *win_timestamp)
+void win32_to_unix_timestamp(U64 *win_timestamp)
 {
     *win_timestamp -= UNIX_TIME_START;
     *win_timestamp /= TICKS_PER_SECOND;
@@ -339,7 +339,7 @@ void os_decommit(void *ptr, U64 size)
     }
 }
 
-Semaphore os_semaphore_alloc(S32 initial, S32 max)
+Semaphore os_semaphore_init(S32 initial, S32 max)
 {
     HANDLE h = CreateSemaphore(0, initial, max, NULL);
     if (!h)
@@ -350,7 +350,7 @@ Semaphore os_semaphore_alloc(S32 initial, S32 max)
     return h;
 }
 
-void os_semaphore_release(Semaphore s)
+void os_semaphore_destroy(Semaphore s)
 {
     B32 result = (CloseHandle(s) != 0);
     if (!result)
@@ -360,7 +360,7 @@ void os_semaphore_release(Semaphore s)
     }
 }
 
-void os_semaphore_drop(Semaphore s)
+void os_semaphore_push(Semaphore s)
 {
     B32 result = (ReleaseSemaphore(s, 1, 0) != 0);
     if (!result)
@@ -370,12 +370,37 @@ void os_semaphore_drop(Semaphore s)
     }
 }
 
-B32 os_semaphore_take(Semaphore s, U64 end_us)
+B32 os_semaphore_pop(Semaphore s, U64 end_us)
 {
     U32 sleep = win32_sleep_ms_from_us(end_us);
     DWORD wait_result = WaitForSingleObject(s, sleep);
     B32 result = (wait_result == WAIT_OBJECT_0);
     return result;
+}
+
+void os_mutex_init(Mutex *mutex)
+{
+    InitializeCriticalSection(mutex);
+}
+
+void os_mutex_destroy(Mutex *mutex)
+{
+    DeleteCriticalSection(mutex);
+}
+
+void os_mutex_lock(Mutex *mutex)
+{
+    EnterCriticalSection(mutex);
+}
+
+void os_mutex_unlock(Mutex *mutex)
+{
+    LeaveCriticalSection(mutex);
+}
+
+B32 os_mutex_trylock(Mutex *mutex)
+{
+    return (TryEnterCriticalSection(mutex) == 1) ? (1) : (0);
 }
 
 Thread os_thread_launch(LPTHREAD_START_ROUTINE fn, Worker *worker)
@@ -391,7 +416,7 @@ void os_thread_detach(Thread t)
     }
 }
 
-FileHandle os_file_open(String path, FileAccess access, FileMode mode, Result *res, U64 size)
+FileHandle _os_file_open(String path, FileAccess access, FileMode mode, Result *res, U64 size)
 {
     ClearResult(res);
 
@@ -438,7 +463,7 @@ void os_file_close(FileHandle file_desc, Result *res)
     Win32Trap(res, out);
 }
 
-U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset)
+U64 _os_file_write(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset)
 {
     ClearResult(res);
     LARGE_INTEGER off_large_int = {0};
@@ -455,13 +480,21 @@ U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 o
     return written;
 }
 
-U32 os_file_read(FileHandle file_desc, U64 size, U8 *buffer, Result *res)
+U32 _os_file_read(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset)
 {
     ClearResult(res);
-    DWORD bytes_read = 0;
-    BOOL out = ReadFile(file_desc, buffer, size, &bytes_read, NULL);
+    LARGE_INTEGER off_large_int = {0};
+    off_large_int.QuadPart = offset;
+
+    OVERLAPPED off_overlap = {0};
+    off_overlap.Offset = off_large_int.LowPart;
+    off_overlap.OffsetHigh = off_large_int.HighPart;
+
+    DWORD read = 0;
+
+    BOOL out = ReadFile(file_desc, buffer, size, &read, &off_overlap);
     Win32Trap(res, out);
-    return bytes_read;
+    return read;
 }
 
 U64 os_file_size(FileHandle file_desc, Result *res)
@@ -502,7 +535,6 @@ FileMTime *os_list_by_pattern(String pattern, String base, Arena *arena)
 
         if ((fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
         {
-            LARGE_INTEGER file_id = {0};
             FILETIME write_time = fdFile.ftLastWriteTime;
             U64 mtime = 0;
             mtime = write_time.dwHighDateTime;
@@ -548,7 +580,7 @@ OSMmap os_file_map(FileHandle file_desc, U64 size, Result *res)
 Cleanup:
     if (handle)
     {
-        BOOL out = CloseHandle(handle);
+        CloseHandle(handle);
         handle = NULL;
     }
 Return:

@@ -7,8 +7,14 @@
 #define global_v static
 #define local_v  static
 
+#if defined(__cplusplus)
+#define LANG_CPP 1
+#else
+#define LANG_C 1
+#endif
+
 #if defined(_WIN32)
-#define OS_WINDOWS 1
+#define OS_WIN32 1
 #elif defined(__gnu_linux__) || defined(__linux__)
 #define OS_LINUX 1
 #endif
@@ -62,6 +68,14 @@
 #define ARCH_32BIT 1
 #endif
 
+#if COMPILER_MSVC
+#define thread_static __declspec(thread)
+#elif COMPILER_CLANG || COMPILER_GCC
+#define thread_static __thread
+#else
+#error thread_static not defined for this compiler.
+#endif
+
 #define MAX(A, B) (((A) > (B)) ? (A) : (B))
 #define MIN(A, B) (((A) < (B)) ? (A) : (B))
 
@@ -73,11 +87,12 @@
 #define Mil(A) ((U64)(A) * 1000000)
 #define Bil(A) ((U64)(A) * 1000000000)
 
-#define ToBool(A)        (((A) != 0) ? (1) : (0))
-#define AlignOf(A, B)    (((A) + (B) - 1) & (~((B) - 1)))
-#define ToCeilInt(A, B)  (((A) + (B - 1)) / (B))
-#define StaticArrSize(A) (sizeof(A) / sizeof((A)[0]))
-
+#define ToAbs(A)              (((A) < 0) ? ((A) * -1) : (A))
+#define ToBool(A)             (((A) != 0) ? (1) : (0))
+#define AlignOf(A, B)         (((A) + (B) - 1) & (~((B) - 1)))
+#define IndexWrapPow2(A, B)   ((A) & ((B) - 1))
+#define ToCeilInt(A, B)       (((A) + (B - 1)) / (B))
+#define StaticArrSize(A)      (sizeof(A) / sizeof((A)[0]))
 #define BitFieldGet(arr, i)   (!!((arr)[(i) / (sizeof((arr)[0]) * 8)] & (1 << ((i) % (sizeof((arr)[0]) * 8)))))
 #define BitFieldSet(arr, i)   ((arr)[(i) / (sizeof((arr)[0]) * 8)] |= (1 << ((i) % (sizeof((arr)[0]) * 8))))
 #define BitFieldReset(arr, i) ((arr)[(i) / (sizeof((arr)[0]) * 8)] &= ~(1 << ((i) % (sizeof((arr)[0]) * 8))))
@@ -130,7 +145,7 @@ typedef double F64;
 #define U32_MAX 0xFFFFFFFFul
 #define U64_MAX 0xFFFFFFFFFFFFFFFFull
 
-enum ByteUnit
+typedef enum
 {
     Byte,
     KiByte,
@@ -139,15 +154,15 @@ enum ByteUnit
     TiByte,
     PiByte,
     Byte_COUNT
-};
+} ByteUnit;
 
-struct ByteSize
+typedef struct
 {
     F32 value;
     ByteUnit unit;
-};
+} ByteSize;
 
-enum Month
+typedef enum
 {
     Month_Jan,
     Month_Feb,
@@ -161,9 +176,9 @@ enum Month
     Month_Oct,
     Month_Nov,
     Month_Dec,
-};
+} Month;
 
-struct Time
+typedef struct
 {
     U32 date;
     Month month;
@@ -173,24 +188,24 @@ struct Time
     U32 minute;
     U32 second;
     U32 milsec;
-};
+} Time;
 
-enum ResultDomain
+typedef enum
 {
     Domain_None,
     Domain_OS,
     Domain_App,
     Domain_Network,
     Domain_YAML,
-};
+} ResultDomain;
 
-struct Result
+typedef struct
 {
     B32 success;
     ResultDomain domain;
     U32 code;
     const char *context;
-};
+} Result;
 
 #define ResultSuccess() {.success = 1}
 #define CheckAndClearResult(res)   \
@@ -258,54 +273,53 @@ struct Result
 #error Missing pointer-to-integer cast for this architecture.
 #endif
 
+#ifndef MSCBL_API_H
+#define MSCBL_API_H
+
+#ifdef __cplusplus
+#define MSCBL_EXTERN extern "C"
+#else
+#define MSCBL_EXTERN extern
+#endif
+
 #if DBG
-#if OS_WINDOWS
+#if OS_WIN32
 
 #if MSCBL_CORE
-#define MSCBL_API extern "C" __declspec(dllexport)
+#define MSCBL_API MSCBL_EXTERN __declspec(dllexport)
 #else // MSCBL_CORE
-#define MSCBL_API extern "C" __declspec(dllimport)
+#define MSCBL_API MSCBL_EXTERN __declspec(dllimport)
 #endif // MSCBL_CORE
 
-#define MSCBL_EXP extern "C" __declspec(dllexport)
+#define MSCBL_EXP MSCBL_EXTERN __declspec(dllexport)
 #elif OS_LINUX
 
-#define MSCBL_API extern "C"
-#define MSCBL_EXP extern "C"
+#define MSCBL_API MSCBL_EXTERN
+#define MSCBL_EXP MSCBL_EXTERN
 
 #endif // OS
 #else  // DBG
-#define MSCBL_API extern
-#define MSCBL_EXP extern
+#define MSCBL_API MSCBL_EXTERN
+#define MSCBL_EXP MSCBL_EXTERN
 #endif // DBG
 
+#endif // MSCBL_API_H
+
+MSCBL_API inline U64 NextPow2(U64 a)
+{
+    if (a == 0) return 1;
+    a--;
+    a |= a >> 1;
+    a |= a >> 2;
+    a |= a >> 4;
+    a |= a >> 8;
+    a |= a >> 16;
+    a |= a >> 32;
+    return a + 1;
+}
 void bytes_as_hex_lower(U8 *data, U64 start, U64 len, char *out);
 void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
 U64 time_to_timestamp(Time date);
 Time timestamp_to_time(U64 timestamp);
 MSCBL_API U32 month_days(Time date);
 MSCBL_API ByteSize size_to_bytesize(U64 size);
-
-// TODO: Move these to some other place
-#define APP_NAME Miscible
-
-#define ATLAS_DIR   "atlas"
-#define DB_FILE     "miscible.sqlite"
-#define CONFIG_FILE "miscible.yaml"
-
-#define ATLAS_CAPACITY 100
-#define ATLAS_SIZE     2560
-#define ATLAS_CHANNELS 4
-#define THUMB_PER_SIDE 10
-#define THUMB_SIZE     256
-
-#if OS_WINDOWS
-#define LOG_BASE_ENV "LOCALAPPDATA"
-#define LOG_APPEND   Stringify(APP_NAME) "\\logs\\"
-#elif OS_LINUX
-#define LOG_BASE_ENV "HOME"
-#define LOG_APPEND   ".local/share/" Stringify(APP_NAME) "/logs/"
-#endif
-
-#define LOG_FILE_NAME_PRE Stringify(APP_NAME) "_log_"
-#define LOG_FILE_NAME_EXT ".log"

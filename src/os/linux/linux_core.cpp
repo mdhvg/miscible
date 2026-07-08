@@ -77,7 +77,7 @@ void os_decommit(void *ptr, U64 size)
     OSAssert(result != -1);
 }
 
-Semaphore os_semaphore_alloc(S32 initial, S32 max)
+Semaphore os_semaphore_init(S32 initial, S32 max)
 {
     Semaphore result = {0};
     sem_t *s         = (sem_t *)mmap(NULL, sizeof(*s), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -88,7 +88,7 @@ Semaphore os_semaphore_alloc(S32 initial, S32 max)
     return result;
 }
 
-void os_semaphore_release(Semaphore s)
+void os_semaphore_destroy(Semaphore s)
 {
     S32 err = munmap((void *)s.u64[0], sizeof(sem_t));
     OSAssert(err == 0);

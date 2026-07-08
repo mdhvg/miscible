@@ -1,4 +1,3 @@
-#include "config.h"
 #include "base/log.h"
 #include "os/os_inc.h"
 #include "base/array.h"
@@ -7,6 +6,7 @@
 Arena *log_arena = NULL;
 global_v FileHandle log_file = 0;
 
+typedef struct LogEpoch LogEpoch;
 struct LogEpoch
 {
     U64 ticks_per_sec;
@@ -16,7 +16,7 @@ struct LogEpoch
 
 global_v LogEpoch epoch = {0};
 
-void mscbl_log_init()
+void mscbl_log_init(U64 log_age)
 {
     arena_alloc(MB(1), log_arena);
     String root = os_env_var(LOG_BASE_ENV, log_arena);
@@ -43,7 +43,7 @@ void mscbl_log_init()
             {
                 FileMTime entry = files[i];
                 U64 seconds_since = cur_time - entry.mtime;
-                if (mscbl_config.settings.log_age_days * 86400 <= seconds_since)
+                if (log_age * 86400 <= seconds_since)
                 {
                     os_file_delete(entry.path, &res);
                 }
@@ -113,7 +113,7 @@ Time get_cur_time()
 
 void mscbl_log(const char *fmt, ...)
 {
-    char buffer[KB(4)];
+    char buffer[KB(8)];
 
     Result res = ResultSuccess();
     Time time = get_cur_time();

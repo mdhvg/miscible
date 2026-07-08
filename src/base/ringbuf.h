@@ -1,31 +1,32 @@
 #pragma once
+#include "base/arena.h"
 #include "base/base_core.h"
 
-struct RingBufferHeader
-{
-    S64 size;
-    S64 head;
-    S64 tail;
-};
+#define RingBufferHeader() \
+    U64 head;              \
+    U64 tail;              \
+    U64 capacity
 
-#define RingBuffer(T, name, sz) \
-    struct                      \
-    {                           \
-        S64 size;               \
-        S64 head;               \
-        S64 tail;               \
-        T v[sz];                \
-    } name
+#define RingBuffer_t(T)     \
+    struct                  \
+    {                       \
+        RingBufferHeader(); \
+        T *v;               \
+    }
 
-// #define _rb_read(rb)     (((++rb.head) %= StaticArrSize(rb.v)), (rb.v[(rb.head - 1) % StaticArrSize(rb.v)]))
-// #define _rb_write(rb, x) ((rb.tail %= StaticArrSize(rb.v)))
-#define _rb_header(rb) (((RingBufferHeader *)(&(rb))))
+#if LANG_CPP
+template <typename T>
+T _rb_extract_type(T *v);
+#define _rb_typeof(rb) decltype(_rb_extract_type((rb).v))
+#else
+#define _rb_typeof(rb) __typeof__(rb.v[0])
+#endif
 
-#define rb_top(rb)     ((rb).v[rb.head])
-#define rb_pop(rb)     ((rb).v[_rb_pop(_rb_header(rb), StaticArrSize((rb).v))])
-#define rb_push(rb, x) ((rb).v[_rb_push(_rb_header(rb), StaticArrSize((rb).v))] = (x))
-#define rb_getsize(rb) ((rb).size)
-#define rb_isfull(rb)  ((rb).size >= StaticArrSize(rb.v))
+#define rb_size(rb)    ((rb).tail - (rb).head)
+#define rb_isfull(rb)  (rb_size(rb) == (rb).capacity)
+#define rb_isempty(rb) ((rb).tail == (rb).head)
 
-S64 _rb_push(RingBufferHeader *rb, S64 max_size);
-S64 _rb_pop(RingBufferHeader *rb, S64 max_size);
+#define rb_init(arena, rb, cap) (rb.capacity = NextPow2(cap), ((rb).v = push_array0(arena, (rb).capacity, _rb_typeof(rb))))
+#define rb_push(rb, x)          (rb_isfull(rb) ? (0) : (((rb.v[IndexWrapPow2((rb).tail, (rb).capacity)] = (x)), ((rb).tail++)), 1))
+#define rb_top(rb, top)         (rb_isempty(rb) ? (0) : (((*top) = (rb).v[IndexWrapPow2((rb).head, (rb).capacity)]), 1))
+#define rb_pop(rb)              (rb_isempty(rb) ? (0) : (((rb).head++), 1))

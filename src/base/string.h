@@ -1,19 +1,21 @@
 #pragma once
 #include <stdarg.h>
 
-#include "base/base_core.h"
 #include "base/arena.h"
 
 // Reference: https://youtu.be/bUOOaXf9qIM?t=2989
 
 #define UTF_INVALID 0xFFFD
 
+typedef struct String String;
 struct String
 {
     U8 *v;
     U64 size;
 };
+typedef String *StringArr;
 
+typedef struct StringBuilder StringBuilder;
 struct StringBuilder
 {
     U8 *v;
@@ -22,6 +24,7 @@ struct StringBuilder
     Arena *arena;
 };
 
+typedef struct WString WString;
 struct WString
 {
 #if defined WCHAR_UTF16
@@ -32,10 +35,18 @@ struct WString
     U64 size;
 };
 
-#if OS_WINDOWS
-typedef struct WString OSString;
+#define StringBuilderStack(name, byte_capacity) \
+    char name##_backend_buffer[byte_capacity];  \
+    StringBuilder name = {                      \
+        .v = (U8 *)name##_backend_buffer,       \
+        .size = 0,                              \
+        .capacity = (byte_capacity) - 1,        \
+        .arena = NULL}
+
+#if OS_WIN32
+typedef WString OSString;
 #elif OS_LINUX
-typedef struct String OSString;
+typedef String OSString;
 #endif
 
 #define StringSpr(s)  ((S32)(s).size), (s).v
@@ -48,7 +59,6 @@ inline const wchar *WCStrCast(WString s)
 {
     return (wchar *)((s).v);
 }
-wchar *WCStrCast(Arena *a, String s);
 
 MSCBL_API void string_growto(StringBuilder *base, U64 reqcap);
 MSCBL_API inline void string_growby(StringBuilder *base, U64 by)
@@ -62,6 +72,7 @@ MSCBL_API U64 string_push_wcstr(StringBuilder *base, const wchar *push);
 MSCBL_API U64 string_push_string(StringBuilder *base, String push);
 MSCBL_API U64 string_push_char(StringBuilder *base, char push);
 MSCBL_API U64 string_push_cstr(StringBuilder *base, const char *push);
+#if LANG_CPP
 inline U64 string_push(StringBuilder *base, WString push)
 {
     return string_push_wstring(base, push);
@@ -86,6 +97,16 @@ inline U64 string_push(StringBuilder *base, const char *push)
 {
     return string_push_cstr(base, push);
 }
+#else
+#define string_push(base, x) _Generic((x), \
+    WString: string_push_wstring,          \
+    wchar: string_push_wchar,              \
+    wchar *: string_push_wcstr,            \
+    String: string_push_string,            \
+    char: string_push_char,                \
+    int: string_push_char,                 \
+    char *: string_push_cstr)(base, x)
+#endif
 
 MSCBL_API U64 string_assign_string(StringBuilder *base, String push);
 inline U64 string_assign(StringBuilder *base, String x)
@@ -95,6 +116,7 @@ inline U64 string_assign(StringBuilder *base, String x)
 
 MSCBL_API WString string_view_wcstr(const wchar *c, S64 size);
 MSCBL_API String string_view_cstr(const char *c, S64 size);
+#if LANG_CPP
 inline WString sv(const wchar *x, S64 size = -1)
 {
     return string_view_wcstr(x, size);
@@ -107,11 +129,17 @@ inline String sv(const unsigned char *x, S64 size = -1)
 {
     return string_view_cstr((char *)x, size);
 }
+#else
+#define sv(x, size) _Generic((x), \
+    wchar *: string_view_wcstr,   \
+    char *: string_view_cstr)(x, size)
+#endif
 
 MSCBL_API WString string_copy_wcstr(Arena *arena, const wchar *c, S64 size);
 MSCBL_API String string_copy_cstr(Arena *arena, const char *c, S64 size);
 MSCBL_API WString string_copy_wstr(Arena *arena, WString s);
 MSCBL_API String string_copy_str(Arena *arena, String s);
+#if LANG_CPP
 inline WString string_copy(Arena *arena, const wchar *x, S64 size = -1)
 {
     return string_copy_wcstr(arena, x, size);
@@ -132,18 +160,43 @@ inline String string_copy(Arena *arena, String x)
 {
     return string_copy_str(arena, x);
 }
+#else
+#define string_copy(base, x) _Generic((x), \
+    WString: string_copy_wstring,          \
+    wchar: string_copy_wchar,              \
+    wchar *: string_copy_wcstr,            \
+    String: string_copy_string,            \
+    char: string_copy_char,                \
+    char *: string_copy_cstr)(arena, builder, x)
+#endif
 
 #define string_clear(x) ((x).size = 0, (x).v[0] = 0)
+#if LANG_CPP
 MSCBL_API StringBuilder string_empty(Arena *arena, U64 size = 1);
+#else
+MSCBL_API StringBuilder string_empty(Arena *arena, U64 size);
+#endif
 MSCBL_API void string_pop_to(StringBuilder *base, U64 size);
 MSCBL_API inline void string_pop_by(StringBuilder *base, U64 count)
 {
-    return string_pop_to(base, base->size - count);
+    string_pop_to(base, base->size - count);
 }
 
 MSCBL_API inline String string_from_to(String base, U64 from, U64 to)
 {
-    return {.v = base.v + from, .size = to - from};
+    if (from > base.size)
+        from = base.size;
+    if (to > base.size)
+        to = base.size;
+
+    String result = {.v = base.v + from};
+
+    if (from > to)
+        result.size = 0;
+    else
+        result.size = to - from;
+
+    return result;
 }
 MSCBL_API inline String string_from(String base, U64 from)
 {
@@ -157,23 +210,26 @@ inline StringBuilder string_init(Arena *arena, String init)
     return base;
 }
 
-MSCBL_API B32 string_cmp_wcstr(WString str, const wchar *match, U64 limit);
-MSCBL_API B32 string_cmp_cstr(String str, const char *match, U64 limit);
+MSCBL_API B32 string_cmp_wstring(WString str, WString match);
 MSCBL_API B32 string_cmp_string(String str, String match);
-inline B32 string_cmp(WString str, const wchar *match, U64 limit = 1024)
+#if LANG_CPP
+inline B32 string_cmp(WString str, WString match)
 {
-    return string_cmp_wcstr(str, match, limit);
-}
-inline B32 string_cmp(String str, const char *match, U64 limit = 1024)
-{
-    return string_cmp_cstr(str, match, limit);
+    return string_cmp_wstring(str, match);
 }
 inline B32 string_cmp(String str, String match)
 {
     return string_cmp_string(str, match);
 }
+#else
+#define string_cmp(str, x) _Generic((x), \
+    WString: string_cmp_wstring,         \
+    String: string_cmp_string)(str, x)
+#endif
 
-void string_formatv(StringBuilder *base, const char *fmt, va_list args);
+WString string_to_wide(Arena *arena, String str);
+
+MSCBL_API void string_formatv(StringBuilder *base, const char *fmt, va_list args);
 MSCBL_API WString string_formatw(StringBuilder *base, const wchar *fmt, ...);
 MSCBL_API String string_format(StringBuilder *base, const char *fmt, ...);
 MSCBL_API inline const char *format_cstr(StringBuilder *base, const char *fmt, ...)
@@ -185,16 +241,7 @@ MSCBL_API inline const char *format_cstr(StringBuilder *base, const char *fmt, .
     return CStrCast(*base);
 }
 
-MSCBL_API S64 string_find_str(String s, String f);
-inline S64 string_find(String s, String f)
-{
-    return string_find_str(s, f);
-}
-MSCBL_API S64 string_find_cstr(String s, const char *f);
-inline S64 string_find(String s, const char *f)
-{
-    return string_find_cstr(s, f);
-}
+MSCBL_API S64 string_find(String s, String f);
 
 MSCBL_API S64 string_rfind_wstr(WString s, wchar f);
 inline S64 string_rfind(WString s, wchar f)
@@ -221,6 +268,8 @@ MSCBL_API U64 string_replace_cstr(StringBuilder *base, const char *find, const c
  * @return         Number of replacements actually performed.
  */
 MSCBL_API U64 string_replace_wcstr(WString base, const wchar *find, const wchar *replace, U64 count);
+
+#if LANG_CPP
 /*
  * Inline wrapper for string_replace_cstr (uses default count = 0).
  *
@@ -238,32 +287,68 @@ inline U64 string_replace(WString base, const wchar *find, const wchar *replace,
 {
     return string_replace_wcstr(base, find, replace, count);
 }
+#else
+/*
+ * Inline wrapper for string_replace_cstr (uses default count = 0).
+ *
+ * @param base     The StringBuilder to modify.
+ * @param find     Substring to find.
+ * @param replace  Replacement string.
+ * @param count    Max replacements (default 0 = all).
+ * @return         Number of replacements made.
+ */
+#define string_replace(base, x, replace, count) _Generic((x), \
+    wchar *: string_replace_wcstr,                            \
+    char *: string_replace_cstr)(base, x, replace, count)
+#endif
 
 MSCBL_API B32 match_front_wcstr(WString base, const wchar *match);
-MSCBL_API B32 match_end_wcstr(WString base, const wchar *match);
 MSCBL_API B32 match_front_cstr(String base, const char *match);
-MSCBL_API B32 match_end_cstr(String base, const char *match);
+#if LANG_CPP
 inline B32 match_front(WString base, const wchar *match)
 {
     return match_front_wcstr(base, match);
-}
-inline B32 match_end(WString base, const wchar *match)
-{
-    return match_end_wcstr(base, match);
 }
 inline B32 match_front(String base, const char *match)
 {
     return match_front_cstr(base, match);
 }
+#else
+#define match_front(base, x) _Generic((x), \
+    wchar *: match_front_wcstr,            \
+    char *: match_front_cstr)(base, x)
+#endif
+MSCBL_API B32 match_end_wcstr(WString base, const wchar *match);
+MSCBL_API B32 match_end_cstr(String base, const char *match);
+#if LANG_CPP
+inline B32 match_end(WString base, const wchar *match)
+{
+    return match_end_wcstr(base, match);
+}
 inline B32 match_end(String base, const char *match)
 {
     return match_end_cstr(base, match);
 }
+#else
+#define match_end(base, x) _Generic((x), \
+    wchar *: match_end_wcstr,            \
+    char *: match_end_cstr)(base, x)
+#endif
+
+MSCBL_API S8 string_get_sign(String *str);
+MSCBL_API U64 string_to_u64(String str, U32 radix);
+inline S64 string_to_s64(String str, U32 radix)
+{
+    S8 sign = string_get_sign(&str);
+    return (S64)string_to_u64(str, radix) * sign;
+}
+// MSCBL_API U32 string_to_u32(String str, U32 radix);
+// inline S32 string_to_s32(String str, U32 radix);
 
 inline void path_join(StringBuilder *base, String part)
 {
-    if (!match_end_cstr(StringCast(*base), "/") && !match_end_cstr(StringCast(*base), "\\"))
-#if OS_WINDOWS
+    if (!match_end(StringCast(*base), "/") && !match_end(StringCast(*base), "\\"))
+#if OS_WIN32
         string_push(base, '\\');
 #elif OS_LINUX
         string_push(base, '/');

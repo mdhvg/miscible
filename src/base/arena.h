@@ -1,6 +1,7 @@
 #pragma once
 #include "base/base_core.h"
 
+typedef struct Arena Arena;
 struct Arena
 {
     U8 *base;
@@ -19,12 +20,14 @@ struct Arena
 MSCBL_API Arena *arena_head;
 #endif
 
+typedef struct ArenaArray ArenaArray;
 struct ArenaArray
 {
     U64 size;
     Arena **v;
 };
 
+typedef struct Temp Temp;
 struct Temp
 {
     Arena *arena;
@@ -32,21 +35,33 @@ struct Temp
 };
 
 #if DBG
-void _arena_alloc(U64 capacity, Arena **arena, const char *name);
+MSCBL_API void _arena_alloc(U64 capacity, Arena **arena, const char *name);
 #define arena_alloc(capacity, arena) _arena_alloc(capacity, &(arena), Stringify(arena))
 #else
-void _arena_alloc(U64 capacity, Arena **arena);
+MSCBL_API void _arena_alloc(U64 capacity, Arena **arena);
 #define arena_alloc(capacity, arena) _arena_alloc(capacity, &(arena))
 #endif
 
-MSCBL_API void *arena_push(Arena *a, U64 size, U8 zero = 0, U64 align = 8);
-void *arena_realloc(Arena *a, void *ptr, U64 old_size, U64 new_size);
-#define realloc_array(a, ptr, count, new_count, type) (type *)arena_realloc(a, ptr, count * sizeof(type), new_count * sizeof(type))
-#define push_array(a, count, type)                    (type *)arena_push(a, (count) * sizeof(type))
-#define push_array0(a, count, type)                   (type *)arena_push(a, (count) * sizeof(type), 1)
-#define push_struct(a, type)                          (type *)arena_push(a, sizeof(type))
-#define push_struct0(a, type)                         (type *)arena_push(a, sizeof(type), 1)
-#define push_size(a, size, type)                      (type *)arena_push(a, size, 8)
+struct _arena_push_args
+{
+    Arena *arena;
+    U64 size;
+    U64 align;
+    U8 zero;
+};
+MSCBL_API void *_arena_push(struct _arena_push_args args);
+#if LANG_CPP
+#define arena_push(...) _arena_push(_arena_push_args{__VA_ARGS__})
+#else
+#define arena_push(...) _arena_push((struct _arena_push_args){__VA_ARGS__})
+#endif
+void *_arena_resize(Arena *a, void *old_ptr, U64 old_size, U64 new_size);
+#define arena_resize(a, op, os, ns) _arena_resize(a, op, os, ns)
+#define push_array(a, count, type)  (type *)arena_push(.arena = a, .size = (count) * sizeof(type))
+#define push_array0(a, count, type) (type *)arena_push(.arena = a, .size = (count) * sizeof(type), .zero = 1)
+#define push_struct(a, type)        (type *)arena_push(.arena = a, .size = sizeof(type))
+#define push_struct0(a, type)       (type *)arena_push(.arena = a, .size = sizeof(type), .zero = 1)
+#define push_size(a, sz, type)      (type *)arena_push(.arena = a, .size = (U64)sz, .align = 8)
 
 void arena_pop(Arena *a, U64 pos);
 void arena_free(Arena *a);

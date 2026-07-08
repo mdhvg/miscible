@@ -36,18 +36,18 @@
 
 void string_growto(StringBuilder *base, U64 reqcap)
 {
-    if (reqcap < base->capacity)
+    if (reqcap <= base->capacity)
         return;
 
-    U64 cap = base->capacity * 2;
-    if (cap < reqcap)
-        cap = reqcap;
+    U64 new_cap = base->capacity * 2;
+    if (new_cap < reqcap)
+        new_cap = reqcap;
 
-    U8 *buffer = push_array(base->arena, cap + 1, U8);
-    if (base->v)
-        MemoryCopy(buffer, base->v, base->size);
-    base->v = buffer;
-    base->capacity = cap;
+    // U8 *buffer = push_array(base->arena, new_cap + 1, U8);
+    // if (base->v)
+    //     MemoryCopy(buffer, base->v, base->size);
+    base->v = (U8 *)arena_resize(base->arena, base->v, base->capacity + 1, new_cap + 1);
+    base->capacity = new_cap;
 }
 
 struct UnicodeDecode
@@ -103,7 +103,7 @@ U8 utf8_class[32] = {
 
 UnicodeDecode utf8_decode(U8 *str, U64 max)
 {
-    UnicodeDecode result = {1, UTF_INVALID};
+    UnicodeDecode result = {.size = 1, .codepoint = UTF_INVALID};
     U8 byte = str[0];
     U8 byte_class = utf8_class[byte >> 3];
 
@@ -454,36 +454,12 @@ void string_pop_to(StringBuilder *base, U64 size)
     base->v[size] = 0;
 }
 
-B32 string_cmp_wcstr(WString str, const wchar *match, U64 limit)
-{
-    U64 l = 0, r = 0;
-    U64 i = 0;
-    for (U64 i = 0; i < limit && i < str.size && match[i]; i++)
-    {
-        l += str.v[i];
-        r += match[i];
-    }
-    return l - r;
-}
-
-B32 string_cmp_cstr(String str, const char *match, U64 limit)
-{
-    U64 l = 0, r = 0;
-    U64 i = 0;
-    for (U64 i = 0; i < limit && i < str.size && match[i]; i++)
-    {
-        l += str.v[i];
-        r += match[i];
-    }
-    return l - r;
-}
-
-B32 string_cmp_string(String str, String match)
+B32 string_cmp_wstring(WString str, WString match)
 {
     if (str.size != match.size)
         return str.size - match.size;
+
     U64 l = 0, r = 0;
-    U64 i = 0;
     for (U64 i = 0; i < str.size && i < match.size; i++)
     {
         l += str.v[i];
@@ -492,43 +468,65 @@ B32 string_cmp_string(String str, String match)
     return l - r;
 }
 
-// #if defined WCHAR_UTF16
-// wchar *str_to_wcstr(Arena *a, String s)
-// {
-//     wchar *res = NULL;
-//     if (s.size)
-//     {
-//         res = push_array(a, s.size * 2, wchar);
-//
-//         U8 *in_ptr           = s.v;
-//         U8 *in_end           = s.v + s.size;
-//         U64 size             = 0;
-//         UnicodeDecode decode = {0};
-//         for (; in_ptr < in_end; in_ptr += decode.size)
-//         {
-//             decode = utf8_decode(in_ptr, in_end - in_ptr);
-//             size += utf16_encode((U16 *)(res + size), decode.codepoint);
-//         }
-//         res[size] = 0;
-//     }
-//     return res;
-// }
-// #elif defined WCHAR_UTF32
-// #endif
+B32 string_cmp_string(String str, String match)
+{
+    if (str.size != match.size)
+        return str.size - match.size;
+
+    U64 l = 0, r = 0;
+    for (U64 i = 0; i < str.size && i < match.size; i++)
+    {
+        l += str.v[i];
+        r += match.v[i];
+    }
+    return l - r;
+}
+
+#if defined WCHAR_UTF16
+WString string_to_wide(Arena *arena, String str)
+{
+    WString res = {.v = 0};
+    if (str.size)
+    {
+        U64 cap = str.size * 2;
+        res.v = push_array(arena, cap + 1, U16);
+
+        U8 *in_ptr = str.v;
+        U8 *in_end = str.v + str.size;
+        U64 size = 0;
+        UnicodeDecode decode = {.size = 0};
+        for (; in_ptr < in_end; in_ptr += decode.size)
+        {
+            decode = utf8_decode(in_ptr, in_end - in_ptr);
+            size += utf16_encode(res.v + size, decode.codepoint);
+        }
+        res.v[size] = 0;
+        res.size = size;
+        arena_pop(arena, (cap - size) * 2);
+    }
+    return res;
+}
+#elif defined WCHAR_UTF32
+#endif
 
 void string_formatv(StringBuilder *base, const char *fmt, va_list args)
 {
     va_list args2;
     va_copy(args2, args);
-
     U64 size = vsnprintf(0, 0, fmt, args2) + 1;
-    string_clear(*base);
-    string_growto(base, size);
+    va_end(args2);
+
+    if (base->arena)
+    {
+        string_clear(*base);
+        string_growto(base, size);
+    }
+
+    if (size > base->capacity)
+        size = base->capacity;
 
     base->size = vsnprintf((char *)base->v, size, fmt, args);
     base->v[size] = 0;
-
-    va_end(args2);
 }
 
 WString string_formatw(StringBuilder *base, const wchar *fmt, ...)
@@ -739,7 +737,6 @@ U64 string_replace_wstring(WString base, WString find, WString replace, U64 coun
 {
     Assert(find.size == replace.size, "find and replace size should be same for string view replace");
     U64 replaced = 0;
-    U64 instances = 0;
 
     for (U64 i = 0; i < base.size - find.size + 1;)
     {
@@ -863,6 +860,44 @@ B32 match_end_cstr(String base, const char *match)
             return 0;
     }
     return 1;
+}
+
+// clang-format off
+global_v U8 integer_symbol_reverse[128] =
+{
+  0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
+  0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
+  0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
+  0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
+  0xFF,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
+  0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
+  0xFF,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
+  0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
+};
+// clang-format on
+
+S8 string_get_sign(String *str)
+{
+    S8 ret = 1;
+    for (U8 **i = &str->v; *i < str->v + str->size && **i == '-'; ((*i)++, str->size--))
+    {
+        ret *= -1;
+    }
+    return ret;
+}
+
+U64 string_to_u64(String str, U32 radix)
+{
+    if (radix <= 1 || radix > 16)
+        return 0;
+
+    U64 x = 0;
+    for (U64 i = 0; i < str.size; i++)
+    {
+        x *= radix;
+        x += integer_symbol_reverse[str.v[i] & 0x7F];
+    }
+    return x;
 }
 
 String month_string(Month month)

@@ -43,9 +43,10 @@ void _da_setcap(Arena *arena, T **arr, U64 cap)
         ArrayHeader *h = getheader(*arr);
         if (h->capacity < (cap))
         {
-            void *base = arena_push(arena, sizeof(ArrayHeader) + (cap) * sizeof(T));
+            void *base = arena_resize(arena, h, h->capacity * sizeof(T), sizeof(ArrayHeader) + (cap) * sizeof(T));
+            // void *base = arena_push(arena, sizeof(ArrayHeader) + (cap) * sizeof(T));
             ArrayHeader *h2 = (ArrayHeader *)base;
-            MemoryCopy(h2 + 1, *arr, h->size * sizeof(T));
+            // MemoryCopy(h2 + 1, *arr, h->size * sizeof(T));
             h2->size = h->size;
             h2->capacity = cap;
             *arr = (T *)(h2 + 1);
@@ -74,10 +75,11 @@ void _da_push(Arena *arena, T **arr, T val)
             U64 capacity = h0->capacity * 2;
             if (capacity < req)
                 capacity = req;
-            void *base = arena_push(arena, sizeof(ArrayHeader) + capacity * sizeof(T));
+            void *base = arena_resize(arena, h0, h0->capacity * sizeof(T), sizeof(ArrayHeader) + capacity * sizeof(T));
+            // void *base = arena_push(arena, sizeof(ArrayHeader) + capacity * sizeof(T));
             ArrayHeader *h1 = (ArrayHeader *)base;
             T *dest = (T *)(h1 + 1);
-            MemoryCopy((U8 *)dest, (U8 *)(*arr), h0->size * sizeof(T));
+            // MemoryCopy((U8 *)dest, (U8 *)(*arr), h0->size * sizeof(T));
             h1->capacity = capacity;
             h1->size = h0->size;
             *arr = dest;

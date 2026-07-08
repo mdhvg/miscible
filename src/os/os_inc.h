@@ -11,6 +11,7 @@
         U64 page_size;    \
     }
 
+typedef union Guid Guid;
 union Guid {
     struct
     {
@@ -22,13 +23,14 @@ union Guid {
     U8 v[16];
 };
 
+typedef struct FileMTime FileMTime;
 struct FileMTime
 {
     String path;
     U64 mtime;
 };
 
-#if OS_WINDOWS
+#if OS_WIN32
 #include "os/win32/win32_core.h"
 #elif OS_LINUX
 #include "os/linux/linux_core.h"
@@ -60,7 +62,7 @@ MSCBL_API OSInfo os_info;
 typedef struct OSMmap OSMmap;
 
 Guid os_make_guid();
-void os_prelaunch();
+MSCBL_API void os_prelaunch();
 void os_cleanup();
 
 String os_env_var(const char *name, Arena *arena);
@@ -84,10 +86,16 @@ MSCBL_API void os_release(void *ptr, U64 size);
 MSCBL_API void os_commit(void *ptr, U64 size);
 MSCBL_API void os_decommit(void *ptr, U64 size);
 
-Semaphore os_semaphore_alloc(S32 initial, S32 max);
-void os_semaphore_release(Semaphore s);
-void os_semaphore_drop(Semaphore s);
-B32 os_semaphore_take(Semaphore s, U64 end_us);
+Semaphore os_semaphore_init(S32 initial, S32 max);
+void os_semaphore_destroy(Semaphore s);
+void os_semaphore_push(Semaphore s);
+B32 os_semaphore_pop(Semaphore s, U64 end_us);
+
+void os_mutex_init(Mutex *mutex);
+void os_mutex_destroy(Mutex *mutex);
+void os_mutex_lock(Mutex *mutex);
+void os_mutex_unlock(Mutex *mutex);
+B32 os_mutex_trylock(Mutex *mutex);
 
 void os_thread_detach(Thread t);
 
@@ -99,17 +107,63 @@ enum
     FileAccess_Append = (1 << 2),
 };
 
+typedef enum FileMode FileMode;
 enum FileMode
 {
     FileMode_CreateAlways = (1 << 0),
     FileMode_OpenAlways = (1 << 1),
 };
 
-FileHandle os_file_open(String path, FileAccess access, FileMode mode, Result *res, U64 size = 0);
+FileHandle _os_file_open(String path, FileAccess access, FileMode mode, Result *res, U64 size);
+#if LANG_CPP
+inline FileHandle os_file_open(String path, FileAccess access, FileMode mode, Result *res, U64 size = 0)
+{
+    return _os_file_open(path, access, mode, res, size);
+}
+#else
+inline FileHandle os_file_open(String path, FileAccess access, FileMode mode, Result *res)
+{
+    return _os_file_open(path, access, mode, res, 0);
+}
+inline FileHandle os_file_open_resize(String path, FileAccess access, FileMode mode, Result *res, U64 size)
+{
+    return _os_file_open(path, access, mode, res, size);
+}
+#endif
 void os_file_delete(String path, Result *res);
 void os_file_close(FileHandle file_desc, Result *res);
-U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset = 0);
-U32 os_file_read(FileHandle file_desc, U64 size, U8 *buffer, Result *res);
+U64 _os_file_write(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset);
+#if LANG_CPP
+inline U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset = 0)
+{
+    return _os_file_write(file_desc, size, buffer, res, offset);
+}
+#else
+inline U64 os_file_write(FileHandle file_desc, U64 size, U8 *buffer, Result *res)
+{
+    return _os_file_write(file_desc, size, buffer, res, 0);
+}
+inline U64 os_file_write_at(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset)
+{
+    return _os_file_write(file_desc, size, buffer, res, offset);
+}
+#endif
+U32 _os_file_read(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset);
+#if LANG_CPP
+inline U32 os_file_read(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset = 0)
+{
+    return _os_file_read(file_desc, size, buffer, res, offset);
+}
+#else
+inline U32 os_file_read(FileHandle file_desc, U64 size, U8 *buffer, Result *res)
+{
+    return _os_file_read(file_desc, size, buffer, res, 0);
+}
+inline U32 os_file_read_at(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset)
+{
+    return _os_file_read(file_desc, size, buffer, res, offset);
+}
+#endif
 U64 os_file_size(FileHandle file_desc, Result *res);
 void os_file_rename(String old_path, String new_path);
 FileMTime *os_list_by_pattern(String pattern, String base, Arena *arena);

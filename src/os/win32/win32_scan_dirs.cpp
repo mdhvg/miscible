@@ -131,7 +131,12 @@ void recursive_insert(Arena *arena, DirInfo dir)
         }
         else
         {
-            if (!match_end(filename, L".jpg") && !match_end(filename, L".png"))
+            if (!match_end(filename, L".jpg") &&
+                !match_end(filename, L".jpeg") &&
+                !match_end(filename, L".JPG") &&
+                !match_end(filename, L".JPEG") &&
+                !match_end(filename, L".png") &&
+                !match_end(filename, L".PNG"))
                 continue;
 
             FILETIME make_time = fdFile.ftCreationTime;
