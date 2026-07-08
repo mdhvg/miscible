@@ -7,53 +7,9 @@
 #include "base/string.h"
 #include "base/threadpool.h"
 
-Arena *fetch_arena = NULL;
-Image *images = NULL;
 Atlas *atlases = NULL;
 DirTree *dir_tree = NULL;
-
-// FIXME: Can run out of arena/memory if we always load all metadata
-DBStmtCbk(push_image)
-{
-    S64 id = sqlite3_column_int64(stmt, 0);
-    S64 atlas_id = sqlite3_column_int64(stmt, 1);
-    U32 atlas_idx = (U32)sqlite3_column_int(stmt, 2);
-    S64 parent_id = sqlite3_column_int64(stmt, 3);
-    S64 root_id = sqlite3_column_int64(stmt, 4);
-
-    String path = string_copy(arena, sqlite3_column_text(stmt, 5));
-    String filename = string_copy(arena, sqlite3_column_text(stmt, 6));
-    ByteSize size = size_to_bytesize(sqlite3_column_int64(stmt, 7));
-
-    Time mtime = timestamp_to_time(sqlite3_column_int64(stmt, 8));
-    Time ctime = timestamp_to_time(sqlite3_column_int64(stmt, 9));
-
-    S32 width = sqlite3_column_int(stmt, 10);
-    S32 height = sqlite3_column_int(stmt, 11);
-    S32 channels = sqlite3_column_int(stmt, 12);
-
-    Image img = {
-        .id = id,
-        .atlas_id = atlas_id,
-        .atlas_idx = atlas_idx,
-        .parent_id = parent_id,
-        .root_id = root_id,
-        .path = path,
-        .filename = filename,
-        .size = size,
-        .mtime = mtime,
-        .ctime = ctime,
-        .width = width,
-        .height = height,
-        .channels = channels,
-    };
-
-    while (va_getsize(images) < id + 1)
-        va_push(images, {0});
-
-    if (!images[id].id)
-        images[id] = img;
-}
+Arena *fetch_arena = NULL;
 
 DBStmtCbk(push_atlas)
 {
@@ -67,21 +23,20 @@ DBStmtCbk(push_atlas)
     if (!atlases[id].id)
     {
         atlases[id] = atl;
-
-        gl_args_path *params = push_struct(fetch_arena, gl_args_path);
-        params->texture = &atlases[id].tex;
-        params->path = path;
         AsyncTask task = {
             .func = gl_tex_path,
-            .data = {
-                .kind = TPData_ANY,
-                .val_any = params}};
+            .args = {
+                {.kind = TPData_Any, .val_any = &atlases[id].tex},
+                {.kind = TPData_String, .val_str = path},
+            }};
         threadpool_enqueue(TaskPriority_Realtime, task);
     }
     else
         mscbl_log_info("Skipped atlas [%zu] %.*s", id, StringSpr(path));
 }
 
+// FIXME: loads directory names twice, need delete all and fill all or
+// selectively fill
 DBStmtCbk(push_dirs)
 {
     S64 id = sqlite3_column_int64(stmt, 0);
@@ -147,12 +102,6 @@ DBStmtCbk(push_pending16)
     da_push(arena, *paths, path);
 }
 
-void db_fetch_images()
-{
-    sqlite3_stmt *stmt = db_prepare("SELECT id, atlas_id, atlas_idx, parent_id, root_id, path, filename, size, mtime, ctime, width, height, channels FROM Images;");
-    db_run_stmt(stmt, 1, push_image, NULL, fetch_arena);
-}
-
 void db_fetch_atlases()
 {
     sqlite3_stmt *stmt = db_prepare("SELECT id, atlas_path FROM Atlas;");
@@ -171,7 +120,7 @@ OSString *db_fetch_pending()
 {
     OSString *paths = NULL;
     sqlite3_stmt *stmt = db_prepare("SELECT path FROM DirSelect WHERE indexed = 0;");
-#if OS_WINDOWS
+#if OS_WIN32
     db_run_stmt(stmt, 1, push_pending16, &paths, fetch_arena);
 #elif OS_LINUX
     db_run_stmt(stmt, 1, push_pending, &paths, fetch_arena);
@@ -184,7 +133,6 @@ ThreadFunc(db_fetchall)
     if (!fetch_arena)
         arena_alloc(MB(1), fetch_arena);
 
-    db_fetch_images();
     db_fetch_dirtree();
     db_fetch_atlases();
 }

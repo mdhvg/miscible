@@ -6,4 +6,5 @@ enum AppError
     AppError_NullPtr,
     AppError_ChecksumFail,
     AppError_PartialDownload,
+    AppError_UnImplemented,
 };

@@ -26,7 +26,7 @@
 //   for each static/DLL boundary you are calling from. Read "Context and Memory Allocators" section of imgui.cpp for more details.
 
 #if DBG
-#if OS_WINDOWS
+#if OS_WIN32
 #define IMGUI_API __declspec(dllexport) // MSVC Windows: DLL export
 #elif OS_LINUX
 #define extern

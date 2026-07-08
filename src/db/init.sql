@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS Images (
 CREATE VIRTUAL TABLE IF NOT EXISTS Image_FTS USING fts5(
     path,
     content='Images',
-    content_rowid='id'
+    content_rowid='id',
+    tokenize='trigram'
 );
 
 DROP TRIGGER IF EXISTS Image_FTS_insert;

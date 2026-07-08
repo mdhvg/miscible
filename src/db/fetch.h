@@ -3,7 +3,7 @@
 
 MSCBL_API Arena *fetch_arena;
 
-struct Image
+struct ImageMetadata
 {
     S64 id;
     S64 atlas_id;
@@ -12,7 +12,7 @@ struct Image
 
     String path, filename;
     ByteSize size;
-    Time mtime, ctime;
+    Time ctime, mtime;
     S32 width, height, channels;
 };
 
@@ -41,7 +41,6 @@ struct DirTree
         arr[idx] = v;                  \
     } while (0)
 
-MSCBL_API Image *images;
 MSCBL_API Atlas *atlases;
 MSCBL_API DirTree *dir_tree;
 
