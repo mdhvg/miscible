@@ -25,6 +25,7 @@ end
 add_includedirs("src")
 add_includedirs("deps/stb")
 add_includedirs("deps/sha2")
+add_includedirs("deps/jsmn")
 add_includedirs("deps/icons")
 add_includedirs("deps/imgui")
 add_includedirs("deps/sqlite")
@@ -93,7 +94,6 @@ add_files("src/app/miscible.cpp")
 add_links("noexcep_operators.lib")
 add_links("ocos_operators.lib")
 add_links("ortcustomops.lib")
-add_links("ortextensions.lib")
 add_links("build/onnx*")
 
 add_deps("preprocess")
@@ -163,7 +163,6 @@ if is_mode("release") then
 	add_links("noexcep_operators.lib")
 	add_links("ocos_operators.lib")
 	add_links("ortcustomops.lib")
-	add_links("ortextensions.lib")
 	add_links("build/onnx*")
 
 	add_deps("onnxruntime", { inherited = false })
