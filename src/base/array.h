@@ -94,12 +94,12 @@ void _da_push(Arena *arena, T **arr, T val)
 /*******************************************************************************
 * Virtual memory array (VA)
 *******************************************************************************/
-#define va_free(arr) ((arr)                                                     \
-                          ? (os_release(                                        \
-                                getheader(arr),                                 \
-                                sizeof(ArrayHeader) +                           \
-                                    sizeof(arr[0]) * getheader(arr)->capacity)) \
-                          : (0))
+#define va_free(arr)    ((arr)                                                     \
+                             ? (os_release(                                        \
+                                   getheader(arr),                                 \
+                                   sizeof(ArrayHeader) +                           \
+                                       sizeof(arr[0]) * getheader(arr)->capacity)) \
+                             : (0))
 #define va_getcap(arr)  ((arr) ? (getheader(arr)->capacity) : (0))
 #define va_getsize(arr) ((arr) ? (getheader(arr)->size) : (0))
 

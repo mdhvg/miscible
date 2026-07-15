@@ -192,22 +192,29 @@ typedef struct
 
 typedef enum
 {
-    Domain_None,
     Domain_OS,
-    Domain_App,
     Domain_Network,
-    Domain_YAML,
+
+    Domain_App = 1000
 } ResultDomain;
 
 typedef struct
 {
     B32 success;
-    ResultDomain domain;
+    U32 domain;
     U32 code;
+
+    const char *position;
     const char *context;
 } Result;
 
-#define ResultSuccess() {.success = 1}
+#if LANG_CPP
+#define ResultSuccess()           Result{.success = 1}
+#define GenResult(x, dom, c, ctx) ((!(x)) ? (Result{.success = 0, .domain = (dom), .code = (U32)(c), .position = __FILE__ Stringify(__LINE__), .context = ctx}) : (ResultSuccess()))
+#else
+#define ResultSuccess()           (Result){.success = 1}
+#define GenResult(x, dom, c, ctx) ((!(x)) ? ((Result){.success = 0, .domain = (dom), .code = (U32)(c), .position = __FILE__ Stringify(__LINE__), .context = ctx}) : (ResultSuccess()))
+#endif
 #define CheckAndClearResult(res)   \
     do                             \
     {                              \
