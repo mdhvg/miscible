@@ -1,9 +1,9 @@
+#include <math.h>
 #include <stdarg.h>
 
 #include "base/arena.h"
 #include "base/string.h"
 #include "base/base_core.h"
-#include "base/log.h"
 
 // WString make_string_cwstr(const wchar *s)
 // {
@@ -898,6 +898,38 @@ U64 string_to_u64(String str, U32 radix)
         x += integer_symbol_reverse[str.v[i] & 0x7F];
     }
     return x;
+}
+
+F64 string_to_f64(String str)
+{
+    char buffer[64];
+    MemoryCopy(buffer, str.v, str.size);
+    buffer[str.size] = 0;
+    char *__end = NULL;
+    return strtod(buffer, &__end);
+    // S8 sign = string_get_sign(&str);
+    //
+    // F64 x = 0;
+    // U8 fraction = 0;
+    // for (U64 i = 0; i < str.size; i++)
+    // {
+    //     if (str.v[i] == '.')
+    //     {
+    //         fraction = 1;
+    //         continue;
+    //     }
+    //     if (!fraction)
+    //     {
+    //         x *= 10;
+    //         x += integer_symbol_reverse[str.v[i] & 0x7F];
+    //     }
+    //     else
+    //     {
+    //         x += pow(0.1, fraction) * integer_symbol_reverse[str.v[i] & 0x7F];
+    //         fraction++;
+    //     }
+    // }
+    // return sign * x;
 }
 
 String month_string(Month month)

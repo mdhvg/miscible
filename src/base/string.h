@@ -55,10 +55,7 @@ typedef String OSString;
 #define StringCast(x)  *(String *)(&(x))
 #define WStringCast(x) *(WString *)(&(x))
 #define CStrCast(s)    (char *)((s).v)
-inline const wchar *WCStrCast(WString s)
-{
-    return (wchar *)((s).v);
-}
+#define WCStrCast(s)   (const wchar *)((s).v)
 
 MSCBL_API void string_growto(StringBuilder *base, U64 reqcap);
 MSCBL_API inline void string_growby(StringBuilder *base, U64 by)
@@ -342,8 +339,20 @@ inline S64 string_to_s64(String str, U32 radix)
     S8 sign = string_get_sign(&str);
     return (S64)string_to_u64(str, radix) * sign;
 }
-// MSCBL_API U32 string_to_u32(String str, U32 radix);
-// inline S32 string_to_s32(String str, U32 radix);
+inline U32 string_to_u32(String str, U32 radix)
+{
+    return (U32)string_to_u64(str, radix);
+}
+inline S32 string_to_s32(String str, U32 radix)
+{
+    return (S32)string_to_s64(str, radix);
+}
+
+MSCBL_API F64 string_to_f64(String str);
+inline F32 string_to_f32(String str)
+{
+    return (F32)string_to_f64(str);
+}
 
 inline void path_join(StringBuilder *base, String part)
 {
