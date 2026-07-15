@@ -1,8 +1,8 @@
-#include "libfyaml.h"
+#include "libfyaml/libfyaml-core.h"
 #include "sha2.h"
+
 #include "yaml.h"
 #include "db/view.h"
-
 #include "config.h"
 #include "base/log.h"
 #include "os/os_inc.h"
@@ -12,45 +12,60 @@
 Config mscbl_config = {0};
 Arena *config_arena = NULL;
 
-ModelConfig config_load_model(fy_node *model_node, U8 *str_buf)
+RemoteFileArr config_parse_remote_file(Arena *arena, fy_node *array)
 {
-    ModelConfig model_cfg = {
-        .filename = yaml_scan_string(config_arena, model_node, str_buf, "/Filename")};
+    RemoteFileArr files = NULL;
+    fy_node *cur = NULL;
+    void *pre = NULL;
 
-    yaml_scan_hash(model_node, str_buf, model_cfg.model_hash, SHA512_DIGEST_SIZE, "/ModelHash");
-    yaml_scan_hash(model_node, str_buf, model_cfg.manifest_hash, SHA512_DIGEST_SIZE, "/ManifestHash");
-
-    fy_node *model_url_node = fy_node_by_path(model_node, "/ModelURL", FY_NT, FYNWF_FOLLOW);
-    fy_node *manifest_url_node = fy_node_by_path(model_node, "/ManifestURL", FY_NT, FYNWF_FOLLOW);
-    Assert(!fy_node_sequence_is_empty(model_url_node), "model url array empty");
-    Assert(!fy_node_sequence_is_empty(manifest_url_node), "manifest url array empty");
-
-    S64 model_url_count = fy_node_sequence_item_count(model_url_node);
-    S64 manifest_url_count = fy_node_sequence_item_count(manifest_url_node);
-    da_setcap(config_arena, model_cfg.model_url, model_url_count);
-    da_setcap(config_arena, model_cfg.manifest_url, manifest_url_count);
-
+    while ((cur = fy_node_sequence_iterate(array, &pre)))
     {
-        fy_node *url_node = NULL;
-        void *pre = NULL;
-        while ((url_node = fy_node_sequence_iterate(model_url_node, &pre)))
-        {
-            String url = yaml_scan_string(config_arena, url_node, str_buf, "/");
-            da_push(config_arena, model_cfg.model_url, url);
-        }
+        RemoteFile file = {
+            .size = yaml_scan_int(cur, "/Size"),
+            .url = yaml_scan_string(arena, cur, "/URL"),
+            .name = yaml_scan_string(arena, cur, "/Name"),
+        };
+        yaml_scan_hash(cur, file.hash, SHA256_DIGEST_SIZE, "/Hash");
+
+        da_push(arena, files, file);
     }
 
+    return files;
+}
+
+ModelGroupArr config_parse_model_groups(Arena *arena, fy_node *root)
+{
+    if (fy_node_sequence_is_empty(root))
+        return NULL;
+
+    fy_node *cur = NULL;
+    void *pre = NULL;
+    ModelGroupArr groups = NULL;
+    while ((cur = fy_node_sequence_iterate(root, &pre)))
     {
-        fy_node *url_node = NULL;
-        void *pre = NULL;
-        while ((url_node = fy_node_sequence_iterate(manifest_url_node, &pre)))
+        ModelGroup group = {
+            .name = yaml_scan_string(arena, cur, "/Name"),
+            .common_files = config_parse_remote_file(arena, fy_node_by_path(cur, "/Files", FY_NT, FYNWF_FOLLOW)),
+        };
+
         {
-            String url = yaml_scan_string(config_arena, url_node, str_buf, "/");
-            da_push(config_arena, model_cfg.manifest_url, url);
+            fy_node *cur1 = NULL;
+            void *pre1 = NULL;
+
+            fy_node *variants_node = fy_node_by_path(cur, "/Variants", FY_NT, FYNWF_FOLLOW);
+            while ((cur1 = fy_node_sequence_iterate(variants_node, &pre1)))
+            {
+                ModelVariant variant = {.precision = (Precision)yaml_scan_int(cur1, "/Precision")};
+
+                variant.text_files = config_parse_remote_file(arena, fy_node_by_path(cur1, "/Text", FY_NT, FYNWF_FOLLOW));
+                variant.vision_files = config_parse_remote_file(arena, fy_node_by_path(cur1, "/Vision", FY_NT, FYNWF_FOLLOW));
+                da_push(arena, group.variants, variant);
+            }
         }
+        da_push(arena, groups, group);
     }
 
-    return model_cfg;
+    return groups;
 }
 
 /*
@@ -66,30 +81,66 @@ Config default_config()
 #include "config.yaml"
     String config_text = sv(__mscbl_cfg_text);
 
-    U8 *str_buf = push_array(config_arena, KB(4), U8);
-
     fy_document *config_doc = fy_document_build_from_string(NULL, CStrCast(config_text), config_text.size);
     Assert(config_doc, "fyd is NULL");
     fy_node *config_root = fy_document_root(config_doc);
 
     Config config = {
-        .app_data = yaml_scan_string(config_arena, config_root, str_buf, "/AppData"),
-        .atlas_dir = yaml_scan_string(config_arena, config_root, str_buf, "/AtlasDir"),
-        .db_path = yaml_scan_string(config_arena, config_root, str_buf, "/DBPath"),
+        .app_data = yaml_scan_string(config_arena, config_root, "/AppData"),
+        .atlas_dir = yaml_scan_string(config_arena, config_root, "/AtlasDir"),
+        .db_path = yaml_scan_string(config_arena, config_root, "/DBPath"),
 
-        .settings = {.scan_depth = yaml_scan_int(config_root, "/Settings/ScanDepth"),
-                     .font_size = yaml_scan_float(config_root, "/Settings/FontSize"),
-                     .log_age_days = yaml_scan_int(config_root, "/Settings/LogAge")},
+        .settings = {
+            .scan_depth = yaml_scan_int(config_root, "/Settings/ScanDepth"), // To stop formatter from collapsing these
+            .font_size = yaml_scan_float(config_root, "/Settings/FontSize"), // To stop formatter from collapsing these
+            .log_age_days = yaml_scan_int(config_root, "/Settings/LogAge"),  // To stop formatter from collapsing these
+        },
 
         .view_settings = {
-            .sort_basis = (SortType)yaml_scan_int(config_root, "/ViewSettings/SortBasis"),
-            .descending = ((yaml_scan_int(config_root, "/ViewSettings/Descending") == 0) ? 0 : 1)},
+            .sort_basis = (SortType)yaml_scan_int(config_root, "/ViewSettings/SortBasis"),         // To stop formatter from collapsing these
+            .descending = ((yaml_scan_int(config_root, "/ViewSettings/Descending") == 0) ? 0 : 1), // To stop formatter from collapsing these
+        },
 
-        .model_group = {
-            .base_dir = yaml_scan_string(config_arena, config_root, str_buf, "/Models/BaseDir"),
-            .clip_model = config_load_model(fy_node_by_path(config_root, "/Models/CLIPModel", FY_NT, FYNWF_FOLLOW), str_buf),
+        .inf_settings = {
+            .base_dir = yaml_scan_string(config_arena, config_root, "/Inference/BaseDir"),                                         // To stop formatter from collapsing these
+            .ggml = config_parse_model_groups(config_arena, fy_node_by_path(config_root, "/Inference/GGML", FY_NT, FYNWF_FOLLOW)), // To stop formatter from collapsing these
+            .onnx = config_parse_model_groups(config_arena, fy_node_by_path(config_root, "/Inference/ONNX", FY_NT, FYNWF_FOLLOW)), // To stop formatter from collapsing these
         },
     };
+
+    String backend = yaml_scan_string(config_arena, fy_node_by_path(config_root, "/Inference/Active", FY_NT, FYNWF_FOLLOW), "/Backend");
+    String model_name = yaml_scan_string(config_arena, fy_node_by_path(config_root, "/Inference/Active", FY_NT, FYNWF_FOLLOW), "/Name");
+    U64 model_precision = yaml_scan_int(fy_node_by_path(config_root, "/Inference/Active", FY_NT, FYNWF_FOLLOW), "/Precision");
+
+    ModelGroupArr backend_group = NULL;
+    if (!string_cmp(backend, sv("ONNX")))
+    {
+        config.inf_settings.active.backend = Backend_ONNX;
+        backend_group = config.inf_settings.onnx;
+    }
+    else
+    {
+        config.inf_settings.active.backend = Backend_GGML;
+        backend_group = config.inf_settings.ggml;
+    }
+
+    for (S64 gi = 0; gi < da_getsize(backend_group); gi++)
+    {
+        if (!string_cmp(backend_group[gi].name, model_name))
+        {
+            config.inf_settings.active.group = &backend_group[gi];
+            ModelVariantArr variants = backend_group[gi].variants;
+            for (S64 vi = 0; vi < da_getsize(variants); vi++)
+            {
+                if (variants[vi].precision == model_precision)
+                {
+                    config.inf_settings.active.variant = &variants[vi];
+                    break;
+                }
+            }
+            break;
+        }
+    }
 
     return config;
 }
@@ -102,7 +153,7 @@ void setup_dirs(Config *config)
     Assert(home, "home dir not found");
     string_push(&base, home);
 
-#if OS_WINDOWS
+#if OS_WIN32
     win32_format_path(&base);
 #endif
 
@@ -120,12 +171,9 @@ void setup_dirs(Config *config)
     string_replace(&db_path, "~", CStrCast(base));
     string_replace(&db_path, "$", CStrCast(app_data));
 
-    StringBuilder model_base = string_init(config_arena, config->model_group.base_dir);
+    StringBuilder model_base = string_init(config_arena, config->inf_settings.base_dir);
     string_replace(&model_base, "~", CStrCast(base));
     string_replace(&model_base, "$", CStrCast(app_data));
-
-    StringBuilder clip_model_path = string_init(config_arena, StringCast(model_base));
-    path_join(&clip_model_path, config->model_group.clip_model.filename);
 
     os_mkdirs(StringCast(app_data));
     os_mkdirs(StringCast(atlas_dir));
@@ -134,8 +182,8 @@ void setup_dirs(Config *config)
     config->app_data = StringCast(app_data);
     config->atlas_dir = StringCast(atlas_dir);
     config->db_path = StringCast(db_path);
-    config->model_group.base_dir = StringCast(model_base);
-    config->model_group.clip_model.path = StringCast(clip_model_path);
+
+    config->inf_settings.base_dir = StringCast(model_base);
 }
 
 void config_init()
@@ -143,7 +191,9 @@ void config_init()
     arena_alloc(MB(1), config_arena);
 
     // TODO: Put a check for existing config.yaml file
+    perf_beg(config_read);
     mscbl_config = default_config();
+    perf_end(config_read);
     setup_dirs(&mscbl_config);
 
     // if (!os_path_exist(config_path))

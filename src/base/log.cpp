@@ -118,17 +118,34 @@ void mscbl_log(const char *fmt, ...)
     Result res = ResultSuccess();
     Time time = get_cur_time();
 
-    va_list args;
-    va_start(args, fmt);
-
     U64 header_size = snprintf(buffer, 256, "[%02d-%02d-%04d %02d:%02d:%02d.%03d] ", time.date, time.month + 1, time.year, time.hour, time.minute, time.second, time.milsec);
 
+    va_list args;
+    va_start(args, fmt);
     U64 size = vsnprintf(buffer + header_size, sizeof(buffer) - header_size, fmt, args) + header_size;
     va_end(args);
 
     os_file_write(log_file, size, (U8 *)buffer, &res);
+}
 
-#if DBG
-    printf(ANSI_CYAN "%.*s" ANSI_GREEN "%.*s" ANSI_RESET, header_size, buffer, size - header_size, buffer + header_size);
-#endif
+void _mscbl_log_bare(const char *level, const char *location, const char *fmt, ...)
+{
+    char buffer[KB(8)];
+
+    Result res = ResultSuccess();
+    Time time = get_cur_time();
+
+    U64 header_size = snprintf(buffer, 256, "[%02d-%02d-%04d %02d:%02d:%02d.%03d] ", time.date, time.month + 1, time.year, time.hour, time.minute, time.second, time.milsec);
+
+    U64 prefix_size = snprintf(buffer + header_size, 512, "[%s][%s] ", level, location);
+    U64 offset = header_size + prefix_size;
+
+    va_list args;
+    va_start(args, fmt);
+    U64 payload_size = vsnprintf(buffer + offset, sizeof(buffer) - offset, fmt, args);
+    va_end(args);
+
+    U64 total_size = offset + payload_size;
+
+    os_file_write(log_file, total_size, (U8 *)buffer, &res);
 }

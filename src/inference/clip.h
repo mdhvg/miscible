@@ -12,6 +12,7 @@
 #include "base/base_core.h"
 #include "base/string.h"
 #include "base/arena.h"
+#include "inference/inference.h"
 
 struct clip_layer
 {
@@ -140,13 +141,6 @@ struct clip_ctx
     F32 image_std[3];
     bool use_gelu = false;
     S32 ftype = 1;
-};
-
-struct Embedding
-{
-    F32 *vector;
-    S32 size;
-    S32 count;
 };
 
 Result clip_model_load(Arena *arena, clip_ctx *clip, String model_path);

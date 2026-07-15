@@ -12,7 +12,6 @@
 
 #include "clip.h"
 #include "base/arena.h"
-#include "error.h"
 #include "ggml-alloc.h"
 #include "ggml-backend.h"
 
@@ -715,9 +714,9 @@ Embedding clip_get_text_embedding(Arena *arena, clip_ctx *clip, clip_tokens *tok
     ggml_tensor *positions = ggml_graph_get_tensor(graph, "positions");
     ggml_backend_tensor_set(positions, pos_data, 0, ggml_nbytes(positions));
 
-    PERF_BEGIN(compute);
+    perf_beg(compute);
     ggml_backend_graph_compute(text_model->backend, graph);
-    PERF_END(compute);
+    perf_end(compute);
 
     ggml_tensor *output = ggml_graph_get_tensor(graph, "output");
     F32 *vector = push_array(arena, hparams.projection_dim, F32);
@@ -735,7 +734,7 @@ Embedding clip_get_text_embedding(Arena *arena, clip_ctx *clip, clip_tokens *tok
     return {
         .vector = vector,
         .size = hparams.projection_dim,
-        .count = 1};
+        .batch_size = 1};
 }
 
 ggml_cgraph *build_image_encode_graph(clip_vision_model *vision_model, clip_ctx *clip, S32 batch_size)
@@ -926,9 +925,9 @@ Embedding clip_get_image_embedding(Arena *arena, clip_ctx *clip, ggml_cgraph *gr
             cls_data[i] = i * num_positions;
         ggml_backend_tensor_set(cls, cls_data, 0, batch_size * sizeof(S32));
 
-        PERF_BEGIN(compute);
+        perf_beg(compute);
         ggml_backend_graph_compute(vision_model->backend, graph);
-        PERF_END(compute);
+        perf_end(compute);
 
         output = ggml_graph_get_tensor(graph, "output");
     }
@@ -936,7 +935,7 @@ Embedding clip_get_image_embedding(Arena *arena, clip_ctx *clip, ggml_cgraph *gr
     return {
         .vector = (F32 *)ggml_get_data(output),
         .size = hparams.projection_dim,
-        .count = batch_size};
+        .batch_size = batch_size};
 }
 
 // float clip_similarity_score(const float *vec1, const float *vec2,

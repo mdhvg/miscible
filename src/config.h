@@ -15,20 +15,62 @@ struct ViewSettings
     B32 descending;
 };
 
-struct ModelConfig
+struct RemoteFile
 {
-    String path;
-    String filename;
-    U8 model_hash[SHA512_DIGEST_SIZE];
-    U8 manifest_hash[SHA512_DIGEST_SIZE];
-    String *model_url;
-    String *manifest_url;
+    U64 size;
+    String url;
+    String name;
+    U8 hash[SHA256_DIGEST_SIZE];
+};
+typedef RemoteFile *RemoteFileArr;
+
+enum Precision
+{
+    PREC_UNKNOWN = 0,
+    PREC_FP32,
+    PREC_FP16,
+    PREC_INT8,
+    PREC_UINT8,
+    PREC_Q4,
+    PREC_Q4F16,
+    PREC_BNB4
 };
 
-struct ModelGroupConfig
+struct ModelVariant
+{
+    Precision precision;
+    RemoteFileArr text_files;
+    RemoteFileArr vision_files;
+};
+typedef ModelVariant *ModelVariantArr;
+
+struct ModelGroup
+{
+    String name;
+    RemoteFileArr common_files;
+    ModelVariantArr variants;
+};
+typedef ModelGroup *ModelGroupArr;
+
+enum BackendType
+{
+    Backend_ONNX,
+    Backend_GGML,
+};
+
+struct ActiveModel
+{
+    ModelGroup *group;
+    ModelVariant *variant;
+    BackendType backend;
+};
+
+struct InferenceSettings
 {
     String base_dir;
-    ModelConfig clip_model;
+    ActiveModel active;
+    ModelGroupArr ggml;
+    ModelGroupArr onnx;
 };
 
 struct Config
@@ -40,7 +82,7 @@ struct Config
     Settings settings;
     ViewSettings view_settings;
 
-    ModelGroupConfig model_group;
+    InferenceSettings inf_settings;
 };
 
 MSCBL_API Config mscbl_config;

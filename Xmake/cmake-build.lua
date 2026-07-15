@@ -115,15 +115,20 @@ on_build(function(target)
 			"-B",
 			"build/onnxruntime-extensions",
 			"-GNinja",
-			"-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+			"-DCMAKE_BUILD_TYPE=" .. cfg,
 
+			"-DOCOS_BUILD_SHARED_LIB=OFF",
+			"-DOCOS_ENABLE_STATIC_LIB=ON",
 			"-DOCOS_ENABLE_C_API=ON",
-			"-DOCOS_BUILD_SHARED_LIB=ON",
+
 			"-DOCOS_ENABLE_GPT2_TOKENIZER=ON",
+
+			"-DOCOS_ENABLE_BLINGFIRE=OFF",
+			"-DOCOS_ENABLE_AUDIO=OFF",
+			"-DOCOS_ENABLE_VISION=OFF",
+			"-DOCOS_ENABLE_DLIB=OFF",
+			"-DOCOS_ENABLE_MATH=OFF",
 			"-DOCOS_ENABLE_SPM_TOKENIZER=OFF",
-			"-DOCOS_ENABLE_AUDIO=ON",
-			"-DOCOS_ENABLE_VISION=ON",
-			"-DOCOS_ENABLE_DLIB=ON",
 		})
 
 		os.execv("cmake", {
