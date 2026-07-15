@@ -1,73 +1,22 @@
+#include "GLFW/glfw3.h"
 #include "stb_image.h"
-#include "base/log.h"
-#include "base/string.h"
 
 #include "gl/gl_core.h"
+#include "base/log.h"
+#include "base/string.h"
+#include "window/window.h"
+#include "base/threadpool.h"
 
-GLState gl_state = {0};
-
-void gl_pop()
+void gl_tex_data(U32 *texture, U8 *data, S32 width, S32 height, S32 channels, B32 free)
 {
-    if (rb_getsize(gl_state.args))
+    os_mutex_lock(&win.upload_mutex);
+    glfwMakeContextCurrent(win.upload_handle);
+    if (!glIsTexture(*texture))
     {
-        EnterCriticalSection(&gl_state.mutex);
-        GLArgs arg = rb_pop(gl_state.args);
-        LeaveCriticalSection(&gl_state.mutex);
-
-        switch (arg.kind)
-        {
-        case GLArgs_tex:
-            gl_tex_data(arg.v);
-            break;
-        default:
-            break;
-        };
-
-        if (arg.wait)
-            os_semaphore_drop(arg.sem);
-    }
-}
-
-void gl_push(GLArgs args, B32 wait)
-{
-    if (!gl_state.active)
-    {
-        InitializeCriticalSection(&gl_state.mutex);
-        gl_state.active = 1;
-    }
-
-    if (wait)
-    {
-        args.wait = 1;
-        args.sem = os_semaphore_alloc(0, S32_MAX);
-    }
-
-    EnterCriticalSection(&gl_state.mutex);
-    Assert(!rb_isfull(gl_state.args), "ringbuffer is full");
-    rb_push(gl_state.args, args);
-    LeaveCriticalSection(&gl_state.mutex);
-
-    if (wait)
-    {
-        os_semaphore_take(args.sem, U64_MAX);
-        os_semaphore_release(args.sem);
-    }
-}
-
-void gl_close()
-{
-    DeleteCriticalSection(&gl_state.mutex);
-    gl_state = {0};
-}
-
-void gl_tex_data(GLA_tex args)
-{
-    if (!glIsTexture(*args.texture))
-    {
-        GLCall(glGenTextures(1, args.texture));
+        GLCall(glGenTextures(1, texture));
         GLCall(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
     }
-    GLCall(glBindTexture(GL_TEXTURE_2D, *args.texture));
+    GLCall(glBindTexture(GL_TEXTURE_2D, *texture));
     GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
     GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
     GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
@@ -75,7 +24,7 @@ void gl_tex_data(GLA_tex args)
 
     GLenum format = GL_RGB, internal_format = GL_RGBA8;
     GLint swizzle_mask[] = {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA};
-    switch (args.channels)
+    switch (channels)
     {
     case 1:
         format = GL_RED;
@@ -101,24 +50,37 @@ void gl_tex_data(GLA_tex args)
         internal_format = GL_RGBA8;
         break;
     default:
-        Assert(0, "Format definition not found: %d\n", args.channels);
+        Assert(0, "Format definition not found: %d\n", channels);
     }
 
-    GLCall(glTexImage2D(GL_TEXTURE_2D, 0, internal_format, args.width, args.height, 0, format, GL_UNSIGNED_BYTE, args.data));
+    GLCall(glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0, format, GL_UNSIGNED_BYTE, data));
     GLCall(glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzle_mask));
+    glfwMakeContextCurrent(NULL);
+    os_mutex_unlock(&win.upload_mutex);
+
+    if (free)
+        stbi_image_free(data);
 }
 
-ThreadFunc(gl_tex_path)
+MSCBL_API ThreadFunc(gl_tex_path)
 {
-    Assert(data.kind == TPData_ANY, "wrong datatype");
-    gl_args_path args0 = *(gl_args_path *)data.val_any;
+    Assert(args[0].kind == TPData_Any, "invalid datatype");
+    Assert(args[1].kind == TPData_String, "invalid datatype");
 
-    GLA_tex params1;
+    S32 width, height, channels;
+    U8 *data = stbi_load(CStrCast(args[1].val_str), &width, &height, &channels, 0);
+    Assert(data, "image data is NULL (%.*s)", StringSpr(args[1].val_str));
+    gl_tex_data((U32 *)args[0].val_any, data, width, height, channels, true);
+}
 
-    params1.texture = args0.texture;
-    params1.data = stbi_load(CStrCast(args0.path), &params1.width, &params1.height, &params1.channels, 0);
-    Assert(params1.data, "image data is NULL (%.*s)", StringSpr(args0.path));
+MSCBL_API ThreadFunc(gl_tex_mem)
+{
+    Assert(args[0].kind == TPData_Any, "invalid datatype");
+    Assert(args[1].kind == TPData_Any, "invalid datatype");
+    Assert(args[2].kind == TPData_U64, "invalid datatype");
 
-    gl_push({GLArgs_tex, params1});
-    stbi_image_free(params1.data);
+    S32 width, height, channels;
+    U8 *data = stbi_load_from_memory((U8 *)args[1].val_any, args[2].val_u64, &width, &height, &channels, 4);
+    Assert(data, "image data is NULL");
+    gl_tex_data((U32 *)args[0].val_any, data, width, height, channels, true);
 }
