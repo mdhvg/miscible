@@ -2,16 +2,16 @@
 
 #include "base/log.h"
 
-String _yaml_scan_string(Arena *arena, fy_node *root, U8 *str_buf, const char *node_selector, const char *text_selector)
+String _yaml_scan_string(Arena *arena, fy_node *root, const char *node_selector, const char *text_selector)
 {
     U64 str_len = 0;
-
-    Assert(fy_node_scanf(root, text_selector, str_buf) > 0, "scanf failed");
+    char buffer[4096];
+    Assert(fy_node_scanf(root, text_selector, buffer) > 0, "scanf failed");
 
     fy_node *node = fy_node_by_path(root, node_selector, FY_NT, FYNWF_FOLLOW);
     Assert(node, "node is NULL");
     Assert(fy_node_get_scalar(node, &str_len), "fy_node_get_scalar(node, &str_len) is NULL");
-    return string_copy(arena, {.v = str_buf, .size = str_len});
+    return string_copy(arena, sv(buffer, str_len));
 }
 
 U64 _yaml_scan_int(fy_node *root, const char *text_selector)
@@ -28,17 +28,18 @@ F32 _yaml_scan_float(fy_node *root, const char *text_selector)
     return val;
 }
 
-void yaml_scan_hash(fy_node *root, U8 *str_buf, U8 *hash_buf, U64 digest_size, const char *text_selector)
+void yaml_scan_hash(fy_node *root, U8 *hash_buf, U64 digest_size, const char *text_selector)
 {
+    char buffer[1024];
     fy_node *node = fy_node_by_path(root, text_selector, FY_NT, FYNWF_FOLLOW);
     Assert(node, "invalid node %s", text_selector);
-    B32 res = fy_node_scanf(node, "%s", str_buf) > 0;
+    B32 res = fy_node_scanf(node, "%s", buffer) > 0;
     Assert(res, "scanf failed");
 
     for (U32 i = 0; i < digest_size * 2; i += 2)
     {
-        U8 v0 = str_buf[i];
-        U8 v1 = str_buf[i + 1];
+        U8 v0 = buffer[i];
+        U8 v1 = buffer[i + 1];
 
         U8 res = 0;
         if (v0 >= '0' && v0 <= '9')
