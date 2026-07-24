@@ -17,167 +17,97 @@ Inference:
   BaseDir: "$/models"
   Active:
     Backend: ONNX
-    Name: CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX
     Precision: 1
+    Name: CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX
   GGML:
   - Name: CLIP-ViT-B-32-laion2B-s34B-b79K
-    Variants:
-    - Precision: 1
-      Files:
-      - Size: 303810624
-        Hash: 3429c49c2848325b0da06879f5fe373a1f1cd099d4db0ed94667a385eac62507
-        Name: model.gguf
-        URL: https://github.com/mdhvg/miscible/releases/download/Model-CLIP-1.0/CLIP-ViT-B-32-laion2B-s34B-b79K.gguf
-  ONNX:
-  - Name: jina-clip-v2
     Files:
-    - Name: config.json
-      Size: 2152
-      Hash: b5466de03392479d778745bbdb1905e297cd07ca76694703bd7d7b84d58aa853
-      URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/config.json
-    - Name: config_sentence_transformers.json
-      Size: 281
-      Hash: 77e07a8d9ca412c537b80009d91c33492e24e3c0627d445dc16334e46a7a329d
-      URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/config_sentence_transformers.json
-    - Name: modules.json
-      Size: 273
-      Hash: 30bf61a9b8910f812794c5ff4b4decb88952c020e56db8105ea62cba33298c2b
-      URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/modules.json
-    - Name: preprocessor_config.json
-      Size: 584
-      Hash: 920bc482e3dad0de2bffe4e534181a1f61a4a6baefa1aee53b75849557786301
-      URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/preprocessor_config.json
-    - Name: special_tokens_map.json
-      Size: 964
-      Hash: 8c785abebea9ae3257b61681b4e6fd8365ceafde980c21970d001e834cf10835
-      URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/special_tokens_map.json
-    - Name: tokenizer.json
-      Size: 17082997
-      Hash: 6601c4120779a1a3863897ba332fe3481d548e363bec2c91eba10ef8640a5e93
-      URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/tokenizer.json
-    - Name: tokenizer_config.json
-      Size: 1148
-      Hash: e1bc77da5b90ba65b47aa8bd776c6317f47d50dc6717e92b10177686b3b8f161
-      URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/tokenizer_config.json
-    Variants:
-    - Precision: 1
-      Files:
-      - Name: model.onnx
-        Size: 2090152
-        Hash: e8bdc8a8124e10305fa97140ba11902e06b91f8a4dcf13a1664da521cdc155ed
-        URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/model.onnx
-      - Name: model.onnx_data
-        Size: 3453550848
-        Hash: 0ec73a3b6f33c472249f7b058c3cbfb9586483b88ee5930b3b3749dff7acd873
-        URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/model.onnx_data
-    - Precision: 2
-      Files:
-      - Name: model_fp16.onnx
-        Size: 1728814880
-        Hash: 746a78209096d1cd52891b70d752903b8bf86088ba847bd0c56c03fb29256801
-        URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/model_fp16.onnx
-    - Precision: 3
-      Files:
-      - Name: model_int8.onnx
-        Size: 874350932
-        Hash: 21b8b77a009865faecaa29f076ee55d6334ea42699a9efa14d542ce8d3938a3f
-        URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/model_int8.onnx
-    - Precision: 4
-      Files:
-      - Name: model_uint8.onnx
-        Size: 874351078
-        Hash: 65c6423fc82eecffb7f7f813730c6a6f0d28e2dc908e414250733b1416ed30bf
-        URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/model_uint8.onnx
-    - Precision: 5
-      Files:
-      - Name: model_q4.onnx
-        Size: 1417712750
-        Hash: 032967b983b9cea6fb94811f4b6fe1986deff89d13ee794a1f3b124df711f5c5
-        URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/model_q4.onnx
-    - Precision: 6
-      Files:
-      - Name: model_q4f16.onnx
-        Size: 861019483
-        Hash: 9a753f9cdd4061cdd4342beeafeb442b2e5b562b49bb47d3bebedad7693fa602
-        URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/model_q4f16.onnx
-    - Precision: 7
-      Files:
-      - Name: model_bnb4.onnx
-        Size: 1379631302
-        Hash: 1029184ed517000825a39faa6ff154c68b98ef06a67dd2f88b3269ef69fec55f
-        URL: https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/model_bnb4.onnx
+    - Size: 303810624
+      Hash: 3429c49c2848325b0da06879f5fe373a1f1cd099d4db0ed94667a385eac62507
+      Name: model.gguf
+      URL: https://github.com/mdhvg/miscible/releases/download/Model-CLIP-1.0/CLIP-ViT-B-32-laion2B-s34B-b79K.gguf
+  ONNX:
   - Name: CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX
     Files:
     - Name: config.json
       Size: 1134
       Hash: c1d049824575fc7e2a68e7a75f556da00c8e240b08ef2f11f40fe901de637838
-      URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/config.json
-    - Name: merges.txt
-      Size: 524619
-      Hash: 9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a
-      URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/merges.txt
+      URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/config.json
     - Name: preprocessor_config.json
       Size: 466
       Hash: 205d45875859846dc1ca211b9a19f5db72f47e953b396954ee34d48d8e95c3c6
-      URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/preprocessor_config.json
+      URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/preprocessor_config.json
     - Name: special_tokens_map.json
       Size: 588
       Hash: 2cdb3b8331a60c92fc1e55a13e9fd61fd2293c5a51275fdcccd62b780052530e
-      URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/special_tokens_map.json
+      URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/special_tokens_map.json
     - Name: tokenizer.json
       Size: 3642073
       Hash: 6d9109cc838977f3ca94a379eec36aecc7c807e1785cd729660ca2fc0171fb35
-      URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/tokenizer.json
+      URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/tokenizer.json
     - Name: tokenizer_config.json
       Size: 774
       Hash: c3d2a67c48a59ffa8fd92de060608524b12cae93acb4fe83e5eb03147a001f5a
-      URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/tokenizer_config.json
+      URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/tokenizer_config.json
     - Name: vocab.json
       Size: 862328
       Hash: 5047b556ce86ccaf6aa22b3ffccfc52d391ea4accdab9c2f2407da5b742d4363
-      URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/vocab.json
+      URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/vocab.json
     Variants:
     - Precision: 1
-      Files:
-      - Name: model.onnx
-        Size: 605554901
-        Hash: 2cf072dd3df318189ec5d0c0e93b7a277279c10cd7838ff5593c6d93485a790e
-        URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/onnx/model.onnx
-    - Precision: 2
-      Files:
-      - Name: model_fp16.onnx
-        Size: 303174552
-        Hash: c8557d25bd2f0c8b69760ff210c29e3507bafc6f445f59b9c13a8a6f242b266d
-        URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/onnx/model_fp16.onnx
+      Text:
+      - Name: text.onnx
+        Size: 254048619
+        Hash: eb560e288e3d698445cc19f5f1e83161f7c84f2f1cfb3f0e92563220815ec203
+        URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/text.onnx
+      Vision:
+      - Name: vision.onnx
+        Size: 351679426
+        Hash: 2be2f14bee852367c5c9165b4ef03bc77a11ffc7f910fb280ed5727544bb15f0
+        URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/vision.onnx
     - Precision: 3
-      Files:
-      - Name: model_int8.onnx
-        Size: 152708043
-        Hash: 2ac8410fe198fbd003cd97460bdd68653d99c33f53311881cd306190067aee9b
-        URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/onnx/model_int8.onnx
+      Text:
+      - Name: text_int8.onnx
+        Size: 64142129
+        Hash: 38419ac304d576027830f15a185480c6f56f82142ed159a1bbd1545b1411ce41
+        URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/text_int8.onnx
+      Vision:
+      - Name: vision_int8.onnx
+        Size: 88640798
+        Hash: 3ba9fba371fae14fe82017aec1097311ebc151441d38a80184046da0d267760a
+        URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/vision_int8.onnx
     - Precision: 4
-      Files:
-      - Name: model_uint8.onnx
-        Size: 152708122
-        Hash: 05d070c85ec6b30cf06313b4928940494561ce3bd2c02859b0b1faf30dbd6995
-        URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/onnx/model_uint8.onnx
+      Text:
+      - Name: text_uint8.onnx
+        Size: 64142173
+        Hash: 1ecf1ec56f39717fcb03ced9fc12bb349ac0e1ad004b40187d383f369bc174a7
+        URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/text_uint8.onnx
+      Vision:
+      - Name: vision_uint8.onnx
+        Size: 88640833
+        Hash: 1e8066dfc4eae5fd898917827ff355938c1204916f8f3d05c4f089e08a3ca79e
+        URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/vision_uint8.onnx
     - Precision: 5
-      Files:
-      - Name: model_q4.onnx
-        Size: 189308486
-        Hash: aa0ec6a63ca0b5074cc7f31cc75927e58e16cafbbd5f765efb1aa549b8e2a361
-        URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/onnx/model_q4.onnx
-    - Precision: 6
-      Files:
-      - Name: model_q4f16.onnx
-        Size: 125873471
-        Hash: 70e8ac00b4e0b64931bb23f6e63bab6e53ffcbb6c316176d795fd00084ee4854
-        URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/onnx/model_q4f16.onnx
+      Text:
+      - Name: text_q4.onnx
+        Size: 125760195
+        Hash: f61be730acc9da3dbb18441ccec57757f4655e68b52e346a551e9a9de36e5f08
+        URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/text_q4.onnx
+      Vision:
+      - Name: vision_q4.onnx
+        Size: 63697860
+        Hash: 2f8fb80d59f43ef162abb7f4d87a064922a820836b5ab21cd0deb01328825916
+        URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/vision_q4.onnx
     - Precision: 7
-      Files:
-      - Name: model_bnb4.onnx
-        Size: 189308486
-        Hash: aa0ec6a63ca0b5074cc7f31cc75927e58e16cafbbd5f765efb1aa549b8e2a361
-        URL: https://huggingface.co/onnx-community/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/onnx/model_bnb4.onnx
+      Text:
+      - Name: text_bnb4.onnx
+        Size: 125760195
+        Hash: f61be730acc9da3dbb18441ccec57757f4655e68b52e346a551e9a9de36e5f08
+        URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/text_bnb4.onnx
+      Vision:
+      - Name: vision_bnb4.onnx
+        Size: 63697860
+        Hash: 2f8fb80d59f43ef162abb7f4d87a064922a820836b5ab21cd0deb01328825916
+        URL: https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/vision_bnb4.onnx
 
 ### DO NOT EDIT THIS LINE ### )"

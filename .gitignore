@@ -12,6 +12,8 @@ deps/openvino
 
 test_imgs
 wallpapers
+src/config.yaml
+config.debug.yaml
 *.json
 .cache
 imgui.ini
