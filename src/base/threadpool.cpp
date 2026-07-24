@@ -149,8 +149,11 @@ void threadpool_free()
 
     for (U64 i = 0; i < pool->worker_count; ++i)
         os_semaphore_push(pool->task_semaphore);
-    for (U64 i = 1; i < pool->worker_count; i += 1)
-        os_thread_detach(pool->worker_array[i].handle);
+    for (U64 i = 0; i < pool->worker_count; i += 1)
+        // os_thread_detach(pool->worker_array[i].handle);
+        os_thread_join(pool->worker_array[i].handle);
+    // NOTE: Switched to thread join instead of detatch for now, this might be
+    // the culprit if some lag while closing shows up
 
     os_semaphore_destroy(pool->task_semaphore);
     os_mutex_destroy(&pool->task_mutex);

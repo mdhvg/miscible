@@ -416,6 +416,15 @@ void os_thread_detach(Thread t)
     }
 }
 
+void os_thread_join(Thread t)
+{
+    if (t != 0)
+    {
+        WaitForSingleObject(t, INFINITE);
+        CloseHandle(t);
+    }
+}
+
 FileHandle _os_file_open(String path, FileAccess access, FileMode mode, Result *res, U64 size)
 {
     ClearResult(res);
