@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026 Madhav Goyal
+// Licensed under the GNU General Public License v3.0 (see LICENSE)
+
 #include "base/base_core.h"
 
 global_v const char hex_table_upper[] = "0123456789ABCDEF";

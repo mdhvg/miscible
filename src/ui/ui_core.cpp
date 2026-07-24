@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026 Madhav Goyal
+// Licensed under the GNU General Public License v3.0 (see LICENSE)
+
 #include "IconsLucide.h"
 #include "app/miscible.h"
 #include "base/arena.h"

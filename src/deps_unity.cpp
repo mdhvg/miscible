@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026 Madhav Goyal
+// Licensed under the GNU General Public License v3.0 (see LICENSE)
+
 // #define IMGUI_ENABLE_FREETYPE
 #define IMGUI_IMPL_OPENGL_LOADER_CUSTOM
 #define IMGUI_DEFINE_MATH_OPERATORS 1

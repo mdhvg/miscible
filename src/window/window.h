@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026 Madhav Goyal
+// Licensed under the GNU General Public License v3.0 (see LICENSE)
+
 #pragma once
 #include "os/os_inc.h"
 #include "GLFW/glfw3.h"

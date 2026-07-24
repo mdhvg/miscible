@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026 Madhav Goyal
+// Licensed under the GNU General Public License v3.0 (see LICENSE)
+
 #include "ggml.h"
 #include "stb_image.h"
 #include "stb_image_resize2.h"

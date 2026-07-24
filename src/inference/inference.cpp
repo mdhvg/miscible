@@ -1,3 +1,6 @@
+// Copyright (c) 2025-2026 Madhav Goyal
+// Licensed under the GNU General Public License v3.0 (see LICENSE)
+
 #include "jsmn.h"
 #include "onnxruntime/core/session/onnxruntime_c_api.h"
 #include "onnxruntime/core/providers/dml/dml_provider_factory.h"
