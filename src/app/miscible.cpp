@@ -101,23 +101,21 @@ S32 mscbl_start(S32 argc, char **argv)
     threadpool_enqueue(TaskPriority_High, {.func = init_scan});
     threadpool_enqueue(TaskPriority_High, {.func = init_atlas});
     threadpool_enqueue(TaskPriority_High, {.func = db_fetchall});
-    // threadpool_enqueue(TaskPriority_Low, {.func = model_insert_embedding});
     threadpool_enqueue(TaskPriority_Low, {.func = inference_backend_init});
 
     while (win.active)
     {
-        // Do non-UI things here
-        window_poll();
-        ui_update();
-        ui_render();
-
-        // Do stuff here for UI
-        window_update();
+        if (window_poll())
+        {
+            ui_update();
+            ui_render();
+            window_update();
+        }
     }
 
-    inference_close();
     ui_close();
-    window_close();
+    window_shutdown();
+    inference_close();
     threadpool_free();
     mscbl_log_deinit();
 

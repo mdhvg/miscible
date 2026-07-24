@@ -161,6 +161,7 @@ typedef struct
     F32 value;
     ByteUnit unit;
 } ByteSize;
+typedef ByteSize *ByteSizeArr;
 
 typedef enum
 {
@@ -176,6 +177,7 @@ typedef enum
     Month_Oct,
     Month_Nov,
     Month_Dec,
+    Month_COUNT,
 } Month;
 
 typedef struct
@@ -189,6 +191,7 @@ typedef struct
     U32 second;
     U32 milsec;
 } Time;
+typedef Time *TimeArr;
 
 typedef enum
 {
@@ -326,7 +329,11 @@ MSCBL_API inline U64 NextPow2(U64 a)
 }
 void bytes_as_hex_lower(U8 *data, U64 start, U64 len, char *out);
 void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
-U64 time_to_timestamp(Time date);
+U64 time_to_timestamp(Time time);
 Time timestamp_to_time(U64 timestamp);
 MSCBL_API U32 month_days(Time date);
 MSCBL_API ByteSize size_to_bytesize(U64 size);
+MSCBL_API inline U64 bytesize_to_size(ByteSize bytesize)
+{
+    return bytesize.value * (1 << (10 * bytesize.unit));
+}

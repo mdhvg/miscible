@@ -5,7 +5,7 @@
 #include "base/threadpool.h"
 #include "inference/model.h"
 
-#if OS_WINDOWS
+#if OS_WIN32
 #include "os/win32/win32_scan_dirs.cpp"
 #elif OS_LINUX
 #include "os/linux/linux_scan_dirs.cpp"
@@ -22,14 +22,14 @@ DBStmtCbk(push_imagerow)
 
 ThreadFunc(scan_routine)
 {
-    Assert(data.kind == TPData_OSString, "wrong datatype");
-    OSString dir = data.val_os_str;
+    Assert(args[0].kind == TPData_OSString, "wrong datatype");
+    OSString dir = args[0].val_os_str;
 
     first_scan(arena, dir);
-    view_reload();
+    // view_refresh();
 
     sqlite3_stmt *stmt = db_prepare("UPDATE DirSelect SET indexed = 1 WHERE path = ?;");
-#if OS_WINDOWS
+#if OS_WIN32
     sqlite3_bind_text16(stmt, 1, dir.v, dir.size * sizeof(wchar), SQLITE_STATIC);
 #elif OS_LINUX
     sqlite3_bind_text(stmt, 1, CStrCast(dir.v), dir.size, SQLITE_STATIC);
@@ -52,7 +52,7 @@ void scan_new_dir(Arena *arena)
     if (dir.size)
     {
         sqlite3_stmt *stmt = db_prepare("INSERT INTO DirSelect(path) VALUES(?);");
-#if OS_WINDOWS
+#if OS_WIN32
         sqlite3_bind_text16(stmt, 1, dir.v, dir.size * sizeof(wchar), SQLITE_STATIC);
 #elif OS_LINUX
         sqlite3_bind_text(stmt, 1, CStrCast(dir), dir.size, SQLITE_STATIC);
@@ -61,9 +61,8 @@ void scan_new_dir(Arena *arena)
 
         AsyncTask task = {
             .func = scan_routine,
-            .data = {
-                .kind = TPData_OSString,
-                .val_os_str = dir,
+            .args = {
+                {.kind = TPData_OSString, .val_os_str = dir},
             }};
         threadpool_enqueue(TaskPriority_High, task);
     }

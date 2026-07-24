@@ -36,8 +36,11 @@ struct FileMTime
 #include "os/linux/linux_core.h"
 #endif
 
-#ifndef OSchar
-#error "OSchar not defined"
+#ifndef OSChar
+#error "OSChar not defined"
+#endif
+#ifndef OSSlash
+#error "OSSlash not defined"
 #endif
 #ifndef W
 #error "OS char converter not defined"
@@ -78,7 +81,7 @@ LibHandle os_loadlib(const char *filename);
 LibAddress os_libfunc(LibHandle lib, const char *symbol);
 void os_closelib(LibHandle lib);
 
-MSCBL_API OSString os_select_dir(const OSchar *title, const OSchar *default_path, Arena *arena);
+MSCBL_API OSString os_select_dir(const OSChar *title, const OSChar *default_path, Arena *arena);
 B32 os_path_exists(String path, Result *res);
 
 MSCBL_API void *os_reserve(void *ptr, U64 size);
@@ -98,6 +101,7 @@ void os_mutex_unlock(Mutex *mutex);
 B32 os_mutex_trylock(Mutex *mutex);
 
 void os_thread_detach(Thread t);
+void os_thread_join(Thread t);
 
 typedef U32 FileAccess;
 enum

@@ -1,6 +1,9 @@
 #define SQLITE_ENABLE_FTS5 1
 #include "sqlite3.c"
 
+#define JSMN_HEADER
+#include "jsmn.h"
+
 #include "glad.c"
 #include "sha2.c"
 #include "tinyfiledialogs.c"

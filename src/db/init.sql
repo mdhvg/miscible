@@ -9,14 +9,20 @@ CREATE TABLE IF NOT EXISTS Images (
     atlas_id    INTEGER     REFERENCES Atlas(id)    DEFAULT NULL,
     atlas_idx   INTEGER                             DEFAULT NULL,
     size        INTEGER                             DEFAULT 0,
+
+    -- Filesystem dates
     mtime       INTEGER                             DEFAULT 0,
     ctime       INTEGER                             DEFAULT 0,
+
+    -- Date added
+    atime       INTEGER                             DEFAULT (unixepoch()),
+
     width       INTEGER                             DEFAULT 0,
     height      INTEGER                             DEFAULT 0,
     channels    INTEGER                             DEFAULT 0,
     embedding	BLOB 	                            DEFAULT NULL,
-    root_id     INTEGER     REFERENCES Dirs(id)     DEFAULT NULL,
-    parent_id   INTEGER     REFERENCES Dirs(id)     DEFAULT NULL,
+    root_dir    INTEGER     REFERENCES Dirs(id)     DEFAULT NULL,
+    parent_dir  INTEGER     REFERENCES Dirs(id)     DEFAULT NULL,
     modified    INTEGER                             DEFAULT 0
 );
 
@@ -48,8 +54,6 @@ CREATE TRIGGER Image_FTS_update AFTER UPDATE OF path ON Images BEGIN
     VALUES(new.id, new.path);
 END;
 
-INSERT INTO Image_FTS(Image_FTS) VALUES('rebuild');
-
 -- CREATE INDEX IF NOT EXISTS idx_imagepath ON Images(path);
 
 CREATE TABLE IF NOT EXISTS DirSelect (
@@ -63,9 +67,11 @@ CREATE TABLE IF NOT EXISTS Dirs (
     name        TEXT            NOT NULL,
     mtime       INTEGER                     DEFAULT 0,
     level       INTEGER                     DEFAULT 0,
-    root_id     INTEGER REFERENCES Dirs(id) DEFAULT NULL,
-    parent_id   INTEGER REFERENCES Dirs(id) DEFAULT NULL
+    root_dir    INTEGER REFERENCES Dirs(id) DEFAULT NULL,
+    parent_dir  INTEGER REFERENCES Dirs(id) DEFAULT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_images_root ON Images(root_dir);
 
 CREATE TABLE IF NOT EXISTS Atlas (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,

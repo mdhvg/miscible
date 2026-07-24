@@ -55,7 +55,7 @@ void *_arena_push(struct _arena_push_args args)
     U64 start = AlignOf(((U64)args.arena->base + args.arena->used), args.align);
     U64 end = start + args.size;
     U64 need_size = end - ((U64)args.arena->base + args.arena->used);
-    Assert(end <= args.arena->capacity + (U64)args.arena->base, "(Out of memory) Used: %zu/%zu, Need: %zu (%zu more)\n", args.arena->used, args.arena->capacity, need_size, need_size - args.arena->capacity);
+    Assert(end <= args.arena->capacity + (U64)args.arena->base, "(Out of memory) Used: %zu/%zu, Need: %zu (%zu more)\n", args.arena->used, args.arena->capacity, need_size, need_size + args.arena->used - args.arena->capacity);
 
     // NOTE: cmt_size is arena aligned NOT base aligned
     U64 commit_size = end - (U64)args.arena;

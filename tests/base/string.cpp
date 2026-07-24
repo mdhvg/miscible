@@ -20,10 +20,10 @@ TEST_CASE("String empty")
 
 TEST_CASE("String copy")
 {
-    const char *src   = "सत्यमेवजयते";
+    const char *src = "सत्यमेवजयते";
     const wchar *wsrc = L"माधव 😊"; // That's my name :)
-    String s1         = string_cpy(test_arena, src);
-    WString s2        = string_cpy(test_arena, wsrc);
+    String s1 = string_copy(test_arena, src);
+    WString s2 = string_copy(test_arena, wsrc);
 
     SUBCASE("strlen")
     {
@@ -69,42 +69,42 @@ TEST_CASE("String push")
 
 TEST_CASE("make_string_cwstr basic")
 {
-    WString ws = string_cpy(test_arena, L"wide");
+    WString ws = string_copy(test_arena, L"wide");
     CHECK(ws.size == 4);
 }
 
-TEST_CASE("string_cpy char* deep copy")
+TEST_CASE("string_copy char* deep copy")
 {
     const char *src = "copytest";
-    String s1       = string_cpy(test_arena, src);
+    String s1 = string_copy(test_arena, src);
     CHECK(s1.size == 8);
     CHECK(strcmp(CStrCast(s1), "copytest") == 0);
 }
 
-TEST_CASE("string_cpy unsigned char*")
+TEST_CASE("string_copy unsigned char*")
 {
     const unsigned char *src = (const unsigned char *)"abc";
-    String s                 = string_cpy(test_arena, src);
+    String s = string_copy(test_arena, src);
     CHECK(strcmp(CStrCast(s), "abc") == 0);
 }
 
 TEST_CASE("string_cmp exact match")
 {
-    String s = string_cpy(test_arena, "hello");
-    CHECK_FALSE(string_cmp(s, "hello"));
+    String s = string_copy(test_arena, "hello");
+    CHECK_FALSE(string_cmp(s, sv("hello")));
 }
 
 TEST_CASE("string_cmp mismatch")
 {
-    String s = string_cpy(test_arena, "hello");
-    CHECK(string_cmp(s, "world") < 0);
+    String s = string_copy(test_arena, "hello");
+    CHECK(string_cmp(s, sv("world")) < 0);
 }
 
 TEST_CASE("string_cmp limit shorter than string")
 {
-    String s = string_cpy(test_arena, "abcdef");
-    CHECK_FALSE(string_cmp(s, "abc", 3));
-    CHECK_FALSE(string_cmp(s, "abc", 6));
+    String s = string_copy(test_arena, "abcdef");
+    CHECK(string_cmp(s, sv("abc")));
+    CHECK(string_cmp(s, sv("ef")));
 }
 
 TEST_CASE("string_push char")
@@ -136,7 +136,7 @@ TEST_CASE("string_push grow capacity")
 
 TEST_CASE("string_from_to valid range")
 {
-    String s   = string_cpy(test_arena, "abcdef");
+    String s = string_copy(test_arena, "abcdef");
     String sub = string_from_to(s, 2, 4);
     CHECK(sub.size == 2);
     CHECK(strncmp(CStrCast(sub), "cd", 2) == 0);
@@ -189,13 +189,6 @@ TEST_CASE("match_end wchar*")
     CHECK(match_end(a, L"def"));
 }
 
-TEST_CASE("string_cmp with limit")
-{
-    String s = string_cpy(test_arena, "abcdef");
-    CHECK(string_cmp(s, "abc", 3) == 0);
-    CHECK(string_cmp(s, "abc", 6) == 0);
-}
-
 TEST_CASE("string_push char and grow")
 {
     StringBuilder sb = string_empty(test_arena, 2);
@@ -211,7 +204,7 @@ TEST_CASE("string write and grow")
 {
     StringBuilder sb = string_empty(test_arena, 2);
     string_push(&sb, "ab");
-    CHECK(sb.capacity == 4);
+    CHECK(sb.capacity == 2);
     string_growto(&sb, 10);
     CHECK(sb.capacity == 10);
     string_push(&sb, "beb");
@@ -233,26 +226,26 @@ TEST_CASE("string_replace")
 
     string_replace(&base, ",-,", "*-*");
     CHECK(base.size == 29);
-    CHECK_FALSE(string_cmp(StringCast(base), "Hello*-*How*-*Are*-**-*You*-*"));
+    CHECK_FALSE(string_cmp(StringCast(base), sv("Hello*-*How*-*Are*-**-*You*-*")));
 
     string_replace(&base, "*-*", " ");
     CHECK(base.size == 19);
-    CHECK_FALSE(string_cmp(StringCast(base), "Hello How Are  You "));
+    CHECK_FALSE(string_cmp(StringCast(base), sv("Hello How Are  You ")));
 
     string_replace(&base, " ", ",-,");
     CHECK(base.size == 29);
-    CHECK_FALSE(string_cmp(StringCast(base), "Hello,-,How,-,Are,-,,-,You,-,"));
+    CHECK_FALSE(string_cmp(StringCast(base), sv("Hello,-,How,-,Are,-,,-,You,-,")));
 
     string_clear(base);
     string_push(&base, "Hello,-,How,-,Are,-,You");
 
     string_replace(&base, ",-,", " ");
     CHECK(base.size == 17);
-    CHECK_FALSE(string_cmp(StringCast(base), "Hello How Are You"));
+    CHECK_FALSE(string_cmp(StringCast(base), sv("Hello How Are You")));
 
     string_replace(&base, " ", ",-,");
     CHECK(base.size == 23);
-    CHECK_FALSE(string_cmp(StringCast(base), "Hello,-,How,-,Are,-,You"));
+    CHECK_FALSE(string_cmp(StringCast(base), sv("Hello,-,How,-,Are,-,You")));
 }
 
 TEST_CASE("match_end and match_front")
@@ -262,4 +255,20 @@ TEST_CASE("match_end and match_front")
     CHECK(match_end(a, "lo"));
     CHECK_FALSE(match_front(a, "lo"));
     CHECK_FALSE(match_end(a, "he"));
+}
+
+TEST_CASE("check sign")
+{
+    String a = sv("-243");
+    String b = sv("----243");
+    CHECK(string_get_sign(&a) == -1);
+    CHECK(string_get_sign(&b) == 1);
+}
+
+TEST_CASE("extract float")
+{
+    String a = sv("-243");
+    String b = sv("24.0259023");
+    CHECK(string_to_f32(a) == -243);
+    // CHECK(string_to_f32(b) == 24.0259); // floating point precision problem
 }

@@ -5,7 +5,8 @@
 #define OS_THREAD_ROUTINE(name) DWORD name(LPVOID data)
 #define OS_THREAD_ROUTINE_T     LPTHREAD_START_ROUTINE
 
-#define OSchar     wchar
+#define OSChar     wchar
+#define OSSlash    "\\"
 #define W(x)       Glue(L, x)
 #define Semaphore  HANDLE
 #define Mutex      CRITICAL_SECTION

@@ -43,9 +43,6 @@ DBStmtCbk(push_dirs)
     U64 level = (U64)sqlite3_column_int64(stmt, 1);
     String name = string_copy(fetch_arena, sqlite3_column_text(stmt, 2));
 
-    if (va_getsize(dir_tree) > id)
-        return;
-
     DirTree node = {.id = id, .level = level, .name = name};
     DirKey new_idx = va_push(dir_tree, node);
 
@@ -53,11 +50,11 @@ DBStmtCbk(push_dirs)
     {
         if (sqlite3_column_type(stmt, 3) != SQLITE_NULL)
         {
-            S64 parent_id = sqlite3_column_int64(stmt, 3);
+            S64 parent_dir = sqlite3_column_int64(stmt, 3);
             DirKey parent_idx = 0;
             for (S64 i = 1; i < va_getsize(dir_tree); i++)
             {
-                if (dir_tree[i].id == parent_id)
+                if (dir_tree[i].id == parent_dir)
                 {
                     parent_idx = i;
                     break;
@@ -112,7 +109,7 @@ void db_fetch_dirtree()
 {
     if (!va_getsize(dir_tree))
         va_push(dir_tree, {0});
-    sqlite3_stmt *stmt = db_prepare("SELECT id, level, name, parent_id FROM Dirs ORDER BY level;");
+    sqlite3_stmt *stmt = db_prepare("SELECT id, level, name, parent_dir FROM Dirs ORDER BY level;");
     db_run_stmt(stmt, 1, push_dirs);
 }
 

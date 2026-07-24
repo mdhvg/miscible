@@ -8,13 +8,14 @@ struct ImageMetadata
     S64 id;
     S64 atlas_id;
     U32 atlas_idx;
-    S64 parent_id, root_id;
+    S64 parent_dir, root_dir;
 
     String path, filename;
     ByteSize size;
     Time ctime, mtime;
     S32 width, height, channels;
 };
+typedef ImageMetadata *ImageMetadataArr;
 
 struct Atlas
 {

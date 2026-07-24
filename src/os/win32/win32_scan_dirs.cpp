@@ -14,34 +14,34 @@ struct DirInfo
     S64 id;
     U64 mtime;
     U64 level;
-    S64 root_id;
-    S64 parent_id;
+    S64 root_dir;
+    S64 parent_dir;
     WString name;
     WString path;
 };
 
 local_v const char *dir_insert_query =
-    "INSERT INTO Dirs(path, name, mtime, level, root_id, parent_id) "
+    "INSERT INTO Dirs(path, name, mtime, level, root_dir, parent_dir) "
     "VALUES(?, ?, ?, ?, ?, ?) "
     "ON CONFLICT(path) DO UPDATE SET "
     "  name         = excluded.name, "
     "  mtime        = excluded.mtime, "
     "  level        = excluded.level, "
-    "  root_id      = excluded.root_id, "
-    "  parent_id    = excluded.parent_id "
+    "  root_dir     = excluded.root_dir, "
+    "  parent_dir   = excluded.parent_dir "
     "WHERE excluded.mtime > Dirs.mtime "
     "RETURNING id;";
 
 local_v const char *img_insert_query =
-    "INSERT INTO Images(path, filename, size, mtime, ctime, root_id, parent_id) "
-    "VALUES(? || \"\\\" || ?, ?, ?, ?, ?, ?, ?) "
+    "INSERT INTO Images(path, filename, size, mtime, ctime, root_dir, parent_dir) "
+    "VALUES(? || '" OSSlash "' || ?, ?, ?, ?, ?, ?, ?) "
     "ON CONFLICT(path) DO UPDATE SET "
     "  filename     = excluded.filename, "
     "  size         = excluded.size, "
     "  mtime        = excluded.mtime, "
     "  ctime        = excluded.ctime, "
-    "  root_id      = excluded.root_id, "
-    "  parent_id    = excluded.parent_id "
+    "  root_dir     = excluded.root_dir, "
+    "  parent_dir   = excluded.parent_dir "
     "WHERE excluded.mtime > Images.mtime "
     "RETURNING id, path;";
 
@@ -72,18 +72,18 @@ void recursive_insert(Arena *arena, DirInfo dir)
     sqlite3_bind_text16(dir_stmt, 2, WCStrCast(dir.name), dir.name.size * sizeof(wchar), SQLITE_STATIC);
     sqlite3_bind_int64(dir_stmt, 3, dir.mtime);
     sqlite3_bind_int64(dir_stmt, 4, dir.level);
-    if (dir.root_id >= 0)
-        sqlite3_bind_int64(dir_stmt, 5, dir.root_id);
-    if (dir.parent_id >= 0)
-        sqlite3_bind_int64(dir_stmt, 6, dir.parent_id);
+    if (dir.root_dir >= 0)
+        sqlite3_bind_int64(dir_stmt, 5, dir.root_dir);
+    if (dir.parent_dir >= 0)
+        sqlite3_bind_int64(dir_stmt, 6, dir.parent_dir);
     if (!db_run_stmt(dir_stmt, 0, get_id, &dir.id, arena))
         return; // Dir already exists (no need to scan again)
 
     sqlite3_reset(dir_stmt);
     sqlite3_clear_bindings(dir_stmt);
 
-    if (dir.root_id < 0)
-        dir.root_id = dir.id;
+    if (dir.root_dir < 0)
+        dir.root_dir = dir.id;
 
     // Loop over files in current dir
     WIN32_FIND_DATAW fdFile = {0};
@@ -121,8 +121,8 @@ void recursive_insert(Arena *arena, DirInfo dir)
             DirInfo next = {.id = 0,
                             .mtime = mtime,
                             .level = dir.level + 1,
-                            .root_id = dir.root_id,
-                            .parent_id = dir.id,
+                            .root_dir = dir.root_dir,
+                            .parent_dir = dir.id,
                             .name = filename,
                             .path = path};
 
@@ -161,7 +161,7 @@ void recursive_insert(Arena *arena, DirInfo dir)
             sqlite3_bind_int64(img_stmt, 4, size);
             sqlite3_bind_int64(img_stmt, 5, mtime);
             sqlite3_bind_int64(img_stmt, 6, ctime);
-            sqlite3_bind_int64(img_stmt, 7, dir.root_id);
+            sqlite3_bind_int64(img_stmt, 7, dir.root_dir);
             sqlite3_bind_int64(img_stmt, 8, dir.id);
 
             ImageRow row = {0};
@@ -212,8 +212,8 @@ void first_scan(Arena *arena, WString dir)
                          {.id = 0,
                           .mtime = mtime,
                           .level = 0,
-                          .root_id = -1,
-                          .parent_id = -1,
+                          .root_dir = -1,
+                          .parent_dir = -1,
                           .name = filename,
                           .path = path});
     }
@@ -260,8 +260,8 @@ DBStmtCbk(push_paths)
         .id = sqlite3_column_int64(stmt, 0),
         .mtime = (U64)sqlite3_column_int64(stmt, 1),
         .level = (U64)sqlite3_column_int64(stmt, 2),
-        .root_id = sqlite3_column_int64(stmt, 3),
-        .parent_id = sqlite3_column_int64(stmt, 4),
+        .root_dir = sqlite3_column_int64(stmt, 3),
+        .parent_dir = sqlite3_column_int64(stmt, 4),
         .name = string_copy(arena, (wchar *)sqlite3_column_text16(stmt, 5)),
         .path = string_copy(arena, (wchar *)sqlite3_column_text16(stmt, 6))};
     da_push(arena, saved_dirs, info);
@@ -276,7 +276,7 @@ void cont_scan(Arena *arena)
 
     // Get all previous entries
     saved_dirs = NULL;
-    db_run_stmt(db_prepare("SELECT id, mtime, level, root_id, parent_id, name, path FROM Dirs;"), 1, push_paths, NULL, arena);
+    db_run_stmt(db_prepare("SELECT id, mtime, level, root_dir, parent_dir, name, path FROM Dirs;"), 1, push_paths, NULL, arena);
     // Loop over them and stat
     for (S64 i = 0; i < da_getsize(saved_dirs); i++)
     {

@@ -55,7 +55,7 @@ MSCBL_API void *_arena_push(struct _arena_push_args args);
 #else
 #define arena_push(...) _arena_push((struct _arena_push_args){__VA_ARGS__})
 #endif
-void *_arena_resize(Arena *a, void *old_ptr, U64 old_size, U64 new_size);
+MSCBL_API void *_arena_resize(Arena *a, void *old_ptr, U64 old_size, U64 new_size);
 #define arena_resize(a, op, os, ns) _arena_resize(a, op, os, ns)
 #define push_array(a, count, type)  (type *)arena_push(.arena = a, .size = (count) * sizeof(type))
 #define push_array0(a, count, type) (type *)arena_push(.arena = a, .size = (count) * sizeof(type), .zero = 1)

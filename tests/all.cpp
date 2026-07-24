@@ -8,9 +8,8 @@
 #include "os/os_inc.cpp"
 #include "base/arena.cpp"
 #include "base/base_core.cpp"
-#include "base/ringbuf.cpp"
 
-Arena *test_arena;
+Arena *test_arena = NULL;
 
 int main(int argc, char **argv)
 {

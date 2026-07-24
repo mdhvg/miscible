@@ -8,7 +8,6 @@
 #include "base/string.h"
 #include "base/threadpool.h"
 #include "inference/model.h"
-#include "sqlite3.h"
 #include "ui/ui_core.h"
 
 ViewManager view = {0};

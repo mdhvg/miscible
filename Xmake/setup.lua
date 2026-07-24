@@ -5,6 +5,7 @@ on_run(function()
 		import("utils.archive")
 
 		local dl_path = path.join(module.parent, module.filename)
+		cprintf("${bright}Checking %s...${clear}\n", dl_path)
 		if not os.exists(dl_path) then
 			if not os.exists(module.parent) then
 				os.mkdir(module.parent)
@@ -86,6 +87,11 @@ on_run(function()
 		{
 			url = "https://unpkg.com/lucide-static@latest/font/lucide.ttf",
 			filename = "lucide.ttf",
+			parent = "fonts",
+		},
+		{
+			url = "https://raw.githubusercontent.com/google/fonts/refs/heads/main/ofl/instrumentsans/InstrumentSans%5Bwdth%2Cwght%5D.ttf",
+			filename = "InstrumentSans.ttf",
 			parent = "fonts",
 		},
 		{

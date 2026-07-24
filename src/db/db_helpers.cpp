@@ -75,12 +75,7 @@ sqlite3_stmt *db_prepare(const char *sql)
     db_cv.wait(lock, []() { return db_initialized; });
 
     sqlite3_stmt *stmt = NULL;
-    const char *err = NULL;
-    if (sqlite3_prepare_v2(dbP, sql, -1, &stmt, &err) != SQLITE_OK)
-    {
-        Assert(0, "%s\n%s", (err ? err : "Unknown error"), sql);
-        sqlite3_free((void *)err);
-    }
+    Assert(sqlite3_prepare_v2(dbP, sql, -1, &stmt, NULL) == SQLITE_OK, "%s\n%s", sqlite3_errmsg(dbP), sql);
     return stmt;
 }
 

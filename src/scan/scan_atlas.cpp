@@ -1,5 +1,5 @@
+#include "app/miscible.h"
 #include "base/arena.h"
-#include "gl/gl_core.h"
 #include "base/base_core.h"
 #include "base/string.h"
 #include "base/threadpool.h"
@@ -18,18 +18,13 @@
 
 global_v U8 *atlas_data = NULL;
 
-struct read_params
-{
-    ImageRow *row;
-    ArenaArray arena_array;
-};
-
 ThreadFunc(read_image)
 {
-    Assert(data.kind == TPData_ANY, "wrong datatype");
-    read_params *params0 = (read_params *)data.val_any;
-    ImageRow *row = params0->row;
-    Arena *read_arena = params0->arena_array.v[id];
+    Assert(args[0].kind == TPData_Any, "wrong datatype");
+    Assert(args[1].kind == TPData_ArenaArr, "wrong datatype");
+
+    ImageRow *row = (ImageRow *)args[0].val_any;
+    Arena *read_arena = args[1].val_arena_arr.v[id];
 
     S32 w, h, c;
     S32 resize_height, resize_width;
@@ -67,8 +62,8 @@ struct draw_params
 
 ThreadFunc(draw_image)
 {
-    Assert(data.kind == TPData_ANY, "wrong datatype");
-    draw_params params = *(draw_params *)data.val_any;
+    Assert(args[0].kind == TPData_Any, "wrong datatype");
+    draw_params params = *(draw_params *)args[0].val_any;
     U32 smaller_side = MIN(params.row->resize_width, params.row->resize_height);
 
     U32 x_off = (params.row->resize_width - smaller_side) / 2;
@@ -115,7 +110,7 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
 {
     U64 inserted_count = da_getsize(inserted);
 
-    Semaphore batch_sem = os_semaphore_alloc(0, S32_MAX);
+    Semaphore batch_sem = os_semaphore_init(0, S32_MAX);
 
     // NOTE: setting a memory arena (per worker) for reading images into
     // worker arena memory is only valid till one function call and can't be
@@ -129,11 +124,9 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
         {
             arena_array_clear(worker_memory);
 
-            AtlasRow row = {0};
-            read_params *read_prm = NULL;
+            AtlasRow row = {.atlas_id = 0};
             draw_params *draw_prm = NULL;
             da_setcap(arena, draw_prm, ATLAS_CAPACITY);
-            da_setcap(arena, read_prm, ATLAS_CAPACITY);
 
             // NOTE: get number of images to be drawn (0, 100]
             S64 task_count = MIN(base + ATLAS_CAPACITY, inserted_count) - base;
@@ -142,15 +135,12 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
             {
                 // NOTE: read jobs are taken from entire inserted array
                 // so job index = base + off (offset of current job)
-                read_params params = {
-                    .row = &inserted[off + base],
-                    .arena_array = worker_memory};
-                da_push(arena, read_prm, params);
                 AsyncTask task = {
                     .func = read_image,
-                    .data = {
-                        .kind = TPData_ANY,
-                        .val_any = &read_prm[off]},
+                    .args = {
+                        {.kind = TPData_Any, .val_any = &inserted[off + base]},
+                        {.kind = TPData_ArenaArr, .val_arena_arr = worker_memory},
+                    },
                     .batch_size = &batch_size,
                     .batch_complete = batch_sem};
                 threadpool_enqueue(TaskPriority_High, task);
@@ -169,7 +159,7 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
                 "HAVING COUNT(*) >= ?);");
             sqlite3_bind_int64(st0, 1, inserted_count - base);
 
-            if (db_run_stmt(st0, 1, get_atlas, &row, arena))
+            if (db_run_stmt(st0, true, get_atlas, &row, arena))
             {
                 // NOTE: get the available slot indices from the existing atlas
                 sqlite3_stmt *st1 = db_prepare(
@@ -178,7 +168,7 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
                     "WHERE atlas_id = ? "
                     "AND image_id IS NULL;");
                 sqlite3_bind_int64(st1, 1, row.atlas_id);
-                db_run_stmt(st1, 1, push_idx, &draw_prm, arena);
+                db_run_stmt(st1, true, push_idx, &draw_prm, arena);
 
                 // NOTE: load the existing atlas for drawing
                 S32 w, h, c;
@@ -210,20 +200,20 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
             }
 
             // NOTE: wait until batch of read_image commands finishes
-            os_semaphore_take(batch_sem, U64_MAX);
+            os_semaphore_pop(batch_sem, U64_MAX);
 
             batch_size = task_count;
             for (S64 off = 0; off < task_count; off++)
             {
                 // NOTE: draw jobs reads rows from base + off (offset of job) and
-                // draws them into draw_idx (<=ATLAS_CAPACITY) which is taken from
+                // draws them into draw_idx (<=ATLAS_CAPACITY) which is popn from
                 // off (current offset) index of draw_pos array
                 draw_prm[off].row = &inserted[off + base];
                 AsyncTask task = {
                     .func = draw_image,
-                    .data = {
-                        .kind = TPData_ANY,
-                        .val_any = &draw_prm[off]},
+                    .args = {
+                        {.kind = TPData_Any, .val_any = &draw_prm[off]},
+                    },
                     .batch_size = &batch_size,
                     .batch_complete = batch_sem};
                 threadpool_enqueue(TaskPriority_High, task);
@@ -269,19 +259,19 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
                 sqlite3_reset(slot_stmt);
                 sqlite3_clear_bindings(slot_stmt);
 
-                Image img = {.atlas_id = atlas_id,
-                             .atlas_idx = atlas_idx,
-                             .width = width,
-                             .height = height,
-                             .channels = channels};
+                // ImageMetadata img = {.atlas_id = atlas_id,
+                //                      .atlas_idx = atlas_idx,
+                //                      .width = width,
+                //                      .height = height,
+                //                      .channels = channels};
 
-                dense_update(images, image_id, img);
+                // dense_update(images, image_id, img);
             }
             sqlite3_finalize(insert_stmt);
             sqlite3_finalize(slot_stmt);
 
             // NOTE: now, start waiting for last batch job
-            os_semaphore_take(batch_sem, U64_MAX);
+            os_semaphore_pop(batch_sem, U64_MAX);
 
             if (!row.update && task_count < ATLAS_CAPACITY)
             {
@@ -311,16 +301,10 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
 
             // NOTE: load atlas as texture
             dense_update(atlases, row.atlas_id, {.id = row.atlas_id});
-            GLA_tex params = {
-                .texture = &atlases[row.atlas_id].tex,
-                .data = atlas_data,
-                .width = ATLAS_SIZE,
-                .height = ATLAS_SIZE,
-                .channels = ATLAS_CHANNELS};
-            gl_push({.kind = GLArgs_tex, .v = params});
+            gl_tex_data(&atlases[row.atlas_id].tex, atlas_data, ATLAS_SIZE, ATLAS_SIZE, ATLAS_CHANNELS);
         }
     }
 
     arena_array_free(worker_memory);
-    os_semaphore_release(batch_sem);
+    os_semaphore_destroy(batch_sem);
 }

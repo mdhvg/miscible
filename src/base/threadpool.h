@@ -15,18 +15,20 @@ enum TPData_
 {
     TPData_None,
 
-    TPData_Any,
-
-    TPData_U32,
-    TPData_S64,
-    TPData_U64,
-
+    TPData_ArenaArr,
     TPData_String,
     TPData_OSString,
 
+    TPData_Any,
+
+    TPData_S64,
+    TPData_U64,
+
+    TPData_U32,
+
     TPData_FileDesc,
 
-    TPData_ArenaArr,
+    TPData_B8,
 
     TPData_COUNT
 };
@@ -35,18 +37,20 @@ struct TPData
 {
     TPData_ kind;
     union {
-        void *val_any;
-
-        U32 val_u32;
-        S64 val_s64;
-        U64 val_u64;
-
-        FileHandle val_filedesc;
-
+        ArenaArray val_arena_arr;
         String val_str;
         OSString val_os_str;
 
-        ArenaArray val_arena_arr;
+        void *val_any;
+
+        S64 val_s64;
+        U64 val_u64;
+
+        U32 val_u32;
+
+        FileHandle val_filedesc;
+
+        B8 val_b8;
     };
 };
 
