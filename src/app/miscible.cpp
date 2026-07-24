@@ -58,7 +58,7 @@ ThreadFunc(init_scan)
     }
     sqlite3_finalize(stmt);
 
-    view_refresh();
+    // view_refresh();
 
     // TODO: run a continuous scan afterwards
 }

@@ -15,14 +15,14 @@ MSCBL_EXP void restyle()
     style.FontScaleDpi = 1.125f;
 
     // Window Spacing Configurations
-    style.WindowBorderSize = 1.0f;
+    style.WindowBorderSize = 0.0f;
     style.ChildBorderSize = 1.0f;
     style.PopupBorderSize = 1.0f;
     style.FrameBorderSize = 1.0f;
     style.ImageBorderSize = 1.0f;
 
     style.WindowMinSize = ImVec2(MSCBL_INNER_PADDING, MSCBL_INNER_PADDING);
-    style.FramePadding = ImVec2(MSCBL_INNER_PADDING, MSCBL_INNER_PADDING);
+    style.FramePadding = ImVec2(MSCBL_INNER_PADDING * 2.0f, MSCBL_INNER_PADDING);
     style.ItemInnerSpacing = ImVec2(MSCBL_INNER_PADDING, MSCBL_INNER_PADDING);
     style.ItemSpacing = ImVec2(MSCBL_INNER_PADDING, MSCBL_INNER_PADDING);
     style.IndentSpacing = MSCBL_INDENT;
@@ -44,13 +44,13 @@ MSCBL_EXP void restyle()
     // ----------------------------------------------------------------------
     // CORNER ROUNDING
     // ----------------------------------------------------------------------
-    style.WindowRounding = 0.0f;    // RADIUS(0.5f);
+    style.TabRounding = 0.0f;       // RADIUS(0.5f);
+    style.GrabRounding = 0.0f;      // RADIUS(0.5f);
     style.ChildRounding = 0.0f;     // RADIUS(0.5f);
     style.FrameRounding = 0.0f;     // RADIUS(0.5f);
     style.PopupRounding = 0.0f;     // RADIUS(0.5f);
+    style.WindowRounding = 0.0f;    // RADIUS(0.5f);
     style.ScrollbarRounding = 0.0f; // RADIUS(0.5f);
-    style.GrabRounding = 0.0f;      // RADIUS(0.5f);
-    style.TabRounding = 0.0f;       // RADIUS(0.5f);
 
     // ----------------------------------------------------------------------
     // SHADCN-STYLE THEME MAPPING TO IMGUI COLORS

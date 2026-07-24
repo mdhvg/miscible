@@ -331,6 +331,9 @@ void bytes_as_hex_lower(U8 *data, U64 start, U64 len, char *out);
 void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
 U64 time_to_timestamp(Time time);
 Time timestamp_to_time(U64 timestamp);
+MSCBL_API Time skip_days(Time time, U32 days);
+MSCBL_API Time skip_months(Time time, U32 months);
+MSCBL_API Time skip_years(Time time, U32 years);
 MSCBL_API U32 month_days(Time date);
 MSCBL_API ByteSize size_to_bytesize(U64 size);
 MSCBL_API inline U64 bytesize_to_size(ByteSize bytesize)

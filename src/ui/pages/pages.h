@@ -21,8 +21,8 @@ struct PageData
 };
 
 global_v PageData page_data[] = {
-    {"page_menu", NULL},
-    {"page_preview", NULL},
+    {.fn_name = "page_menu", .fn = NULL},
+    {.fn_name = "page_preview", .fn = NULL},
 };
 #else
 MSCBL_EXP void restyle();
@@ -38,3 +38,5 @@ global_v PageFn page_data[] = {
 local_v B32 switch_page = 0;
 local_v B32 needs_rebuild = 1;
 local_v ImVec2 last_work_size = {0, 0};
+
+S32 text_callback(ImGuiInputTextCallbackData *data);

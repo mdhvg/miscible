@@ -121,6 +121,53 @@ Time timestamp_to_time(U64 timestamp)
     return time;
 }
 
+Time skip_days(Time time, U32 days)
+{
+    U64 timestamp = time_to_timestamp(time);
+    timestamp += (U64)days * 86400;
+
+    Time new_time = timestamp_to_time(timestamp);
+    // Keep time-of-day as is
+    new_time.hour = time.hour;
+    new_time.minute = time.minute;
+    new_time.second = time.second;
+    new_time.milsec = time.milsec;
+
+    return new_time;
+}
+
+Time skip_months(Time time, U32 months)
+{
+    S32 total_months = (S32)time.month + (S32)months;
+    S32 year_offset = total_months / 12;
+
+    time.year += year_offset;
+    time.month = (Month)(total_months % 12);
+
+    // Fix date for smaller months (e.g., Jan 31 + 1 month -> Feb 28/29)
+    U32 max_days = month_days(time);
+    if (time.date > max_days)
+    {
+        time.date = max_days;
+    }
+
+    return time;
+}
+
+Time skip_years(Time time, U32 years)
+{
+    time.year += (S32)years;
+
+    // Leap day edge case (e.g., Feb 29 on a leap year + 1 year -> Feb 28)
+    U32 max_days = month_days(time);
+    if (time.date > max_days)
+    {
+        time.date = max_days;
+    }
+
+    return time;
+}
+
 U32 month_days(Time time)
 {
     switch (time.month)

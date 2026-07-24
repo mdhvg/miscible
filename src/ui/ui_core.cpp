@@ -1,8 +1,12 @@
 #include "IconsLucide.h"
+#include "app/miscible.h"
 #include "base/arena.h"
+#include "base/ringbuf.h"
 #include "base/string.h"
+#include "base/threadpool.h"
 #include "config.h"
 #include "db/view.h"
+#include "os/os_inc.h"
 #include "ui/ui_utils.h"
 
 // .h
@@ -20,13 +24,10 @@
 #include "ui/ui_utils.cpp"
 #include "ui/widgets.cpp"
 
-#if DBG
-#include "ui/ui_debug.cpp"
-#endif
-
 #if !DBG
-#include "fonts/geist.cpp"
-#include "fonts/lucide.cpp"
+#include "_dynamic/geist.cpp"
+#include "_dynamic/lucide.cpp"
+#include "_dynamic/icon.c"
 #endif
 
 struct UIToast
@@ -35,12 +36,13 @@ struct UIToast
     U32 count;
     Mutex mutex;
     Result cur;
-    RingBuffer(Result, queue, KB(1));
+    RingBuffer_t(Result) queue;
 };
 
 UIState ui_state = {0};
 UIToast ui_toast = {0};
 UIPreview ui_preview = {0};
+UISearchQuery ui_search = {.type = SearchType_Text};
 
 void ui_viewquery_clear()
 {
@@ -52,7 +54,7 @@ void ui_viewquery_clear()
 
 void ui_push_message(Result message)
 {
-    EnterCriticalSection(&ui_toast.mutex);
+    os_mutex_lock(&ui_toast.mutex);
 
     if (!rb_isfull(ui_toast.queue))
     {
@@ -60,19 +62,18 @@ void ui_push_message(Result message)
         ins_atomic_u32_inc_eval(&ui_toast.count);
     }
 
-    LeaveCriticalSection(&ui_toast.mutex);
+    os_mutex_unlock(&ui_toast.mutex);
 }
 
 void ui_init()
 {
     arena_alloc(MB(1), ui_state.arena);
-    arena_alloc(MB(1), ui_state.page_arena);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
-    // io.IniFilename = NULL;
-    // io.LogFilename = NULL;
+    io.IniFilename = NULL;
+    io.LogFilename = NULL;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -95,23 +96,45 @@ void ui_init()
     // icon_font_config.GlyphMinAdvanceX = icon_font_size;
     static const ImWchar icons_ranges[] = {ICON_MIN_LC, ICON_MAX_LC, 0};
 #if DBG
-    ui_state.title_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist-VariableFont_wght.ttf", mscbl_config.settings.font_size, NULL, io.Fonts->GetGlyphRangesDefault());
+    ui_state.ui_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist-VariableFont_wght.ttf", mscbl_config.settings.font_size, NULL, io.Fonts->GetGlyphRangesDefault());
     ui_state.icon_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Lucide.ttf", mscbl_config.settings.font_size, &icon_font_config, icons_ranges);
-    ui_state.title_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist-VariableFont_wght.ttf", mscbl_config.settings.font_size * 2.0f, NULL, io.Fonts->GetGlyphRangesDefault());
+    ui_state.title_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist-VariableFont_wght.ttf", mscbl_config.settings.font_size * 1.125f, NULL, io.Fonts->GetGlyphRangesDefault());
+    ui_state.display_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/InstrumentSans.ttf", mscbl_config.settings.font_size * 1.25f, NULL, io.Fonts->GetGlyphRangesDefault());
+
+    AsyncTask icon_load_task = {
+        .func = gl_tex_path,
+        .args = {
+            {.kind = TPData_Any, .val_any = &ui_state.icon_texture},
+            {.kind = TPData_String, .val_str = sv(ROOT_DIR "/data/icon.png")},
+        }};
 #else
     ui_state.ui_font = io.Fonts->AddFontFromMemoryCompressedTTF(geist_font_compressed_data, geist_font_compressed_size, mscbl_config.settings.font_size, NULL, io.Fonts->GetGlyphRangesDefault());
     ui_state.icon_font = io.Fonts->AddFontFromMemoryCompressedTTF(lucide_font_compressed_data, lucide_font_compressed_size, mscbl_config.settings.font_size, &icon_font_config, icons_ranges);
-    ui_state.ui_font = io.Fonts->AddFontFromMemoryCompressedTTF(geist_font_compressed_data, geist_font_compressed_size, mscbl_config.settings.font_size * 2.0f, NULL, io.Fonts->GetGlyphRangesDefault());
+    ui_state.title_font = io.Fonts->AddFontFromMemoryCompressedTTF(geist_font_compressed_data, geist_font_compressed_size, mscbl_config.settings.font_size * 1.125f, NULL, io.Fonts->GetGlyphRangesDefault());
+    ui_state.display_font = io.Fonts->AddFontFromMemoryCompressedTTF(instrument_sans_font_compressed_data, instrument_sans_font_compressed_size, mscbl_config.settings.font_size * 1.25f, NULL, io.Fonts->GetGlyphRangesDefault());
+
+    AsyncTask icon_load_task = {
+        .func = gl_tex_mem,
+        .args = {
+            {.kind = TPData_Any, .val_any = &ui_state.icon_texture},
+            {.kind = TPData_Any, .val_any = data_icon_png},
+            {.kind = TPData_U64, .val_u64 = data_icon_png_len},
+        }};
 
     restyle();
 #endif
 
+    threadpool_enqueue(TaskPriority_High, icon_load_task);
+
     // Filter list init
+    arena_alloc(MB(1), ui_search.back.arena);
+    arena_alloc(MB(1), ui_search.main.arena);
     arena_alloc(MB(1), ui_state.view_query.arena);
     ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
 
     // Toast message init
-    InitializeCriticalSection(&ui_toast.mutex);
+    os_mutex_init(&ui_toast.mutex);
+    rb_init(ui_state.arena, ui_toast.queue, KB(4));
 }
 
 void ui_close()
@@ -124,6 +147,45 @@ void ui_close()
 void ui_update()
 {
     // refresh_results();
+}
+
+void ui_window_controls()
+{
+    F32 padding_scale = 1.5f;
+    ImVec2 window_dim = ImGui::GetMainViewport()->Size;
+    ImGuiStyle &style = ImGui::GetStyle();
+    ImVec2 trafficlight_size = ImGui::CalcTextSize(ICON_LC_MINUS ICON_LC_MAXIMIZE ICON_LC_X);
+    trafficlight_size.x += 6.0f * style.FramePadding.x * padding_scale;
+    trafficlight_size.y += 2.0f * style.FramePadding.y * padding_scale;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(style.FramePadding.x * padding_scale, style.FramePadding.y * padding_scale));
+    ImGui::SetNextWindowSize(trafficlight_size);
+    ImGui::SetNextWindowPos(ImVec2(window_dim.x - trafficlight_size.x, 0.0f));
+    DeferLoop(ImGui::Begin("Traffic light", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove), ImGui::End())
+    {
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.2f, 0.2f, 1.0f));
+        if (ImGui::Button(ICON_LC_MINUS))
+        {
+            window_iconify();
+        }
+        ImGui::SameLine(0, 0);
+        if (ImGui::Button(win.maximized ? ICON_LC_MINIMIZE : ICON_LC_MAXIMIZE))
+        {
+            win.maximized ? window_minimize() : window_maximize();
+        }
+        ImGui::PopStyleColor();
+        ImGui::SameLine(0, 0);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.15f, 0.15f, 1.0f));
+        if (ImGui::Button(ICON_LC_X))
+        {
+            window_close();
+        }
+        ImGui::PopStyleColor();
+    }
+    ImGui::PopStyleVar(4);
 }
 
 void ui_render()
@@ -173,24 +235,44 @@ void ui_render()
     page_data[ui_state.page]();
 #endif
 
-    arena_clear(ui_state.page_arena);
     ImGui::End();
 
     ImGui::PopStyleVar(2);
 
 #if DBG
     ImGui::ShowDemoWindow();
-    ui_debug_arenas();
+    ImGui::Begin("Arena Debug");
+
+    U64 total = 0, total_used = 0;
+    for (Arena *cur = arena_head; cur; cur = cur->next)
+    {
+        ImGui::Text("Arena: %s", cur->name);
+
+        ByteSize used = size_to_bytesize(cur->used);
+        ByteSize cap = size_to_bytesize(cur->capacity);
+        ImGui::Text("Used %.3f%s of %.3f%s", used.value, CStrCast(byte_string(used.unit)), cap.value, CStrCast(byte_string(cap.unit)));
+        ImGui::ProgressBar((F64)cur->used / (F64)cur->capacity);
+        total += cur->capacity;
+        total_used += cur->used;
+    }
+
+    ByteSize used = size_to_bytesize(total_used);
+    ByteSize cap = size_to_bytesize(total);
+    ImGui::Text("Total used: %.3f%s of %.3f%s", used.value, CStrCast(byte_string(used.unit)), cap.value, CStrCast(byte_string(cap.unit)));
+    ImGui::ProgressBar((F64)total_used / (F64)total);
+
+    ImGui::End();
 #endif
 
     if (ui_toast.time <= 0.0f)
     {
-        if (ins_atomic_u32_eval(&ui_toast.count) && TryEnterCriticalSection(&ui_toast.mutex))
+        if (ins_atomic_u32_eval(&ui_toast.count) && os_mutex_trylock(&ui_toast.mutex))
         {
             ins_atomic_u32_dec_eval(&ui_toast.count);
-            ui_toast.cur = rb_pop(ui_toast.queue);
+            rb_top(ui_toast.queue, &ui_toast.cur);
+            rb_pop(ui_toast.queue);
             ui_toast.time = 3.0f;
-            LeaveCriticalSection(&ui_toast.mutex);
+            os_mutex_unlock(&ui_toast.mutex);
         }
     }
 
@@ -216,6 +298,7 @@ void ui_render()
         case Domain_App: ImGui::Text("App Error"); break;
         case Domain_Network: ImGui::Text("Network Error"); break;
         case Domain_YAML: ImGui::Text("YAML Parsing Error"); break;
+        case Domain_Inference_ONNX: ImGui::Text("ONNX Runtime Error"); break;
         default: break;
         }
         ImGui::Separator();
@@ -226,8 +309,14 @@ void ui_render()
         ui_toast.time -= ImGui::GetIO().DeltaTime;
     }
 
+    ui_window_controls();
+
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
+void ui_fetch_images(S64 start, S64 end)
+{
 }
 
 B32 ui_needs_update()
@@ -239,7 +328,7 @@ B32 ui_needs_update()
 U64 put_dir(StringBuilder dir)
 {
     sqlite3_stmt *stmt = db_prepare("INSERT INTO Dirs(path) VALUES(?) RETURNING id;");
-#if OS_WINDOWS
+#if OS_WIN32
     win32_format_path(&dir);
 #endif
     sqlite3_bind_text(stmt, 1, CStrCast(dir), dir.size, SQLITE_STATIC);
@@ -248,25 +337,24 @@ U64 put_dir(StringBuilder dir)
     return id;
 }
 
-DBStmtCbk(get_path)
-{
-    String *path = (String *)data;
-    *path = string_copy(ui_arena, sqlite3_column_text(stmt, 0));
-}
-
-void get_filename(U64 id, String *filename)
-{
-    sqlite3_stmt *stmt = db_prepare("SELECT filename FROM Images WHERE id = ?;");
-    sqlite3_bind_int64(stmt, 1, id);
-    db_run_stmt(stmt, 1, get_path, filename);
-}
+// DBStmtCbk(get_path)
+// {
+//     String *path = (String *)data;
+//     *path = string_copy(ui_arena, sqlite3_column_text(stmt, 0));
+// }
+//
+// void get_filename(U64 id, String *filename)
+// {
+//     sqlite3_stmt *stmt = db_prepare("SELECT filename FROM Images WHERE id = ?;");
+//     sqlite3_bind_int64(stmt, 1, id);
+//     db_run_stmt(stmt, 1, get_path, filename);
+// }
 
 void ui_add_filter()
 {
     UIFilter *filter_slot = NULL;
 
     UIFilter **walk = &ui_state.view_query.filters;
-    UIFilter *last_node = NULL;
 
     while (*walk != NULL)
     {
@@ -278,7 +366,6 @@ void ui_add_filter()
             continue;
         }
 
-        last_node = *walk;
         walk = &((*walk)->next);
     }
 
@@ -288,11 +375,12 @@ void ui_add_filter()
     *filter_slot = {
         .active = 1,
         .next = NULL,
-        .type = FilterType_SizeGreater,
-        .exclude = 0,
-        .val_bytes = {
-            .value = 0,
-            .unit = Byte,
+        .type = FilterType_SizeBetween,
+        .val_byte = {
+            .from = {.value = 0, .unit = Byte},
+            .to = {0},
+            .from_enable = 1,
+            .to_enable = 0,
         },
     };
 
