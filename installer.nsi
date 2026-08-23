@@ -28,7 +28,7 @@ VIAddVersionKey /LANG=1033 "FileVersion" "${APP_VERSION}"
 SetCompressor /SOLID lzma
 
 Name "${APP_NAME}"
-OutFile "${APP_NAME}_v${APP_VERSION}_Setup.exe"
+OutFile "${APP_NAME}_${APP_VERSION}_Setup.exe"
 InstallDir "$PROGRAMFILES64\${APP_NAME}"
 RequestExecutionLevel admin
 
@@ -51,7 +51,7 @@ BrandingText "miscible™ — Copyright © 2025-2026 Madhav Goyal"
 
 !define MUI_WELCOMEPAGE_TITLE_3LINES
 !define MUI_WELCOMEPAGE_TITLE "Welcome to the ${APP_NAME} Setup Wizard"
-!define MUI_WELCOMEPAGE_TEXT "This wizard will guide you through the installation of ${APP_NAME} v${APP_VERSION}.$\n$\nIt is recommended that you close all other applications before continuing.$\n$\nClick Next to continue."
+!define MUI_WELCOMEPAGE_TEXT "This wizard will guide you through the installation of ${APP_NAME} ${APP_VERSION}.$\n$\nIt is recommended that you close all other applications before continuing.$\n$\nClick Next to continue."
 
 !define MUI_FINISHPAGE_NOAUTOCLOSE
 !define MUI_UNFINISHPAGE_NOAUTOCLOSE
