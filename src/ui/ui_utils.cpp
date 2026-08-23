@@ -21,6 +21,5 @@ void ui_reload()
     {
         page_data[i].fn = (PageFn)os_libfunc(pages, page_data[i].fn_name);
     }
-    arena_clear(ui_state.arena);
 }
 #endif

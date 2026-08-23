@@ -25,6 +25,7 @@ Miscible™ only supports Windows and Linux because these are the only operating
 
 - [git](https://git-scm.com/)
 - [cmake](https://cmake.org)
+- [xmake](https://xmake.io/)
 - [python3](https://www.python.org/) ([uv](https://docs.astral.sh/uv/) preferred)
 
 ### Setup
@@ -35,33 +36,32 @@ git clone --recursive https://github.com/mdhvg/miscible
 cd miscible
 ```
 
-- Run the setup script
+- Configure Xmake for Release or Debug and run setup command
 ```bash
-python3 ./scripts/setup.py
+xmake f -ym [debug|release]
+xmake b setup
 ```
 
-**OR**
+### Building
 
+> [!WARNING]
+> Linux builds are currently broken and outdated because Windows is my primary development environment. Contributions to fix and maintain Linux support are extremely welcome!
+
+- Build onnxruntime. (This takes quite long only needs a rebuild after clean builds)
 ```bash
-uv run ./scripts/setup.py
+xmake b onnxruntime
 ```
 
-### Build - Windows
-
-Build script automatically detects installed compiler. Supported ones are [msvc](https://visualstudio.microsoft.com/vs/features/cplusplus) and [clang-cl](https://clang.llvm.org). `Miscible.exe` is built in `(project root)/build` directory.
-
-```powershell
-./scripts/build.ps1 [debug|release|test] [msvc|clang-cl]
+- Build miscible.
+```bash
+xmake b miscible
 ```
-
-### Build - Linux
-
-_TODO_
 
 ## Usage
 
-- From the first launch, Miscible™ will start downloading the [`laion/CLIP-ViT-B-32-laion2B-s34B-b79K`](https://huggingface.co/laion/CLIP-ViT-B-32-laion2B-s34B-b79K) automatically in the background.
-- To get some images displaying in Miscible™, click the ➕ button in the sidebar and select an and let it automatically scan the directories and populate the thumbnail previews.
+- From the first launch, Miscible™ will start downloading the [`mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX`](https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX) automatically in the background.
+
+- To get some images displaying in Miscible™, click the ➕ button in the sidebar and select a directory to let it automatically scan and populate the thumbnail previews.
 
 <p align="center">
     <img src="docs/Step-AddImages.png" alt="Add images to miscible™">
@@ -70,7 +70,7 @@ _TODO_
 - Use the **Search/Sort/Add Filter** buttons according to requirements to view results with different constraints (inclusion or exclusion).
 
 <p align="center">
-    <img width="90%" src="docs/Step-SearchQuery.png" alt="Query Images in miscible™">
+    <img src="docs/Step-SearchQuery.png" alt="Query Images in miscible™">
 </p>
 
 - Press **Clear** button to go back to viewing all images again.

@@ -7,10 +7,11 @@
 #include "gl/gl_core.h"
 #include "base/log.h"
 #include "base/string.h"
+#include "db/db_helpers.h"
 #include "window/window.h"
 #include "base/threadpool.h"
 
-void gl_tex_data(U32 *texture, U8 *data, S32 width, S32 height, S32 channels, B32 free)
+void gl_tex_data(U32 *texture, U8 *data, S32 width, S32 height, S32 channels)
 {
     os_mutex_lock(&win.upload_mutex);
     glfwMakeContextCurrent(win.upload_handle);
@@ -60,30 +61,46 @@ void gl_tex_data(U32 *texture, U8 *data, S32 width, S32 height, S32 channels, B3
     GLCall(glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzle_mask));
     glfwMakeContextCurrent(NULL);
     os_mutex_unlock(&win.upload_mutex);
-
-    if (free)
-        stbi_image_free(data);
 }
 
-MSCBL_API ThreadFunc(gl_tex_path)
+ThreadFunc(gl_tex_id)
 {
-    Assert(args[0].kind == TPData_Any, "invalid datatype");
-    Assert(args[1].kind == TPData_String, "invalid datatype");
+    Assert(args[0].kind == TPData_Any, "wrong datatype");
+    Assert(args[1].kind == TPData_S64, "wrong datatype");
+
+    String path = {0};
+    sqlite3_stmt *stmt = db_prepare("SELECT path FROM Images WHERE id = ?;");
+    sqlite3_bind_int64(stmt, 1, args[1].val_s64);
+    db_run_stmt(stmt, 1, get_path, &path, arena);
+
+    S32 width, height, channels;
+    U8 *data = stbi_load(CStrCast(path), &width, &height, &channels, 0);
+    Assert(data, "image data is NULL (%.*s)", StringSpr(path));
+    gl_tex_data((U32 *)args[0].val_any, data, width, height, channels);
+    stbi_image_free(data);
+}
+
+ThreadFunc(gl_tex_path)
+{
+    Assert(args[0].kind == TPData_Any, "wrong datatype");
+    Assert(args[1].kind == TPData_String, "wrong datatype");
 
     S32 width, height, channels;
     U8 *data = stbi_load(CStrCast(args[1].val_str), &width, &height, &channels, 0);
     Assert(data, "image data is NULL (%.*s)", StringSpr(args[1].val_str));
-    gl_tex_data((U32 *)args[0].val_any, data, width, height, channels, true);
+    gl_tex_data((U32 *)args[0].val_any, data, width, height, channels);
+    stbi_image_free(data);
 }
 
 MSCBL_API ThreadFunc(gl_tex_mem)
 {
-    Assert(args[0].kind == TPData_Any, "invalid datatype");
-    Assert(args[1].kind == TPData_Any, "invalid datatype");
-    Assert(args[2].kind == TPData_U64, "invalid datatype");
+    Assert(args[0].kind == TPData_Any, "wrong datatype");
+    Assert(args[1].kind == TPData_Any, "wrong datatype");
+    Assert(args[2].kind == TPData_U64, "wrong datatype");
 
     S32 width, height, channels;
     U8 *data = stbi_load_from_memory((U8 *)args[1].val_any, args[2].val_u64, &width, &height, &channels, 4);
     Assert(data, "image data is NULL");
-    gl_tex_data((U32 *)args[0].val_any, data, width, height, channels, true);
+    gl_tex_data((U32 *)args[0].val_any, data, width, height, channels);
+    stbi_image_free(data);
 }

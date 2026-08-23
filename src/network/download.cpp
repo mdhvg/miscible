@@ -58,7 +58,7 @@ ThreadFunc(download_worker)
     S64 index = args[1].val_s64;
     U64 file_size = args[2].val_u64;
     String file_url = args[3].val_str;
-    FileHandle tempfile_desc = args[4].val_filedesc;
+    FileHandle file_desc = args[4].val_filedesc;
 
     U64 start = index * DOWNLOAD_PIECE_SIZE;
     U64 end = MIN(start + DOWNLOAD_PIECE_SIZE - 1, file_size - 1);
@@ -72,7 +72,6 @@ ThreadFunc(download_worker)
     CURLcode curl_err = CURLE_OK;
     Result res = ResultSuccess();
 
-    perf_beg(download);
     ArenaScoped(arena)
     {
         CURL *curl = NULL;
@@ -107,7 +106,7 @@ ThreadFunc(download_worker)
                 goto Cleanup;
             }
 
-            os_file_write(tempfile_desc, size, params1.buffer, &res, start);
+            os_file_write(file_desc, size, params1.buffer, &res, start);
             CheckAndClearResult(res);
 
             BitFieldSet(state_array, index);
@@ -126,7 +125,6 @@ ThreadFunc(download_worker)
 
         if (curl) curl_easy_cleanup(curl);
     }
-    perf_end(download);
 }
 
 Result download_large_file(Arena *arena, DownloadArgs args)
@@ -137,18 +135,15 @@ Result download_large_file(Arena *arena, DownloadArgs args)
     S64 block_count = ToCeilInt(args.file_size, DOWNLOAD_PIECE_SIZE);
     U64 state_array_size = ToCeilInt(block_count, (sizeof(U8) * 8));
 
-    StringBuilder statefile_path = string_init(arena, StringCast(args.filepath));
+    StringBuilder statefile_path = string_init(arena, StringCast(args.file_path));
     string_push(&statefile_path, ".state");
-
-    StringBuilder tempfile_path = string_init(arena, StringCast(args.filepath));
-    string_push(&tempfile_path, ".temp");
 
     sha256_ctx ctx = {0};
     U8 *file_buffer = NULL;
     U8 file_hash[SHA256_DIGEST_SIZE] = {0};
 
+    FileHandle file_desc = 0;
     FileHandle statefile_desc = 0;
-    FileHandle tempfile_desc = 0;
 
     U8 *state_array = NULL;
     B32 download_finish = 1;
@@ -162,7 +157,7 @@ Result download_large_file(Arena *arena, DownloadArgs args)
     CheckAndClearResult(res);
     state_array = (U8 *)os_map_get_data(map);
 
-    tempfile_desc = os_file_open(StringCast(tempfile_path), FileAccess_Read | FileAccess_Write, FileMode_OpenAlways, &res);
+    file_desc = os_file_open(StringCast(args.file_path), FileAccess_Read | FileAccess_Write, FileMode_OpenAlways, &res);
     CheckAndClearResult(res);
 
     for (S64 i = 0; i < block_count; i++)
@@ -186,7 +181,7 @@ Result download_large_file(Arena *arena, DownloadArgs args)
                     {.kind = TPData_S64, .val_s64 = block},
                     {.kind = TPData_U64, .val_u64 = args.file_size},
                     {.kind = TPData_String, .val_str = args.link},
-                    {.kind = TPData_FileDesc, .val_filedesc = tempfile_desc},
+                    {.kind = TPData_FileDesc, .val_filedesc = file_desc},
                 },
                 .batch_size = &batch_size,
                 .batch_complete = wait};
@@ -229,7 +224,7 @@ Result download_large_file(Arena *arena, DownloadArgs args)
             U64 size = end - start;
 
             file_buffer = push_array(arena, size, U8);
-            os_file_read(tempfile_desc, size, file_buffer, &res, start);
+            os_file_read(file_desc, size, file_buffer, &res, start);
 
             sha256_update(&ctx, file_buffer, size);
         }
@@ -245,11 +240,9 @@ Result download_large_file(Arena *arena, DownloadArgs args)
         goto Cleanup;
     }
 
-    os_file_close(tempfile_desc, &res);
+    os_file_close(file_desc, &res);
     CheckAndClearResult(res);
-    tempfile_desc = 0;
-
-    os_file_rename(StringCast(tempfile_path), StringCast(args.filepath));
+    file_desc = 0;
 
     goto Return;
 
@@ -265,7 +258,7 @@ Cleanup:
     if (!cleanup_res.success)
         res = cleanup_res;
 
-    os_file_close(tempfile_desc, &cleanup_res);
+    os_file_close(file_desc, &cleanup_res);
     if (!cleanup_res.success)
         res = cleanup_res;
 
@@ -306,7 +299,7 @@ Result download_small_file(Arena *arena, DownloadArgs args)
         goto Cleanup;
     }
 
-    // for (U32 li = 0; li < da_getsize(args.link); li++)
+    // for (U32 li = 0; li < arr_getsize(args.link); li++)
     // {
     // String url = args.link[li];
 
@@ -345,7 +338,7 @@ Result download_small_file(Arena *arena, DownloadArgs args)
     }
     // }
 
-    file = os_file_open(args.filepath, FileAccess_Write, FileMode_OpenAlways, &res);
+    file = os_file_open(args.file_path, FileAccess_Write, FileMode_OpenAlways, &res);
     CheckAndClearResult(res);
     os_file_write(file, StringSpr(file_content), &res);
     CheckAndClearResult(res);

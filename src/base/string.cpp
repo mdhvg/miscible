@@ -2,11 +2,13 @@
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
 #include <math.h>
+#include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
+#include "base/log.h"
 #include "base/arena.h"
 #include "base/string.h"
-#include "base/base_core.h"
 
 // WString make_string_cwstr(const wchar *s)
 // {
@@ -142,7 +144,7 @@ UnicodeDecode utf8_decode(U8 *str, U64 max)
         }
         break;
     case 4:
-        if (2 < max)
+        if (3 < max)
         {
             U8 cont_byte[3] = {str[1], str[2], str[3]};
             if (utf8_class[cont_byte[0] >> 3] == 0 &&
@@ -505,7 +507,6 @@ WString string_to_wide(Arena *arena, String str)
         }
         res.v[size] = 0;
         res.size = size;
-        arena_pop(arena, (cap - size) * 2);
     }
     return res;
 }

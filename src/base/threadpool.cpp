@@ -1,8 +1,6 @@
 // Copyright (c) 2025-2026 Madhav Goyal
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
-#include <time.h>
-
 #include "arena.h"
 #include "base/log.h"
 #include "os/os_inc.h"

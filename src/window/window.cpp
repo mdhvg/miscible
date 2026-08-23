@@ -16,7 +16,9 @@ Window win = {.handle = 0};
 local_v B32 window_dragging = 0;
 local_v F32 drag_start_x = 0.0f;
 local_v F32 drag_start_y = 0.0f;
-#define TITLEBAR_HEIGHT SPACING(6)
+
+#define TITLEBAR_SIDES  SPACING(80.0f)
+#define TITLEBAR_HEIGHT SPACING(6.0f)
 
 local_v void glfw_error_callback(S32 error, const char *description)
 {
@@ -37,7 +39,7 @@ local_v void mouse_btn_cbk(GLFWwindow *window, int button, int action, int mods)
             double mouseX, mouseY;
             glfwGetCursorPos(window, &mouseX, &mouseY);
 
-            if (mouseY >= 0 && mouseY <= TITLEBAR_HEIGHT)
+            if (mouseY >= 0 && mouseY <= TITLEBAR_HEIGHT && ((mouseX >= 0 && mouseX < TITLEBAR_SIDES) || (mouseX >= win.width - TITLEBAR_SIDES && mouseX < win.width)))
             {
                 window_dragging = true;
                 drag_start_x = mouseX;

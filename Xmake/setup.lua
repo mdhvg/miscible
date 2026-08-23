@@ -95,6 +95,11 @@ on_run(function()
 			parent = "fonts",
 		},
 		{
+			url = "https://raw.githubusercontent.com/google/fonts/refs/heads/main/ofl/geist/Geist%5Bwght%5D.ttf",
+			filename = "Geist.ttf",
+			parent = "fonts",
+		},
+		{
 			url = "https://raw.githubusercontent.com/doctest/doctest/1da23a3e8119ec5cce4f9388e91b065e20bf06f5/doctest/doctest.h",
 			filename = "doctest.h",
 			parent = "deps/doctest",

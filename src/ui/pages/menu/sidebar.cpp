@@ -3,6 +3,7 @@
 
 #include "IconsLucide.h"
 #include "base/base_core.h"
+#include "base/threadpool.h"
 #include "db/view.h"
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -22,7 +23,7 @@ local_v B32 sidebar_dirtree_foldall = 0;
 
 void directory_tree(DirKey cur = 1)
 {
-    if (da_getsize(dir_tree) <= 1)
+    if (arr_getsize(fetch_directories) <= 1)
         return;
 
     if (!cur)
@@ -34,7 +35,7 @@ void directory_tree(DirKey cur = 1)
         ImGui::SetNextItemOpen(0);
 
     B32 expand = ImGui::TreeNodeEx(
-        (void *)cur,
+        &fetch_directories[cur],
         ImGuiTreeNodeFlags_OpenOnArrow |
             ImGuiTreeNodeFlags_OpenOnDoubleClick |
             ImGuiTreeNodeFlags_FramePadding |
@@ -43,8 +44,8 @@ void directory_tree(DirKey cur = 1)
 
     ImGui::SameLine();
 
-    DirTree dir = dir_tree[cur];
-    StringBuilderStack(sb, KB(1));
+    DirTree dir = fetch_directories[cur];
+    StringStack(sb, KB(1));
     string_format(&sb, ICON_LC_FOLDER " %.*s", StringSpr(dir.name));
     const char *dirname = format_cstr(&sb, ICON_LC_FOLDER " %.*s", StringSpr(dir.name));
     Assert(dirname, "dirname is null");
@@ -52,22 +53,24 @@ void directory_tree(DirKey cur = 1)
     ImGui::PushStyleColor(ImGuiCol_Button, (ui_state.view_query.selected_dir == cur)
                                                ? (MSCBL_INTERACTION_HOVER)
                                                : (COLOR_TRANSPARENT));
-    if (ImGui::Button(dirname, {ImGui::GetContentRegionAvail().x, 0}))
+    if (ImGui::Button(dirname, ImVec2(ImGui::GetContentRegionAvail().x, 0)))
     {
         if (ui_state.view_query.selected_dir == cur)
             ui_state.view_query.selected_dir = 0;
         else
             ui_state.view_query.selected_dir = cur;
+
+        view_fetch_new();
     }
     ImGui::PopStyleColor();
 
     if (expand)
     {
-        directory_tree(dir_tree[cur].child_idx);
+        directory_tree(fetch_directories[cur].child_idx);
         ImGui::TreePop();
     }
 
-    directory_tree(dir_tree[cur].next_idx);
+    directory_tree(fetch_directories[cur].next_idx);
 }
 
 global_v const char *filter_text(FilterType type)
@@ -79,13 +82,8 @@ global_v const char *filter_text(FilterType type)
     case FilterType_DateAddedBetween: return "DATE ADDED";
     case FilterType_DateCreatedBetween: return "DATE CREATED";
     case FilterType_DateModifiedBetween: return "DATE MODIFIED";
-    case FilterType_EmbeddingDistanceBetween: return "MATCH WITHIN";
     default: Assert(0, "unknown filter added"); return 0;
     }
-}
-
-void size_filter(UIFilter *filter)
-{
 }
 
 void filters()
@@ -107,10 +105,6 @@ void filters()
             {
                 for (U32 i = 0; i < FilterType_COUNT; i++)
                 {
-                    if (i == FilterType_EmbeddingDistanceBetween && ui_search.type != SearchType_Embedding)
-                    {
-                        continue;
-                    }
                     B32 is_selected = (filter->type == (FilterType)i);
                     if (ImGui::Selectable(filter_text((FilterType)i), is_selected))
                     {
@@ -138,13 +132,6 @@ void filters()
                                 .to_enable = 1,
                             };
                             break;
-                        case FilterType_EmbeddingDistanceBetween:
-                            filter->val_float = {
-                                .from = 90,
-                                .to = 100,
-                                .from_enable = 1,
-                                .to_enable = 1};
-                            break;
                         default:
                             break;
                         }
@@ -168,12 +155,18 @@ void filters()
             {
             case FilterType_Path: {
                 StringBuilder *buf_p = &filter->val_str.val;
-                ImGui::InputTextEx("##Input", "/path/to/file", CStrCast(filter->val_str.val), 512, ImVec2(-1, 0), ImGuiInputTextFlags_CallbackEdit, text_callback, &buf_p);
+                if (ImGui::InputTextEx("##Input", "/path/to/file", CStrCast(filter->val_str.val), 512, ImVec2(-1, 0), ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackEdit, text_callback, &buf_p))
+                {
+                    view_fetch_new();
+                }
 
                 ImGui::Text("Exclude");
                 ImGui::SameLine();
                 ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-                ImGui::Checkbox("##Exclude", (bool *)&filter->val_str.exclude);
+                if (ImGui::Checkbox("##Exclude", (bool *)&filter->val_str.exclude))
+                {
+                    view_fetch_new();
+                }
                 ImGui::PopStyleVar();
             }
             break;
@@ -350,46 +343,6 @@ void filters()
                 }
             }
             break;
-            case FilterType_EmbeddingDistanceBetween: {
-                ImVec2 right_edge = ImGui::GetContentRegionMax();
-
-                F32 right_align = right_edge.x - SPACING(16.0f) - ImGui::CalcTextSize(ICON_LC_POWER).x - 2.0f * style.FramePadding.x;
-
-                ImGui::PushStyleColor(ImGuiWindowDockStyleCol_Text, filter->val_float.from_enable ? MSCBL_FOREGROUND : MSCBL_FOREGROUND_MUTED);
-                ImGui::AlignTextToFramePadding();
-                ImGui::Text("From");
-
-                ImGui::SameLine(0, 0);
-                ImGui::SetCursorPosX(right_align);
-                ImGui::SetNextItemWidth(SPACING(16.0f));
-                ImGui::DragFloat("##EmbeddingFrom", &filter->val_float.from, 1.0f, 0.0f, 100.0f, "%.1f%%");
-
-                ImGui::SameLine(0, 0);
-                ImGui::PushStyleColor(ImGuiCol_Button, COLOR_TRANSPARENT);
-                if (ImGui::Button(ICON_LC_POWER "##From"))
-                {
-                    filter->val_float.from_enable = !filter->val_float.from_enable;
-                }
-                ImGui::PopStyleColor(2);
-
-                ImGui::PushStyleColor(ImGuiWindowDockStyleCol_Text, filter->val_float.to_enable ? MSCBL_FOREGROUND : MSCBL_FOREGROUND_MUTED);
-                ImGui::AlignTextToFramePadding();
-                ImGui::Text("Till");
-
-                ImGui::SameLine(0, 0);
-                ImGui::SetCursorPosX(right_align);
-                ImGui::SetNextItemWidth(SPACING(16.0f));
-                ImGui::DragFloat("##EmbeddingTo", &filter->val_float.to, 1.0f, 0.0f, 100.0f, "%.1f%%");
-
-                ImGui::SameLine(0, 0);
-                ImGui::PushStyleColor(ImGuiCol_Button, COLOR_TRANSPARENT);
-                if (ImGui::Button(ICON_LC_POWER "##To"))
-                {
-                    filter->val_float.to_enable = !filter->val_float.to_enable;
-                }
-                ImGui::PopStyleColor(2);
-            }
-            break;
             default: break;
             }
 
@@ -400,7 +353,7 @@ void filters()
 
 void menu_sidebar()
 {
-    if (ImGui::Button(sidebar_open ? ICON_LC_CHEVRON_LEFT : ICON_LC_CHEVRON_RIGHT, {ImGui::GetContentRegionAvail().x, 0}))
+    if (ImGui::Button(sidebar_open ? ICON_LC_CHEVRON_LEFT : ICON_LC_CHEVRON_RIGHT, ImVec2(ImGui::GetContentRegionAvail().x, 0)))
     {
         sidebar_open = !sidebar_open;
         needs_rebuild = 1;
@@ -413,34 +366,28 @@ void menu_sidebar()
     if (sidebar_open)
     {
         if (ImGui::Button(ICON_LC_REFRESH_CW "  Rescan Images", ImVec2((avail.x - style.ItemSpacing.x) / 2.0f, 0)))
-        {
-            // threadpool_enqueue(TaskPriority_High, {.func = cont_scan});
             ui_push_message({.success = 0, .domain = Domain_App, .code = 1, .context = "implementation pending"});
-        }
+
         ImGui::SameLine();
         if (ImGui::Button(ICON_LC_PLUS " Add Folders", ImVec2((avail.x - style.ItemSpacing.x) / 2.0f, 0)))
-        {
-            scan_new_dir(ui_state.arena);
-        }
+            scan_directory();
     }
     else
     {
         if (ImGui::Button(ICON_LC_REFRESH_CW, {ImGui::GetContentRegionAvail().x, 0}))
-        {
-            // threadpool_enqueue(TaskPriority_High, {.func = cont_scan});
             ui_push_message({.success = 0, .domain = Domain_App, .code = 1, .context = "implementation pending"});
-        }
+
         if (ImGui::Button(ICON_LC_PLUS, {ImGui::GetContentRegionAvail().x, 0}))
-        {
-            scan_new_dir(ui_state.arena);
-        }
+            scan_directory();
     }
 
     if (sidebar_open)
     {
         ImVec2 avail = ImGui::GetContentRegionAvail();
         ImGui::PushStyleColor(ImGuiCol_ChildBg, COLOR_TRANSPARENT);
-        DeferLoop(ImGui::BeginChild("FiltersGroup", ImVec2(avail.x, avail.y * 0.666f), ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY), ImGui::EndChild())
+
+        F32 filter_group_height = avail.y * 0.6;
+        DeferLoop(ImGui::BeginChild("FiltersGroup", ImVec2(avail.x, filter_group_height), ImGuiChildFlags_AutoResizeX), ImGui::EndChild())
         {
             ImGui::PopStyleColor();
             ImGui::PushFont(ui_state.title_font);
@@ -453,7 +400,7 @@ void menu_sidebar()
             ImGui::SameLine();
             if (ImGui::Button("Apply", ImVec2((avail.x - style.ItemSpacing.x) / 2.0f, 0)))
             {
-                view_fetch_map();
+                view_fetch_new();
             }
 
             ImGui::PushStyleColor(ImGuiCol_ChildBg, COLOR_TRANSPARENT);
@@ -467,7 +414,7 @@ void menu_sidebar()
         }
 
         ImGui::PushStyleColor(ImGuiCol_ChildBg, COLOR_TRANSPARENT);
-        DeferLoop(ImGui::BeginChild("Directories", ImVec2(avail.x, avail.y * 0.333f - style.FramePadding.y), ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY), ImGui::EndChild())
+        DeferLoop(ImGui::BeginChild("Directories", ImVec2(avail.x, avail.y - filter_group_height - style.ItemSpacing.y * 2.0f - style.FramePadding.y * 2.0f - ImGui::CalcTextSize("Expand All").y), ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY), ImGui::EndChild())
         {
             ImGui::PopStyleColor();
             ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -477,20 +424,25 @@ void menu_sidebar()
             ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, style.FramePadding.y));
             ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0, 0));
             ImGui::PushStyleColor(ImGuiCol_Border, COLOR_TRANSPARENT);
-            directory_tree();
+            DeferLoop(ImGui::BeginChild("DirTree", ImVec2(avail.x, 0.0f), ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY), ImGui::EndChild())
+            {
+                directory_tree();
+            }
             ImGui::PopStyleColor();
             ImGui::PopStyleVar(2);
 
-            ImGui::SetCursorPosY(avail.y - ImGui::GetFrameHeight());
-            if (ImGui::Button("Expand All", ImVec2((avail.x - style.ItemSpacing.x) / 2.0f, 0)))
-            {
-                sidebar_dirtree_openall = 1;
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Collapse All", ImVec2((avail.x - style.ItemSpacing.x) / 2.0f, 0)))
-            {
-                sidebar_dirtree_foldall = 1;
-            }
+            sidebar_dirtree_openall = 0;
+            sidebar_dirtree_foldall = 0;
+        }
+
+        if (ImGui::Button("Expand All", ImVec2((avail.x - style.ItemSpacing.x) / 2.0f, 0)))
+        {
+            sidebar_dirtree_openall = 1;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Collapse All", ImVec2((avail.x - style.ItemSpacing.x) / 2.0f, 0)))
+        {
+            sidebar_dirtree_foldall = 1;
         }
     }
 }

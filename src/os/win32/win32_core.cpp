@@ -87,6 +87,10 @@ void os_prelaunch()
 
     // For <shobjidl.h>
     CoInitialize(NULL);
+
+    // For SymGetLineFromAddr64
+    os_info.process = GetCurrentProcess();
+    SymInitialize(os_info.process, NULL, TRUE);
 }
 
 void os_cleanup()
@@ -610,4 +614,39 @@ void os_file_unmap(OSMmap map, Result *res)
     UnmapViewOfFile(map.data);
     BOOL out = CloseHandle(map.handle);
     Win32Trap(res, out);
+}
+
+U32 os_get_frames(U32 skip, S32 max_frames, void **stack)
+{
+    return CaptureStackBackTrace(skip, max_frames, stack, NULL);
+}
+
+void os_get_frame_text(char buffer[KB(1)], void *frame)
+{
+    char symbol_buffer[sizeof(SYMBOL_INFO) + KB(1)];
+    PSYMBOL_INFO symbol = (PSYMBOL_INFO)symbol_buffer;
+
+    symbol->MaxNameLen = KB(1);
+    symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+
+    U64 address = (U64)(frame);
+    if (SymFromAddr(os_info.process, address, 0, symbol))
+    {
+        IMAGEHLP_LINE64 line;
+        DWORD displacement;
+        line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+
+        if (SymGetLineFromAddr64(os_info.process, address, &displacement, &line))
+        {
+            snprintf(buffer, KB(1), "at %s (%s:%lu)", symbol->Name, line.FileName, line.LineNumber);
+        }
+        else
+        {
+            snprintf(buffer, KB(1), "at %s [0x%016llX]", symbol->Name, (U64)symbol->Address);
+        }
+    }
+    else
+    {
+        snprintf(buffer, KB(1), "at [Unknown] [0x%016llX]", address);
+    }
 }

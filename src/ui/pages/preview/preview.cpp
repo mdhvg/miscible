@@ -14,7 +14,6 @@
 #define MIN_ZOOM   1.0f
 #define MAX_ZOOM   10.0f
 
-local_v Image *image = NULL;
 local_v B32 infobar_open = 0;
 local_v F32 canvas_zoom = 1.0f;
 local_v ImVec2 canvas_offset = {0.0f, 0.0f};
@@ -26,14 +25,14 @@ void image_canvas()
     if (avl.x <= 0.0f || avl.y <= 0.0f)
         return;
 
-    F32 aspect = (F32)image->width / (F32)image->height;
+    F32 aspect = (F32)ui_preview.metadata.width / (F32)ui_preview.metadata.height;
 
     F32 base_w = 0,
         base_h = 0,
         zoomed_w = 0,
         zoomed_h = 0;
 
-    base_w = MIN((F32)image->width, avl.x);
+    base_w = MIN((F32)ui_preview.metadata.width, avl.x);
     base_h = base_w / aspect;
     base_h = MIN(base_h, avl.y);
     base_w = base_h * aspect;
@@ -70,15 +69,8 @@ void image_canvas()
 
     if (is_hovered && ImGui::GetIO().MouseWheel != 0.0f)
     {
-        F32 old_zoom = canvas_zoom;
         canvas_zoom += ImGui::GetIO().MouseWheel * ZOOM_SPEED;
         canvas_zoom = ImClamp(canvas_zoom, MIN_ZOOM, MAX_ZOOM);
-
-        if (canvas_zoom > 1.0f)
-        {
-            ImVec2 mouse_pos = ImGui::GetMousePos();
-            F32 zoom_ratio = canvas_zoom / old_zoom;
-        }
     }
 
     if (is_active && (ImGui::IsMouseDown(ImGuiMouseButton_Middle) || ImGui::IsMouseDown(ImGuiMouseButton_Left)))
@@ -125,8 +117,8 @@ void preview_draw_docked_infobar(ImGuiWindowFlags flags)
         needs_rebuild = 1;
     }
 
-    ImGui::Text("%d x %d x %d", image->width, image->height, image->channels);
-    ImGui::Text("%.2f %s", image->size.value, CStrCast(byte_string(image->size.unit)));
+    // ImGui::Text("%d x %d x %d", ui_preview.image.width, ui_preview.image.height, ui_preview.image.channels);
+    // ImGui::Text("%.2f %s", ui_preview.image.size.value, CStrCast(byte_string(ui_preview.image.size.unit)));
 
     if (ImGui::IsItemClicked())
     {
@@ -140,22 +132,23 @@ void preview_draw_docked_infobar(ImGuiWindowFlags flags)
 MSCBL_EXP void page_preview()
 {
     switch_page = 0;
-    if (!image)
-    {
-        image = &images[ui_preview.image_id];
-    }
 
-    if (!image->width || !image->height)
-    {
-    }
+    // if (!image)
+    // {
+    //     image = &images[ui_preview.image_id];
+    // }
 
-    if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
-    {
-    }
+    // if (!ui_preview.image.width || !ui_preview.image.height)
+    // {
+    // }
 
-    if (ImGui::IsKeyPressed(ImGuiKey_RightArrow))
-    {
-    }
+    // if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow))
+    // {
+    // }
+
+    // if (ImGui::IsKeyPressed(ImGuiKey_RightArrow))
+    // {
+    // }
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape))
     {
@@ -227,7 +220,6 @@ MSCBL_EXP void page_preview()
     {
         canvas_offset = ImVec2(0.0f, 0.0f);
         canvas_zoom = 0.0f;
-        image = NULL;
 
         needs_rebuild = 1;
         ui_state.page = UIPage_MENU;

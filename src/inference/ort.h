@@ -1,13 +1,23 @@
 // Copyright (c) 2025-2026 Madhav Goyal
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
+#include "onnxruntime/core/session/onnxruntime_c_api.h"
 #include "onnxruntime/core/session/onnxruntime_error_code.h"
+
+#include "base/string.h"
 
 #define ORTResult(st)                                                                                                             \
     res = GenResult(!st, Domain_Inference_ONNX, inf_ctx.api->GetErrorCode(st), inference_ort_err(inf_ctx.api->GetErrorCode(st))); \
     CheckAndClearResult(res);
 
-#include "base/base_core.h"
+global_v inline const String ORTErrorMessage(const OrtApi *api, OrtStatus *status)
+{
+    String message = sv(api->GetErrorMessage(status));
+    while (message.v[message.size - 1] == '\n')
+        message.size--;
+    return message;
+}
+
 global_v inline const char *inference_ort_err(OrtErrorCode code)
 {
     switch (code)

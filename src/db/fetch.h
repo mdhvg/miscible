@@ -4,23 +4,26 @@
 #pragma once
 #include "base/threadpool.h"
 
-MSCBL_API Arena *fetch_arena;
-
 struct ImageMetadata
 {
     S64 id;
+    String path, filename;
+
     S64 atlas_id;
     U32 atlas_idx;
-    S64 parent_dir, root_dir;
 
-    String path, filename;
     ByteSize size;
+
     Time ctime, mtime;
+    Time atime;
+
     S32 width, height, channels;
+
+    S64 root_dir, parent_dir;
 };
 typedef ImageMetadata *ImageMetadataArr;
 
-struct Atlas
+struct AtlasMap
 {
     S64 id;
     U32 tex;
@@ -37,16 +40,16 @@ struct DirTree
     DirKey child_idx;
 };
 
-#define dense_update(arr, idx, v)      \
-    do                                 \
-    {                                  \
-        while (va_getsize(arr) <= idx) \
-            va_push(arr, {0});         \
-        arr[idx] = v;                  \
+#define dense_update(arr, idx, v)       \
+    do                                  \
+    {                                   \
+        while (arr_getsize(arr) <= idx) \
+            va_push(arr, {0});          \
+        arr[idx] = v;                   \
     } while (0)
 
-MSCBL_API Atlas *atlases;
-MSCBL_API DirTree *dir_tree;
+MSCBL_API AtlasMap *fetch_atlases;
+MSCBL_API DirTree *fetch_directories;
 
 OSString *db_fetch_pending();
 MSCBL_API ThreadFunc(db_fetchall);

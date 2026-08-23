@@ -4,19 +4,25 @@
 #pragma once
 #define NOMINMAX
 #include <Windows.h>
+#include <dbghelp.h>
 
 #define OS_THREAD_ROUTINE(name) DWORD name(LPVOID data)
 #define OS_THREAD_ROUTINE_T     LPTHREAD_START_ROUTINE
 
-#define OSChar     wchar
-#define OSSlash    "\\"
-#define W(x)       Glue(L, x)
-#define Semaphore  HANDLE
-#define Mutex      CRITICAL_SECTION
-#define Thread     HANDLE
-#define LibHandle  HMODULE
-#define LibAddress FARPROC
-#define LibExt     ".dll"
+#define OSSlash "\\"
+#define W(x)    Glue(L, x)
+#define LibExt  ".dll"
+
+typedef wchar OSChar;
+typedef HANDLE FileHandle;
+
+typedef HMODULE LibHandle;
+typedef FARPROC LibAddress;
+
+typedef HANDLE Process;
+typedef HANDLE Thread;
+typedef HANDLE Semaphore;
+typedef CRITICAL_SECTION Mutex;
 
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
@@ -33,8 +39,7 @@
 #pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "secur32.lib")
-
-typedef HANDLE FileHandle;
+#pragma comment(lib, "dbghelp.lib")
 
 struct OSMmap
 {

@@ -733,7 +733,7 @@ Embedding clip_get_text_embedding(Arena *arena, clip_ctx *clip, clip_tokens *tok
 
     return {
         .vector = vector,
-        .size = hparams.projection_dim,
+        .dimension = hparams.projection_dim,
         .batch_size = 1};
 }
 
@@ -934,7 +934,7 @@ Embedding clip_get_image_embedding(Arena *arena, clip_ctx *clip, ggml_cgraph *gr
 
     return {
         .vector = (F32 *)ggml_get_data(output),
-        .size = hparams.projection_dim,
+        .dimension = hparams.projection_dim,
         .batch_size = batch_size};
 }
 

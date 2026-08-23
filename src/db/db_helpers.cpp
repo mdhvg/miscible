@@ -1,27 +1,16 @@
 // Copyright (c) 2025-2026 Madhav Goyal
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
-#include <condition_variable>
 #include "sqlite3.h"
 
-#include "base/base_core.h"
-#include "base/log.h"
 #include "db/db_helpers.h"
 #include "config.h"
+#include "base/log.h"
 
 local_v sqlite3 *dbP = NULL;
-local_v std::mutex db_mutex;
-local_v std::condition_variable db_cv;
-local_v bool db_initialized = false;
+local_v Mutex db_mutex = {0};
 
 extern int init_sqlite(sqlite3 *db, char **error_message, sqlite3_api_routines const *api);
-
-DB_CALLBACK(get_count)
-{
-    U64 *count = (U64 *)data;
-    *count = strtoull(argv[0], NULL, 10);
-    return 0;
-}
 
 DBStmtCbk(get_count)
 {
@@ -33,31 +22,28 @@ DBStmtCbk(get_id)
     *(S64 *)data = sqlite3_column_int64(stmt, 0);
 }
 
-U64 get_count(const char *query)
+DBStmtCbk(get_path)
 {
-    sqlite3_stmt *stmt = db_prepare(query);
-    U64 result = 0;
-    db_run_stmt(stmt, 1, get_count, &result);
-    return result;
+    *(String *)data = string_copy(arena, sqlite3_column_text(stmt, 0));
 }
 
 void db_close()
 {
-    std::lock_guard<std::mutex> lock(db_mutex);
-    if (dbP)
+    DeferLoop(os_mutex_lock(&db_mutex), os_mutex_unlock(&db_mutex))
     {
-        Assert(sqlite3_close(dbP) == SQLITE_OK, "failed to close db");
-        dbP = NULL;
+        if (dbP)
+        {
+            Assert(sqlite3_close(dbP) == SQLITE_OK, "failed to close db");
+            dbP = NULL;
+        }
     }
+    os_mutex_destroy(&db_mutex);
 }
 
 void _db_run_bypass(const char *command, bool bypass = false, sqlite3_callback callback = NULL, void *data = NULL)
 {
     if (!bypass)
-    {
-        std::unique_lock<std::mutex> lock(db_mutex);
-        db_cv.wait(lock, []() { return db_initialized; });
-    }
+        os_mutex_lock(&db_mutex);
 
     char *err = NULL;
     if (sqlite3_exec(dbP, command, callback, data, &err) != SQLITE_OK)
@@ -65,6 +51,9 @@ void _db_run_bypass(const char *command, bool bypass = false, sqlite3_callback c
         Assert(0, "%s\n%s", (err ? err : "Unknown error"), command);
         sqlite3_free(err);
     }
+
+    if (!bypass)
+        os_mutex_unlock(&db_mutex);
 }
 
 void db_run(const char *command, sqlite3_callback callback, void *data)
@@ -74,30 +63,30 @@ void db_run(const char *command, sqlite3_callback callback, void *data)
 
 sqlite3_stmt *db_prepare(const char *sql)
 {
-    std::unique_lock<std::mutex> lock(db_mutex);
-    db_cv.wait(lock, []() { return db_initialized; });
-
     sqlite3_stmt *stmt = NULL;
-    Assert(sqlite3_prepare_v2(dbP, sql, -1, &stmt, NULL) == SQLITE_OK, "%s\n%s", sqlite3_errmsg(dbP), sql);
+    DeferLoop(os_mutex_lock(&db_mutex), os_mutex_unlock(&db_mutex))
+    {
+        Assert(sqlite3_prepare_v2(dbP, sql, -1, &stmt, NULL) == SQLITE_OK, "%s\n%s", sqlite3_errmsg(dbP), sql);
+    }
     return stmt;
 }
 
 U64 db_run_stmt(sqlite3_stmt *stmt, U8 finalize, DBStCbk callback, void *data, Arena *arena)
 {
-    std::unique_lock<std::mutex> lock(db_mutex);
-    db_cv.wait(lock, []() { return db_initialized; });
-
     U64 rows = 0;
-    S32 ret;
-    while ((ret = sqlite3_step(stmt)) == SQLITE_ROW)
+    DeferLoop(os_mutex_lock(&db_mutex), os_mutex_unlock(&db_mutex))
     {
-        if (callback)
-            callback(stmt, data, arena);
-        rows++;
+        S32 ret;
+        while ((ret = sqlite3_step(stmt)) == SQLITE_ROW)
+        {
+            if (callback)
+                callback(stmt, data, arena);
+            rows++;
+        }
+        Assert(ret == SQLITE_DONE, "%s", sqlite3_errmsg(dbP));
+        if (finalize)
+            sqlite3_finalize(stmt);
     }
-    Assert(ret == SQLITE_DONE, "%s", sqlite3_errmsg(dbP));
-    if (finalize)
-        sqlite3_finalize(stmt);
 
     return rows;
 }
@@ -115,25 +104,21 @@ int trace_callback(unsigned int type, void *context, void *p, void *x)
     return SQLITE_OK;
 }
 
-void db_init(String path, const char *command)
+void db_init()
 {
-    std::unique_lock<std::mutex> lock(db_mutex);
-    Assert(sqlite3_open(CStrCast(path), &dbP) == SQLITE_OK, "Couldn't load database");
-    char *err = NULL;
-    Assert(init_sqlite(dbP, &err, NULL) == SQLITE_OK, "%s", err);
-    _db_run_bypass(command, true);
-#if DBG
-    sqlite3_trace_v2(dbP, SQLITE_TRACE_STMT, trace_callback, NULL);
-#endif
-    db_initialized = true;
-    db_cv.notify_all();
-}
-
-void db_make()
-{
-    int x = 0;
-    db_init(mscbl_config.db_path,
-            (
+    os_mutex_init(&db_mutex);
+    DeferLoop(os_mutex_lock(&db_mutex), os_mutex_unlock(&db_mutex))
+    {
+        Assert(sqlite3_open(CStrCast(mscbl_config.db_path), &dbP) == SQLITE_OK, "Couldn't load database");
+        char *err = NULL;
+        Assert(init_sqlite(dbP, &err, NULL) == SQLITE_OK, "%s", err);
+        int x = 0;
+        _db_run_bypass((
 #include "db/init.sql"
-                ));
+                           ),
+                       true);
+#if DBG
+        sqlite3_trace_v2(dbP, SQLITE_TRACE_STMT, trace_callback, NULL);
+#endif
+    }
 }

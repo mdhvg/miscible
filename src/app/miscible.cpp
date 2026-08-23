@@ -5,15 +5,9 @@
 #include <memory>
 #include "app/miscible.h"
 
-#include "base/log.h"
-#include "base/threadpool.h"
-#include "config.h"
-#include "os/os_inc.h"
 #include "base/string.cpp"
 #include "config.cpp"
 #include "os/os_inc.cpp"
-#include "db/db_helpers.cpp"
-#include "scan/scan.h"
 #include "scan/scan_dirs.cpp"
 #include "scan/scan_atlas.cpp"
 #include "inference/clip.cpp"
@@ -28,7 +22,9 @@
 #include "base/arena.cpp"
 #include "base/threadpool.cpp"
 #include "base/base_core.cpp"
+#include "inference/ops.cpp"
 #include "inference/inference.cpp"
+#include "db/db_helpers.cpp"
 
 #if defined(RDOC)
 #include "renderdoc_app.h"
@@ -39,15 +35,13 @@ global_v RENDERDOC_API_1_6_0 *rdoc_api = NULL;
 #endif
 #endif
 
-Arena *mscbl_arena = NULL;
-
 ThreadFunc(init_scan)
 {
     arena_clear(arena);
 
     OSString *dirs = (OSString *)db_fetch_pending();
     sqlite3_stmt *stmt = db_prepare("UPDATE DirSelect SET indexed = 1 WHERE path = ?;");
-    for (S64 i = 0; i < da_getsize(dirs); i++)
+    for (S64 i = 0; i < arr_getsize(dirs); i++)
     {
         first_scan(arena, dirs[i]);
 
@@ -75,6 +69,8 @@ ThreadFunc(init_atlas)
     scan_atlas_bake(arena, inserted);
 }
 
+Arena *app_arena = NULL;
+
 S32 mscbl_start(S32 argc, char **argv)
 {
 #if defined(RDOC)
@@ -89,6 +85,7 @@ S32 mscbl_start(S32 argc, char **argv)
 #endif
 
     os_prelaunch();
+    arena_alloc(MB(1), app_arena);
     config_init();
 
     mscbl_log_init(mscbl_config.settings.log_age_days);
@@ -96,9 +93,9 @@ S32 mscbl_start(S32 argc, char **argv)
     threadpool_init(os_info.worker_count);
     window_init();
 
-    db_make();
+    db_init();
     ui_init();
-    view_init();
+    view_fetch_new();
     inference_init();
 
     threadpool_enqueue(TaskPriority_High, {.func = init_scan});

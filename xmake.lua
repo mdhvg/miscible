@@ -4,6 +4,7 @@ includes("Xmake/config-setup.lua")
 
 add_rules("mode.debug", "mode.release")
 
+set_symbols("debug")
 set_languages("c++20")
 if is_plat("windows") then
 	add_cxflags("/Zc:preprocessor", { force = true })
@@ -82,7 +83,6 @@ target("libmiscible_c")
 set_kind("static")
 add_defines("MSCBL_CORE=1")
 add_files("src/deps_unity.c")
-add_files("src/app/miscible.c")
 
 -- libmiscible.dll
 target("libmiscible")
@@ -91,10 +91,10 @@ add_defines("MSCBL_CORE=1")
 add_files("src/deps_unity.cpp")
 add_files("src/app/miscible.cpp")
 
-add_links("noexcep_operators.lib")
-add_links("ocos_operators.lib")
-add_links("ortcustomops.lib")
-add_links("build/onnx*")
+add_links("noexcep_operators")
+add_links("ocos_operators")
+add_links("ortcustomops")
+add_links("onnxruntime")
 
 add_deps("preprocess")
 add_deps("libmiscible_c")
@@ -128,6 +128,18 @@ end)
 add_deps("libmiscible")
 add_files("src/ui/pages/pages.cpp")
 
+-- bin2c
+target("bin2c")
+set_kind("binary")
+add_files("scripts/bin2c.c")
+after_build(function()
+	os.mkdir("src/_dynamic")
+	os.execv("build/bin2c", { "data/icon.png", "icon", "src/_dynamic/icon.c" })
+	os.execv("build/bin2c", { "fonts/lucide.ttf", "lucide_font", "src/_dynamic/lucide.c" })
+	os.execv("build/bin2c", { "fonts/Geist.ttf", "geist_font", "src/_dynamic/geist.c" })
+	os.execv("build/bin2c", { "fonts/InstrumentSans.ttf", "instrumentsans_font", "src/_dynamic/instrument.c" })
+end)
+
 -- Miscible.exe
 target("miscible")
 set_kind("binary")
@@ -149,7 +161,6 @@ if is_mode("release") then
 		end)
 	end
 
-	add_files("src/app/miscible.c")
 	add_files("src/app/miscible.cpp")
 	add_files("src/deps_unity.c")
 	add_files("src/deps_unity.cpp")
@@ -160,11 +171,14 @@ if is_mode("release") then
 	add_packages("curl_local")
 	add_packages("libfyaml_local")
 
-	add_links("noexcep_operators.lib")
-	add_links("ocos_operators.lib")
-	add_links("ortcustomops.lib")
-	add_links("build/onnx*")
+	add_linkdirs("$(projectdir)/build")
+	add_links("noexcep_operators")
+	add_links("ocos_operators")
+	add_links("ortcustomops")
+	add_links("onnxruntime")
 
+	add_deps("bin2c")
+	add_deps("setup")
 	add_deps("onnxruntime", { inherited = false })
 else
 	add_deps("pages", { inherited = false })

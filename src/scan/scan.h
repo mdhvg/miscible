@@ -30,21 +30,14 @@ ThreadFunc(read_image);
 ThreadFunc(draw_image);
 ThreadFunc(scan_routine);
 DBStmtCbk(push_imagerow);
-MSCBL_API void scan_new_dir(Arena *arena);
 void scan_atlas_bake(Arena *arena, ImageRow *inserted);
 
-// Atlas building
-// local_v U64 scan_atlas_count();
-// local_v void scan_make_atlas();
-// local_v void scan_read_images();
-// local_v void scan_after_atlas();
+MSCBL_API inline void scan_directory()
+{
+    AsyncTask task = {.func = scan_routine};
+    threadpool_enqueue(TaskPriority_High, task);
+}
 
-// Atlas loading
-// local_v U64 scan_load_atlas_count();
-// local_v void scan_load_atlas();
-// local_v void scan_load_atlas_after();
-
-// Embed images
 enum VisionWorkerStatus
 {
     Vision_None,
@@ -59,6 +52,3 @@ struct VisionWorker
     ggml_gallocr_t allocr;
     VisionWorkerStatus valid;
 };
-
-// local_v U64 scan_embed_count();
-// local_v void scan_embed_batch();

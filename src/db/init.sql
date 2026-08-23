@@ -1,7 +1,8 @@
+--x, R"(
+
 -- Copyright (c) 2025-2026 Madhav Goyal
 -- Licensed under the GNU General Public License v3.0 (see LICENSE)
 
---x, R"(
 PRAGMA foreign_keys = ON;
 PRAGMA recursive_triggers = ON;
 

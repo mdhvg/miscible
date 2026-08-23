@@ -12,6 +12,7 @@
     {                     \
         U64 worker_count; \
         U64 page_size;    \
+        Process process;  \
     }
 
 typedef union Guid Guid;
@@ -37,28 +38,15 @@ struct FileMTime
 #include "os/win32/win32_core.h"
 #elif OS_LINUX
 #include "os/linux/linux_core.h"
+#elif OS_ANDROID
+#include "os/android/android_core.h"
 #endif
 
-#ifndef OSChar
-#error "OSChar not defined"
-#endif
 #ifndef OSSlash
 #error "OSSlash not defined"
 #endif
 #ifndef W
 #error "OS char converter not defined"
-#endif
-#ifndef Semaphore
-#error "Semaphore not defined"
-#endif
-#ifndef Mutex
-#error "Mutex not defined"
-#endif
-#ifndef Thread
-#error "Thread not defined"
-#endif
-#if !defined(LibHandle) || !defined(LibAddress)
-#error "dll types not defined"
 #endif
 #ifndef LibExt
 #error "LibExt not defined"
@@ -114,12 +102,11 @@ enum
     FileAccess_Append = (1 << 2),
 };
 
-typedef enum FileMode FileMode;
-enum FileMode
+typedef enum
 {
     FileMode_CreateAlways = (1 << 0),
     FileMode_OpenAlways = (1 << 1),
-};
+} FileMode;
 
 FileHandle _os_file_open(String path, FileAccess access, FileMode mode, Result *res, U64 size);
 #if LANG_CPP
@@ -179,3 +166,6 @@ FileMTime *os_list_by_pattern(String pattern, String base, Arena *arena);
 // NOTE: Linux requires file to be of `size` size, so use `ftruncate` first
 OSMmap os_file_map(FileHandle file_desc, U64 size, Result *res);
 void os_file_unmap(OSMmap map, Result *res);
+
+U32 os_get_frames(U32 skip, S32 max_frames, void **stack);
+void os_get_frame_text(char buffer[KB(1)], void *frame);

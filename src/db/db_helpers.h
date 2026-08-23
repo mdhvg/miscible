@@ -6,19 +6,16 @@
 
 #include "base/string.h"
 
-#define DB_CALLBACK(name) int name(void *data, int argc, char **argv, char **column_name)
-#define DBStmtCbk(name)   void name(sqlite3_stmt *stmt, void *data, Arena *arena)
+#define DBStmtCbk(name) void name(sqlite3_stmt *stmt, void *data, Arena *arena)
 
-DB_CALLBACK(get_count);
 DBStmtCbk(get_count);
 DBStmtCbk(get_id);
-U64 get_count(const char *query);
+DBStmtCbk(get_path);
 
 typedef DBStmtCbk(DBStCbk);
 
-void db_init(const char *filename, const char *command);
-void db_make();
-void db_run(const char *command, sqlite3_callback callback = nullptr, void *data = nullptr);
+void db_init();
+void db_run(const char *command, sqlite3_callback callback = NULL, void *data = NULL);
 inline void db_run(String command, sqlite3_callback callback = NULL, void *data = NULL)
 {
     db_run(CStrCast(command), callback, data);

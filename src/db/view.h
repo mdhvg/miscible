@@ -5,8 +5,6 @@
 #include "db/fetch.h"
 #include "inference/inference.h"
 
-#define VIEW_FETCH_WINDOW_SIZE 400
-
 enum SortType
 {
     SortType_Directory,
@@ -15,7 +13,7 @@ enum SortType
     SortType_DateAdded,
     SortType_DateCreated,
     SortType_DateModified,
-    SortType_COUNT
+    SortType_COUNT,
 };
 
 enum GroupSubType
@@ -35,13 +33,6 @@ enum GroupSubType
     Group_Size1GB = GB(1),
 };
 
-enum SearchType
-{
-    SearchType_Text,
-    SearchType_Embedding,
-    SearchType_COUNT,
-};
-
 enum FilterType
 {
     FilterType_SizeBetween,
@@ -52,77 +43,27 @@ enum FilterType
     FilterType_DateCreatedBetween,
     FilterType_DateModifiedBetween,
 
-    FilterType_EmbeddingDistanceBetween,
-
     FilterType_COUNT
 };
 
-struct ViewFilter
+enum SearchType
 {
-    FilterType type;
-    B32 exclude;
-    union {
-        // NOTE: order from largest to smallest
-        String val_str;
-        Time val_date;
-        ByteSize val_bytes;
-        F32 val_float;
-    };
+    SearchType_FTS,
+    SearchType_Embedding,
+    SearchType_COUNT
 };
 
-enum QueryType
+enum ViewQueryType
 {
-    QueryType_Default,
-    QueryType_Embedding,
-    QueryType_FTS,
-    QueryType_COUNT
+    ViewQuery_Default,
+    ViewQuery_FTS,
+    ViewQuery_Embedding,
 };
 
-// NOTE: this struct keeps the inputs to the search
-struct ViewQuery
-{
-    Arena *arena;
-    String search_query;
-
-    SortType sort_basis;
-    B32 descending;
-
-    ViewFilter *filters;
-    Embedding embedding;
-
-    QueryType query_type;
-
-    // the limit (count) and offset for number of results returned
-    // view_limit will always be <= 1.5 x (# images visible)
-    S64 limit;
-    S64 offset;
-
-    U32 ticket;
-};
-
-struct ViewResult
-{
-    Arena *arena;
-    S64 start, end;
-    // array of data of current result window
-    ImageMetadata *images;
-    S64 count[QueryType_COUNT];
-
-    U32 ticket;
-};
-
-struct ViewManager
-{
-    ViewQuery state;
-
-    // total images in the result
-    ViewResult main;
-    ViewResult back;
-
-    B32 busy;
-};
-
-MSCBL_API void view_init();
-MSCBL_API void view_refresh();
 MSCBL_API void view_fetch_map();
 MSCBL_API void view_fetch_images(S64 start, S64 end);
+MSCBL_API inline void view_fetch_new()
+{
+    view_fetch_map();
+    view_fetch_images(0, 1);
+}

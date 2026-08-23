@@ -27,7 +27,7 @@ typedef void *(OS_THREAD_ROUTINE_T(void *));
             ((void)0);                                                                                   \
         }                                                                                                \
     }
-#define OSchar    char
+#define OSChar    char
 #define Semaphore sem_t
 #define Thread    pthread_t
 

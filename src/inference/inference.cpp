@@ -14,6 +14,7 @@
 #include "ui/ui_core.h"
 #include "app/miscible.h"
 #include "inference/ort.h"
+#include "inference/ops.h"
 #include "inference/model.h"
 #include "inference/inference.h"
 
@@ -43,7 +44,6 @@ InferenceContext inf_ctx = {.api = 0};
 
 void inference_init()
 {
-    arena_alloc(MB(1), inf_ctx.arena);
     inf_ctx.api = OrtGetApiBase()->GetApi(ORT_API_VERSION);
     Assert(inf_ctx.api, "Failed to fetch ONNX Runtime API table");
     os_mutex_init(&inf_ctx.session_lock);
@@ -53,7 +53,6 @@ void inference_close()
 {
     ins_atomic_u32_eval_assign(&inf_ctx.state, InferenceState_Uninitialized);
 
-    OrtxDisposeOnly(inf_ctx.text_cfg.tokenizer);
     // OrtxDisposeOnly(inf_ctx.processor);
 
     inf_ctx.api->SessionOptionsSetLoadCancellationFlag(inf_ctx.session_opt, 1);
@@ -77,12 +76,6 @@ InferenceState inference_state_get()
 VisionModelConfig *inference_preprocess_get()
 {
     return &inf_ctx.vision_cfg;
-}
-
-Result inference_tokenizer_init(Arena *arena, String model_base)
-{
-    extError_t status = OrtxCreateTokenizer(&inf_ctx.text_cfg.tokenizer, CStrCast(model_base));
-    return GenResult(status == kOrtxOK, Domain_Inference_ONNX, status, OrtxGetLastErrorMessage());
 }
 
 static B32 check_token(jsmntok_t *token, String key, String content)
@@ -253,21 +246,39 @@ void ORT_API_CALL ort_logger(void *param, OrtLoggingLevel severity, const char *
         break;
     }
 
-    mscbl_log_bare(level, code_location, "[%s] %s", category, message);
+    String message_str = sv(message);
+    while (message_str.v[message_str.size - 1] == '\n')
+        message_str.size--;
+    mscbl_log_bare(level, code_location, "[%s] %.*s", category, StringSpr(message_str));
 }
 
 Embedding inference_text_embedding(Arena *arena, String input)
 {
-    if (!input.size)
+    if (inference_state_get() != InferenceState_Ready)
+    {
+        ui_push_message(GenResult(inference_state_get() == InferenceState_Ready, Domain_App, AppError_PreconditionFail, "Inference not ready"));
         return {.vector = 0};
+    }
 
+    if (!input.size)
+    {
+        ui_push_message(GenResult(inference_state_get() != InferenceState_Ready, Domain_App, AppError_InvalidInput, "Empty input"));
+        return {.vector = 0};
+    }
+
+    OrtxTokenizer *tokenizer;
     extError_t ortx_err = kOrtxOK;
 
     U64 token_array_length = 0;
     const extTokenId_t *token_ids = NULL;
     OrtxTokenId2DArray *_token_array = NULL;
 
-    ortx_err = OrtxTokenize(inf_ctx.text_cfg.tokenizer, (const char **)&input.v, 1, &_token_array);
+    StringBuilder model_base = string_init(arena, mscbl_config.inf_settings.base_dir);
+    path_join(&model_base, mscbl_config.inf_settings.active.group->name);
+    ortx_err = OrtxCreateTokenizer(&tokenizer, CStrCast(model_base));
+    Assert(ortx_err == kOrtxOK, "ORTX error: %s", OrtxGetLastErrorMessage());
+    const char *tokens[] = {CStrCast(input)};
+    ortx_err = OrtxTokenize(tokenizer, tokens, 1, &_token_array);
     Assert(ortx_err == kOrtxOK, "ORTX error: %s", OrtxGetLastErrorMessage());
     ortx_err = OrtxTokenId2DArrayGetItem(_token_array, 0, &token_ids, &token_array_length);
     Assert(ortx_err == kOrtxOK, "ORTX error: %s", OrtxGetLastErrorMessage());
@@ -294,46 +305,49 @@ Embedding inference_text_embedding(Arena *arena, String input)
     OrtStatus *status = NULL;
 
     status = inf_ctx.api->CreateCpuMemoryInfo(OrtArenaAllocator, OrtMemTypeDefault, &memory_info);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
     U64 data_size = inf_ctx.text_cfg.token_length * sizeof(S64);
     S64 data_shape[2] = {1, inf_ctx.text_cfg.token_length};
     status = inf_ctx.api->CreateTensorWithDataAsOrtValue(memory_info, input_data, data_size, data_shape, 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64, &text_tensor);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
     status = inf_ctx.api->CreateTensorWithDataAsOrtValue(memory_info, mask_data, data_size, data_shape, 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64, &mask_tensor);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
     OrtValue *input_tensors[2] = {text_tensor, mask_tensor};
     os_mutex_lock(&inf_ctx.session_lock);
     status = inf_ctx.api->Run(inf_ctx.text_sess, NULL, input_names, input_tensors, 2, output_names, 1, &output_tensor);
     os_mutex_unlock(&inf_ctx.session_lock);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
     S64 out_dims[2];
     U64 out_ndim = 0;
     F32 *output_data = NULL;
     OrtTensorTypeAndShapeInfo *shape_info = NULL;
     status = inf_ctx.api->GetTensorTypeAndShape(output_tensor, &shape_info);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
     status = inf_ctx.api->GetDimensionsCount(shape_info, &out_ndim);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
     status = inf_ctx.api->GetDimensions(shape_info, out_dims, out_ndim);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
     status = inf_ctx.api->GetTensorMutableData(output_tensor, (void **)&output_data);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
     inf_ctx.api->ReleaseTensorTypeAndShapeInfo(shape_info);
 
     U64 output_element_count = out_dims[0] * out_dims[1];
-    Embedding output = {.size = (U32)out_dims[out_ndim - 1], .batch_size = 1};
+    Embedding output = {.dimension = (U32)out_dims[out_ndim - 1], .batch_size = 1};
     output.vector = push_array(arena, output_element_count, F32);
     MemoryCopy(output.vector, output_data, output_element_count * sizeof(F32));
+
+    ops_embedding_normalize(output);
 
     inf_ctx.api->ReleaseValue(text_tensor);
     inf_ctx.api->ReleaseValue(mask_tensor);
     inf_ctx.api->ReleaseValue(output_tensor);
     inf_ctx.api->ReleaseMemoryInfo(memory_info);
+    OrtxDisposeOnly(tokenizer);
 
     return output;
 }
@@ -350,38 +364,40 @@ Embedding inference_vision_embedding(Arena *arena, F32 *data, U32 batch_size)
     OrtStatus *status = NULL;
 
     status = inf_ctx.api->CreateCpuMemoryInfo(OrtArenaAllocator, OrtMemTypeDefault, &memory_info);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
     S64 input_shape[4] = {batch_size, 3, inf_ctx.vision_cfg.input_size, inf_ctx.vision_cfg.input_size};
     U64 data_size = batch_size * 3 * inf_ctx.vision_cfg.input_size * inf_ctx.vision_cfg.input_size * sizeof(F32);
     status = inf_ctx.api->CreateTensorWithDataAsOrtValue(memory_info, data, data_size, input_shape, 4, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &vision_tensor);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
     os_mutex_lock(&inf_ctx.session_lock);
     status = inf_ctx.api->Run(inf_ctx.vision_sess, NULL, input_names, &vision_tensor, 1, output_names, 1, &output_tensor);
     os_mutex_unlock(&inf_ctx.session_lock);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
     S64 out_dims[2];
     U64 out_ndim = 0;
     F32 *output_data = NULL;
     OrtTensorTypeAndShapeInfo *shape_info = NULL;
     status = inf_ctx.api->GetTensorTypeAndShape(output_tensor, &shape_info);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
     status = inf_ctx.api->GetDimensionsCount(shape_info, &out_ndim);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
     status = inf_ctx.api->GetDimensions(shape_info, out_dims, out_ndim);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
     status = inf_ctx.api->GetTensorMutableData(output_tensor, (void **)&output_data);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
     inf_ctx.api->ReleaseTensorTypeAndShapeInfo(shape_info);
 
     U64 output_element_count = out_dims[0] * out_dims[1];
-    Embedding output = {.size = (U32)out_dims[out_ndim - 1], .batch_size = batch_size};
+    Embedding output = {.dimension = (U32)out_dims[out_ndim - 1], .batch_size = batch_size};
     output.vector = push_array(arena, output_element_count, F32);
     MemoryCopy(output.vector, output_data, output_element_count * sizeof(F32));
+
+    ops_embedding_normalize(output);
 
     inf_ctx.api->ReleaseValue(vision_tensor);
     inf_ctx.api->ReleaseValue(output_tensor);
@@ -395,45 +411,46 @@ ThreadFunc(inference_backend_init)
     ins_atomic_u32_eval_assign(&inf_ctx.state, InferenceState_Initializing);
 
     OrtStatus *status = inf_ctx.api->CreateEnvWithCustomLogger(ort_logger, NULL, ORT_LOGGING_LEVEL_WARNING, "ORT", &inf_ctx.env);
-    // OrtStatus *status = inf_ctx.api->CreateEnv(ORT_LOGGING_LEVEL_INFO, "Env", &inf_ctx.env);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
     status = inf_ctx.api->CreateSessionOptions(&inf_ctx.session_opt);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
 #if OS_WIN32
     status = inf_ctx.api->DisableMemPattern(inf_ctx.session_opt);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
     status = inf_ctx.api->SetSessionExecutionMode(inf_ctx.session_opt, ORT_SEQUENTIAL);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
     status = inf_ctx.api->AddSessionConfigEntry(inf_ctx.session_opt, "ort.ep.dml.enable_internal_graph_cache", "1");
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 
     status = inf_ctx.api->GetExecutionProviderApi("DML", ORT_API_VERSION, (const void **)&inf_ctx.dml_api);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
-    status = inf_ctx.dml_api->SessionOptionsAppendExecutionProvider_DML(inf_ctx.session_opt, 1);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
+    status = inf_ctx.dml_api->SessionOptionsAppendExecutionProvider_DML(inf_ctx.session_opt, 0);
+    if (status)
+        mscbl_log_warn("ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 #else
     const char *ov_keys[] = {"device_type", "precision"};
     const char *ov_vals[] = {"AUTO", "FP16"};
     status = inf_ctx.api->SessionOptionsAppendExecutionProvider_OpenVINO_V2(inf_ctx.session_opt, ov_keys, ov_vals, StaticArrSize(ov_keys));
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
+    if (status)
+        mscbl_log_warn("ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 #endif
 
-    U64 device_count = 0;
-    const OrtEpDevice *const *ep_devices = NULL;
-    status = inf_ctx.api->GetEpDevices(inf_ctx.env, &ep_devices, &device_count);
-    Assert(!status, "ORT API Error: %s", inf_ctx.api->GetErrorMessage(status));
-
-    for (U64 i = 0; i < device_count; i++)
-    {
-        const OrtEpDevice *device = ep_devices[i];
-        if (device != NULL)
-        {
-            mscbl_log_info("Device: %s - %s", inf_ctx.api->EpDevice_EpVendor(device), inf_ctx.api->EpDevice_EpName(device));
-        }
-    }
+    // U64 device_count = 0;
+    // const OrtEpDevice *const *ep_devices = NULL;
+    // status = inf_ctx.api->GetEpDevices(inf_ctx.env, &ep_devices, &device_count);
+    // Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
+    //
+    // for (U64 i = 0; i < device_count; i++)
+    // {
+    //     const OrtEpDevice *device = ep_devices[i];
+    //     if (device != NULL)
+    //     {
+    //         mscbl_log_info("Device: %s - %s", inf_ctx.api->EpDevice_EpVendor(device), inf_ctx.api->EpDevice_EpName(device));
+    //     }
+    // }
 
     ActiveModel active_model = mscbl_config.inf_settings.active;
 
@@ -470,13 +487,14 @@ ThreadFunc(inference_backend_init)
 
     if (active_model.backend == Backend_GGML)
     {
-        res = {.success = 0, .domain = Domain_App, .code = AppError_UnImplemented};
+        res = {.success = 0, .domain = Domain_App, .code = AppError_Unimplemented};
         goto Cleanup;
     }
 
     os_mutex_lock(&inf_ctx.session_lock);
 #if OS_WIN32
-    status = inf_ctx.api->CreateSession(inf_ctx.env, WCStrCast(string_to_wide(arena, StringCast(text_filepath))), inf_ctx.session_opt, &inf_ctx.text_sess);
+    WString text_filepath_wide = string_to_wide(arena, StringCast(text_filepath));
+    status = inf_ctx.api->CreateSession(inf_ctx.env, WCStrCast(text_filepath_wide), inf_ctx.session_opt, &inf_ctx.text_sess);
 #else
     status = inf_ctx.api->CreateSession(inf_ctx.env, StringCast(text_filepath), inf_ctx.session_opt, &inf_ctx.text_sess);
 #endif
@@ -486,7 +504,8 @@ ThreadFunc(inference_backend_init)
 
     os_mutex_lock(&inf_ctx.session_lock);
 #if OS_WIN32
-    status = inf_ctx.api->CreateSession(inf_ctx.env, WCStrCast(string_to_wide(arena, StringCast(vision_filepath))), inf_ctx.session_opt, &inf_ctx.vision_sess);
+    WString vision_filepath_wide = string_to_wide(arena, StringCast(vision_filepath));
+    status = inf_ctx.api->CreateSession(inf_ctx.env, WCStrCast(vision_filepath_wide), inf_ctx.session_opt, &inf_ctx.vision_sess);
 #else
     status = inf_ctx.api->CreateSession(inf_ctx.env, StringCast(vision_filepath), inf_ctx.session_opt, &inf_ctx.vision_sess);
 
@@ -495,8 +514,6 @@ ThreadFunc(inference_backend_init)
     res = GenResult(!status, Domain_Inference_ONNX, inf_ctx.api->GetErrorCode(status), inference_ort_err(inf_ctx.api->GetErrorCode(status)));
     CheckAndClearResult(res);
 
-    res = inference_tokenizer_init(arena, StringCast(model_base));
-    CheckAndClearResult(res);
     res = inference_query_model(StringCast(model_base));
     CheckAndClearResult(res);
     res = inference_parse_config(arena, StringCast(model_base));
@@ -509,6 +526,6 @@ ThreadFunc(inference_backend_init)
 Cleanup:
     ins_atomic_u32_eval_assign(&inf_ctx.state, InferenceState_Failed);
     if (status) inf_ctx.api->ReleaseStatus(status);
-    os_file_close(checkpoint_handle, &res);
     ui_push_message(res);
+    os_file_close(checkpoint_handle, &res);
 }

@@ -1,12 +1,12 @@
 // Copyright (c) 2025-2026 Madhav Goyal
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
+#include <errno.h>
+#include <unistd.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <semaphore.h>
-#include <errno.h>
-#include <unistd.h>
 
 #include "os/os_inc.h"
 
@@ -83,7 +83,7 @@ void os_decommit(void *ptr, U64 size)
 Semaphore os_semaphore_init(S32 initial, S32 max)
 {
     Semaphore result = {0};
-    sem_t *s         = (sem_t *)mmap(NULL, sizeof(*s), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    sem_t *s = (sem_t *)mmap(NULL, sizeof(*s), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     OSAssert(s != MAP_FAILED);
     S32 err = sem_init(s, 0, initial);
     OSAssert(!err);
@@ -146,10 +146,21 @@ Thread os_thread_launch(OS_THREAD_ROUTINE_T fn, Worker *worker)
 void os_thread_detach(Thread t)
 {
     pthread_t pth = (pthread_t)t.u64[0];
-    S32 res       = pthread_detach(pth);
+    S32 res = pthread_detach(pth);
     if (res)
     {
         mscbl_log_error(Stringify(__func__), "Error code 0x%X (%lu)", res, res);
         Assert(0);
     }
+}
+
+U32 os_get_frames(U32 skip, S32 max_frames, void **stack)
+{
+    U32 frame_count = backtrace(stack, max_frames) - skip;
+    if (frame_count <= skip)
+        return 0;
+
+    U32 valid_frames = frame_count - skip;
+    MemoryCopy(stack, stack + skip, valid_frames * sizeof(void *));
+    return valid_frames;
 }

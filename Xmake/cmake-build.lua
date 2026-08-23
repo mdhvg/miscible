@@ -63,9 +63,9 @@ on_build(function(target)
 	if is_plat("windows") then
 		import("core.base.option")
 
-		local cfg = "Debug"
-		if is_mode("release") then
-			cfg = "Release"
+		local cfg = "Release"
+		if is_mode("debug") then
+			cfg = "Debug"
 		end
 
 		local args = {
@@ -91,7 +91,7 @@ on_build(function(target)
 			"onnxruntime",
 			"onnxruntime_providers",
 			"onnxruntime_providers_dml",
-			"onnxruntime_providers_openvino",
+			-- "onnxruntime_providers_openvino",
 			"onnxruntime_providers_shared",
 
 			"--cmake_extra_defines",
@@ -101,7 +101,7 @@ on_build(function(target)
 			"onnxruntime_BUILD_BENCHMARKS=OFF",
 			"onnxruntime_USE_UNITY_BUILD=OFF",
 			"ONNX_USE_UNITY_BUILD=OFF",
-			"OpenVINO_DIR=" .. path.join(os.projectdir(), "deps/openvino/runtime/cmake"),
+			-- "OpenVINO_DIR=" .. path.join(os.projectdir(), "deps/openvino/runtime/cmake"),
 		}
 
 		cprintf("${bright green}Building ONNXRuntime via Python script...${clear}\n")
@@ -117,10 +117,11 @@ on_build(function(target)
 			"-GNinja",
 			"-DCMAKE_BUILD_TYPE=" .. cfg,
 
+			"-DOCOS_ENABLE_C_API=ON",
 			"-DOCOS_BUILD_SHARED_LIB=OFF",
 			"-DOCOS_ENABLE_STATIC_LIB=ON",
-			"-DOCOS_ENABLE_C_API=ON",
 
+			"-DOCOS_ENABLE_TOKENIZERS=ON",
 			"-DOCOS_ENABLE_GPT2_TOKENIZER=ON",
 
 			"-DOCOS_ENABLE_BLINGFIRE=OFF",
@@ -142,7 +143,7 @@ on_build(function(target)
 		os.cp(path.join("build/onnxruntime", cfg, "*.dll"), app_bin_dir)
 		os.cp(path.join("build/onnxruntime", cfg, "*.lib"), app_bin_dir)
 
-		os.cp(path.join("build/onnxruntime-extensions/lib", "*.dll"), app_bin_dir)
+		-- os.cp(path.join("build/onnxruntime-extensions/lib", "*.dll"), app_bin_dir)
 		os.cp(path.join("build/onnxruntime-extensions/lib", "*.lib"), app_bin_dir)
 	end
 end)

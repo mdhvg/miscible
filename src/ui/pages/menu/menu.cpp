@@ -31,6 +31,7 @@ void zoom_controls()
             if (ImGui::Selectable(option.text, is_selected))
             {
                 zoom_level = option.level;
+                recompute_layout();
             }
             if (is_selected)
             {
@@ -61,8 +62,8 @@ void sort_controls()
                 {
                     ui_state.view_query.sub_type = Group_DateMonth;
                 }
-                // view_clear_state();
-                // view_set_state(ui_state.view_query);
+
+                view_fetch_new();
             }
             if (is_selected)
             {
@@ -112,11 +113,11 @@ void menu_draw_docked_topbar(ImGuiWindowFlags flags)
         const char *search_btn_text = "Search";
         F32 search_btn_width = ImGui::CalcTextSize(search_btn_text).x + 2.0f * style.FramePadding.x;
 
-        const char *clear_btn_text = "Clear";
+        const char *clear_btn_text = "Clear All";
         F32 clear_btn_width = ImGui::CalcTextSize(clear_btn_text).x + 2.0f * style.FramePadding.x;
 
         F32 zoom_combo_width = ImGui::CalcTextSize(zoom_options[zoom_level].text).x + 2.0f * style.FramePadding.x;
-        F32 sort_combo_width = ImGui::CalcTextSize(sort_options[ui_state.view_query.sort_basis].text).x + 2.0f * style.FramePadding.x;
+        F32 sort_combo_width = (ui_state.view_query.search_type != SearchType_Embedding) ? ImGui::CalcTextSize(sort_options[ui_state.view_query.sort_basis].text).x + 2.0f * style.FramePadding.x : 0;
 
         // Determine the sort direction icon text to measure its dynamic button width
         const char *direction_icon = "";
@@ -183,38 +184,38 @@ void menu_draw_docked_topbar(ImGuiWindowFlags flags)
 
         ImGui::SetNextItemWidth(search_bar_width);
         StringBuilder *buf_p = &ui_state.view_query.search_query;
-        B32 do_search = ImGui::InputTextWithHint("##Search", search_options[ui_search.type].info_text, CStrCast(ui_state.view_query.search_query), 4096, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackEdit, text_callback, &buf_p);
+        B32 do_search = ImGui::InputTextWithHint("##Search", search_options[ui_state.view_query.search_type].info_text, CStrCast(ui_state.view_query.search_query), 4096, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackEdit, text_callback, &buf_p);
 
         ImGui::SameLine();
         if (ImGui::Button(search_btn_text, ImVec2(search_btn_width, search_height)) || do_search)
         {
-            // view_clear_state();
-            // view_set_state(ui_state.view_query);
-            // view_fetch_range();
+            view_fetch_new();
         }
 
         ImGui::SameLine(0.0f, 0.0f);
         if (ImGui::Button(clear_btn_text, ImVec2(clear_btn_width, search_height)))
         {
             ui_viewquery_clear();
-            // view_clear_state();
-            // view_fetch_range();
+            view_fetch_new();
         }
 
         ImGui::SameLine();
         zoom_controls();
 
-        ImGui::SameLine();
-        sort_controls();
-
-        ImGui::SameLine(0.0f, 0.0f);
-        if (ImGui::Button(direction_icon, ImVec2(direction_btn_width, search_height)))
+        if (ui_state.view_query.search_type != SearchType_Embedding)
         {
-            B32 switched_direction = !ui_state.view_query.descending;
-            mscbl_config.view_settings.descending = switched_direction;
-            ui_state.view_query.descending = switched_direction;
-            // view_clear_state();
-            // view_set_state(ui_state.view_query);
+            ImGui::SameLine();
+            sort_controls();
+
+            ImGui::SameLine(0.0f, 0.0f);
+            if (ImGui::Button(direction_icon, ImVec2(direction_btn_width, search_height)))
+            {
+                B32 switched_direction = !ui_state.view_query.descending;
+                mscbl_config.view_settings.descending = switched_direction;
+                ui_state.view_query.descending = switched_direction;
+
+                view_fetch_new();
+            }
         }
 
         ImGui::SameLine();
@@ -249,12 +250,13 @@ void menu_draw_docked_main(ImGuiWindowFlags flags)
     for (U32 i = 0; i < SearchType_COUNT; i++)
     {
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-        ImGui::PushStyleColor(ImGuiCol_Button, (ui_search.type == i) ? MSCBL_INTERACTION_ACTIVE : MSCBL_INTERACTION_IDLE);
-        ImGui::PushStyleColor(ImGuiCol_Text, (ui_search.type == i) ? MSCBL_FOREGROUND : MSCBL_FOREGROUND_MUTED);
-        ImGui::PushStyleColor(ImGuiCol_Border, (ui_search.type == i) ? MSCBL_BORDER : COLOR_TRANSPARENT);
+        ImGui::PushStyleColor(ImGuiCol_Button, (ui_state.view_query.search_type == i) ? MSCBL_INTERACTION_ACTIVE : MSCBL_INTERACTION_IDLE);
+        ImGui::PushStyleColor(ImGuiCol_Text, (ui_state.view_query.search_type == i) ? MSCBL_FOREGROUND : MSCBL_FOREGROUND_MUTED);
+        ImGui::PushStyleColor(ImGuiCol_Border, (ui_state.view_query.search_type == i) ? MSCBL_BORDER : COLOR_TRANSPARENT);
         if (ImGui::Button(search_options[i].button_text))
         {
-            ui_search.type = (SearchType)i;
+            ui_state.view_query.search_type = (SearchType)i;
+            view_fetch_new();
         }
         ImGui::PopStyleColor(3);
         ImGui::PopStyleVar();
@@ -294,6 +296,7 @@ void menu_draw_docked_main(ImGuiWindowFlags flags)
             if (ImGui::Button(option.text))
             {
                 ui_state.view_query.sub_type = option.type;
+                view_fetch_new();
             }
             ImGui::PopStyleColor(3);
             ImGui::PopStyleVar();
@@ -314,6 +317,7 @@ void menu_draw_docked_main(ImGuiWindowFlags flags)
             if (ImGui::Button(option.text))
             {
                 ui_state.view_query.sub_type = option.type;
+                view_fetch_new();
             }
             ImGui::PopStyleColor(3);
             ImGui::PopStyleVar();
@@ -346,10 +350,13 @@ void menu_draw_docked_status(ImGuiWindowFlags flags)
 MSCBL_EXP void page_menu()
 {
     switch_page = 0;
-    ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
     ImGuiViewport *viewport = ImGui::GetMainViewport();
+    ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
+
     if (last_work_size.x != viewport->WorkSize.x || last_work_size.y != viewport->WorkSize.y)
+    {
         needs_rebuild = 1;
+    }
     last_work_size = viewport->WorkSize;
 
     F32 sidebar_width = sidebar_open ? SPACING(sidebar_open_units) : SPACING(sidebar_fold_units);
@@ -357,6 +364,7 @@ MSCBL_EXP void page_menu()
     if (ImGui::DockBuilderGetNode(dockspace_id) == NULL || needs_rebuild)
     {
         needs_rebuild = 0;
+        recompute_layout();
 
         ImGui::DockBuilderRemoveNode(dockspace_id);
         ImGui::DockBuilderAddNode(dockspace_id);

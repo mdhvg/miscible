@@ -9,7 +9,7 @@
 struct DownloadArgs
 {
     String link;
-    String filepath;
+    String file_path;
 
     U64 file_size;
     U8 *file_hash;

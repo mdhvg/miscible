@@ -144,9 +144,9 @@ void model_insert_embedding_impl(Arena *arena)
     U32 frame_size = image_size * image_size;
     F32 *batch_data = push_array0(arena, (frame_size * 3 * EMBED_BATCH_SIZE), F32);
 
-    for (S64 batch = 0; batch < da_getsize(inserted); batch += EMBED_BATCH_SIZE)
+    for (S64 batch = 0; batch < arr_getsize(inserted); batch += EMBED_BATCH_SIZE)
     {
-        U64 batch_size = MIN(EMBED_BATCH_SIZE, da_getsize(inserted) - batch);
+        U64 batch_size = MIN(EMBED_BATCH_SIZE, arr_getsize(inserted) - batch);
         S64 batch_var = batch_size - 1;
 
         if (batch_size > 1)
@@ -258,8 +258,8 @@ void model_insert_embedding_impl(Arena *arena)
         Embedding embeddings = inference_vision_embedding(arena, batch_data, batch_size);
         for (U32 i = 0; i < batch_size; i++)
         {
-            F32 *embedding = embeddings.vector + i * embeddings.size;
-            U64 size_in_bytes = embeddings.size * sizeof(F32);
+            F32 *embedding = embeddings.vector + i * embeddings.dimension;
+            U64 size_in_bytes = embeddings.dimension * sizeof(F32);
             sqlite3_bind_blob(stmt, 1, embedding, size_in_bytes, SQLITE_STATIC);
             sqlite3_bind_int64(stmt, 2, inserted[batch + i].id);
             db_run_stmt(stmt);
@@ -314,7 +314,7 @@ void model_insert_embedding_impl(Arena *arena)
 Result model_download_files(Arena *arena, RemoteFileArr files, String model_base)
 {
     Result res = ResultSuccess();
-    for (S64 fi = 0; fi < da_getsize(files); fi++)
+    for (S64 fi = 0; fi < arr_getsize(files); fi++)
     {
         RemoteFile file = files[fi];
         StringBuilder file_path = string_init(arena, StringCast(model_base));
@@ -322,7 +322,7 @@ Result model_download_files(Arena *arena, RemoteFileArr files, String model_base
 
         DownloadArgs args = {
             .link = file.url,
-            .filepath = StringCast(file_path),
+            .file_path = StringCast(file_path),
             .file_size = file.size,
             .file_hash = file.hash};
         res = download_file(arena, args);

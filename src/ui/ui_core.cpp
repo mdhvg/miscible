@@ -25,11 +25,11 @@
 // .c, .cpp
 #include "gl/gl_core.cpp"
 #include "ui/ui_utils.cpp"
-#include "ui/widgets.cpp"
 
 #if !DBG
-#include "_dynamic/geist.cpp"
-#include "_dynamic/lucide.cpp"
+#include "_dynamic/instrument.c"
+#include "_dynamic/lucide.c"
+#include "_dynamic/geist.c"
 #include "_dynamic/icon.c"
 #endif
 
@@ -43,9 +43,9 @@ struct UIToast
 };
 
 UIState ui_state = {0};
-UIToast ui_toast = {0};
+UIToast ui_toast = {.time = 0};
 UIPreview ui_preview = {0};
-UISearchQuery ui_search = {.type = SearchType_Text};
+UIResult ui_result = {};
 
 void ui_viewquery_clear()
 {
@@ -75,8 +75,10 @@ void ui_init()
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
+#if !DBG
     io.IniFilename = NULL;
     io.LogFilename = NULL;
+#endif
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -97,11 +99,13 @@ void ui_init()
     // icon_font_config.GlyphOffset.x = 1;
     icon_font_config.GlyphOffset.y = 3.5;
     // icon_font_config.GlyphMinAdvanceX = icon_font_size;
+    // NOTE: This is because of the comment at imgui_draw.cpp(3753)
+    icon_font_config.FontDataOwnedByAtlas = false;
     static const ImWchar icons_ranges[] = {ICON_MIN_LC, ICON_MAX_LC, 0};
 #if DBG
-    ui_state.ui_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist-VariableFont_wght.ttf", mscbl_config.settings.font_size, NULL, io.Fonts->GetGlyphRangesDefault());
+    ui_state.ui_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist.ttf", mscbl_config.settings.font_size, NULL, io.Fonts->GetGlyphRangesDefault());
     ui_state.icon_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Lucide.ttf", mscbl_config.settings.font_size, &icon_font_config, icons_ranges);
-    ui_state.title_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist-VariableFont_wght.ttf", mscbl_config.settings.font_size * 1.125f, NULL, io.Fonts->GetGlyphRangesDefault());
+    ui_state.title_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/Geist.ttf", mscbl_config.settings.font_size * 1.125f, NULL, io.Fonts->GetGlyphRangesDefault());
     ui_state.display_font = io.Fonts->AddFontFromFileTTF(ROOT_DIR "/fonts/InstrumentSans.ttf", mscbl_config.settings.font_size * 1.25f, NULL, io.Fonts->GetGlyphRangesDefault());
 
     AsyncTask icon_load_task = {
@@ -111,17 +115,20 @@ void ui_init()
             {.kind = TPData_String, .val_str = sv(ROOT_DIR "/data/icon.png")},
         }};
 #else
-    ui_state.ui_font = io.Fonts->AddFontFromMemoryCompressedTTF(geist_font_compressed_data, geist_font_compressed_size, mscbl_config.settings.font_size, NULL, io.Fonts->GetGlyphRangesDefault());
-    ui_state.icon_font = io.Fonts->AddFontFromMemoryCompressedTTF(lucide_font_compressed_data, lucide_font_compressed_size, mscbl_config.settings.font_size, &icon_font_config, icons_ranges);
-    ui_state.title_font = io.Fonts->AddFontFromMemoryCompressedTTF(geist_font_compressed_data, geist_font_compressed_size, mscbl_config.settings.font_size * 1.125f, NULL, io.Fonts->GetGlyphRangesDefault());
-    ui_state.display_font = io.Fonts->AddFontFromMemoryCompressedTTF(instrument_sans_font_compressed_data, instrument_sans_font_compressed_size, mscbl_config.settings.font_size * 1.25f, NULL, io.Fonts->GetGlyphRangesDefault());
+    // NOTE: This is because of the comment at imgui_draw.cpp(3753)
+    ImFontConfig __font_config;
+    __font_config.FontDataOwnedByAtlas = false;
+    ui_state.ui_font = io.Fonts->AddFontFromMemoryTTF((void *)geist_font_data, geist_font_size, mscbl_config.settings.font_size, &__font_config, io.Fonts->GetGlyphRangesDefault());
+    ui_state.icon_font = io.Fonts->AddFontFromMemoryTTF((void *)lucide_font_data, lucide_font_size, mscbl_config.settings.font_size, &icon_font_config, icons_ranges);
+    ui_state.title_font = io.Fonts->AddFontFromMemoryTTF((void *)geist_font_data, geist_font_size, mscbl_config.settings.font_size * 1.125f, &__font_config, io.Fonts->GetGlyphRangesDefault());
+    ui_state.display_font = io.Fonts->AddFontFromMemoryTTF((void *)instrumentsans_font_data, instrumentsans_font_size, mscbl_config.settings.font_size * 1.25f, &__font_config, io.Fonts->GetGlyphRangesDefault());
 
     AsyncTask icon_load_task = {
         .func = gl_tex_mem,
         .args = {
             {.kind = TPData_Any, .val_any = &ui_state.icon_texture},
-            {.kind = TPData_Any, .val_any = data_icon_png},
-            {.kind = TPData_U64, .val_u64 = data_icon_png_len},
+            {.kind = TPData_Any, .val_any = (void *)icon_data},
+            {.kind = TPData_U64, .val_u64 = icon_size},
         }};
 
     restyle();
@@ -130,9 +137,11 @@ void ui_init()
     threadpool_enqueue(TaskPriority_High, icon_load_task);
 
     // Filter list init
-    arena_alloc(MB(1), ui_search.back.arena);
-    arena_alloc(MB(1), ui_search.main.arena);
     arena_alloc(MB(1), ui_state.view_query.arena);
+    arena_alloc(MB(1), ui_result.back_map.arena);
+    arena_alloc(MB(1), ui_result.main_map.arena);
+    arena_alloc(MB(10), ui_result.back_list.arena);
+    arena_alloc(MB(10), ui_result.main_list.arena);
     ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
 
     // Toast message init
@@ -318,10 +327,6 @@ void ui_render()
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-void ui_fetch_images(S64 start, S64 end)
-{
-}
-
 B32 ui_needs_update()
 {
     ImGuiIO &io = ImGui::GetIO();
@@ -340,23 +345,9 @@ U64 put_dir(StringBuilder dir)
     return id;
 }
 
-// DBStmtCbk(get_path)
-// {
-//     String *path = (String *)data;
-//     *path = string_copy(ui_arena, sqlite3_column_text(stmt, 0));
-// }
-//
-// void get_filename(U64 id, String *filename)
-// {
-//     sqlite3_stmt *stmt = db_prepare("SELECT filename FROM Images WHERE id = ?;");
-//     sqlite3_bind_int64(stmt, 1, id);
-//     db_run_stmt(stmt, 1, get_path, filename);
-// }
-
 void ui_add_filter()
 {
     UIFilter *filter_slot = NULL;
-
     UIFilter **walk = &ui_state.view_query.filters;
 
     while (*walk != NULL)
@@ -388,4 +379,27 @@ void ui_add_filter()
     };
 
     *walk = filter_slot;
+}
+
+DBStmtCbk(push_image_metadata)
+{
+    ui_preview.metadata = {
+        .id = sqlite3_column_int64(stmt, 0),
+
+        .atlas_id = sqlite3_column_int64(stmt, 3),
+        .atlas_idx = (U32)sqlite3_column_int(stmt, 4),
+
+        .size = size_to_bytesize(sqlite3_column_int64(stmt, 5)),
+
+        .ctime = timestamp_to_time(sqlite3_column_int64(stmt, 6)),
+        .mtime = timestamp_to_time(sqlite3_column_int64(stmt, 7)),
+        .atime = timestamp_to_time(sqlite3_column_int64(stmt, 8)),
+
+        .width = sqlite3_column_int(stmt, 9),
+        .height = sqlite3_column_int(stmt, 10),
+        .channels = sqlite3_column_int(stmt, 11),
+
+        .root_dir = sqlite3_column_int64(stmt, 12),
+        .parent_dir = sqlite3_column_int64(stmt, 13),
+    };
 }

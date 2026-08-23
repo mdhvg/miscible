@@ -2,7 +2,7 @@
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
 #pragma once
-#include "base/base_core.h"
+#include "base/arena.h"
 
 #define APP_NAME         Miscible
 #define APP_NAME_DISPLAY miscible
@@ -43,8 +43,11 @@ enum AppError
     AppError_NullPtr,
     AppError_ChecksumFail,
     AppError_FileNotFound,
+    AppError_InvalidInput,
+    AppError_Unimplemented,
     AppError_PartialDownload,
-    AppError_UnImplemented,
+    AppError_PreconditionFail,
 };
 
+MSCBL_API Arena *app_arena;
 MSCBL_API S32 mscbl_start(S32 argc, char **argv);

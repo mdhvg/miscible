@@ -1,11 +1,12 @@
 // Copyright (c) 2025-2026 Madhav Goyal
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
-#pragma once
 // A lot of it comes from: https://github.com/EpicGamesExt/raddebugger
 
-#include <stdint.h>
+#pragma once
 #include <wchar.h>
+#include <string.h>
+#include <stdint.h>
 
 #define global_v static
 #define local_v  static
@@ -19,7 +20,11 @@
 #if defined(_WIN32)
 #define OS_WIN32 1
 #elif defined(__gnu_linux__) || defined(__linux__)
+#if defined(__ANDROID__)
+#define OS_ANDROID 1
+#else
 #define OS_LINUX 1
+#endif
 #endif
 
 #if defined(_MSC_VER)
@@ -65,9 +70,9 @@
 #error Compiler not supported
 #endif
 
-#if defined(ARCH_X64)
+#if defined(ARCH_X64) || defined(ARCH_ARM64)
 #define ARCH_64BIT 1
-#elif defined(ARCH_X86)
+#elif defined(ARCH_X86) || defined(ARCH_ARM32)
 #define ARCH_32BIT 1
 #endif
 
@@ -92,7 +97,8 @@
 
 #define ToAbs(A)              (((A) < 0) ? ((A) * -1) : (A))
 #define ToBool(A)             (((A) != 0) ? (1) : (0))
-#define AlignOf(A, B)         (((A) + (B) - 1) & (~((B) - 1)))
+#define AlignUpPow2(A, B)     (((A) + (B) - 1) & (~((B) - 1)))
+#define AlignDownPow2(A, B)   ((A) & (~((B) - 1)))
 #define IndexWrapPow2(A, B)   ((A) & ((B) - 1))
 #define ToCeilInt(A, B)       (((A) + (B - 1)) / (B))
 #define StaticArrSize(A)      (sizeof(A) / sizeof((A)[0]))
@@ -147,6 +153,93 @@ typedef double F64;
 
 #define U32_MAX 0xFFFFFFFFul
 #define U64_MAX 0xFFFFFFFFFFFFFFFFull
+
+#if COMPILER_MSVC
+#include <intrin.h>
+#if ARCH_64BIT
+#define ins_atomic_u128_eval_cond_assign(x, k, c) (B32) InterlockedCompareExchange128((__int64 *)(x), ((__int64 *)&(k))[1], ((__int64 *)&(k))[0], (__int64 *)c)
+#define ins_atomic_u64_eval(x)                    *((volatile U64 *)(x))
+#define ins_atomic_u64_inc_eval(x)                InterlockedIncrement64((__int64 *)(x))
+#define ins_atomic_u64_dec_eval(x)                InterlockedDecrement64((__int64 *)(x))
+#define ins_atomic_u64_eval_assign(x, c)          InterlockedExchange64((__int64 *)(x), (c))
+#define ins_atomic_u64_add_eval(x, c)             InterlockedAdd64((__int64 *)(x), c)
+#define ins_atomic_u64_eval_cond_assign(x, k, c)  InterlockedCompareExchange64((__int64 *)(x), (k), (c))
+#define ins_atomic_u32_eval(x)                    *((volatile U32 *)(x))
+#define ins_atomic_u32_inc_eval(x)                InterlockedIncrement((LONG *)(x))
+#define ins_atomic_u32_dec_eval(x)                InterlockedDecrement((LONG *)(x))
+#define ins_atomic_u32_eval_assign(x, c)          InterlockedExchange((LONG *)(x), (c))
+#define ins_atomic_u32_eval_cond_assign(d, e, c)  InterlockedCompareExchange((LONG *)(d), (e), (c))
+#define ins_atomic_u32_add_eval(x, c)             InterlockedAdd((LONG *)(x), (c))
+#define ins_atomic_u8_eval_assign(x, c)           InterlockedExchange8((CHAR *)(x), (c))
+#else
+#error Atomic intrinsics not defined for this compiler / architecture combination.
+#endif
+#elif COMPILER_CLANG || COMPILER_GCC
+#define ins_atomic_u128_eval_cond_assign(x, k, c) (B32) __atomic_compare_exchange_n((__int128 *)(x), (__int128 *)(c), *(__int128 *)(k), 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
+#define ins_atomic_u64_eval(x)                    __atomic_load_n(x, __ATOMIC_SEQ_CST)
+#define ins_atomic_u64_inc_eval(x)                (__atomic_fetch_add((U64 *)(x), 1, __ATOMIC_SEQ_CST) + 1)
+#define ins_atomic_u64_dec_eval(x)                (__atomic_fetch_sub((U64 *)(x), 1, __ATOMIC_SEQ_CST) - 1)
+#define ins_atomic_u64_eval_assign(x, c)          __atomic_exchange_n(x, c, __ATOMIC_SEQ_CST)
+#define ins_atomic_u64_add_eval(x, c)             (__atomic_fetch_add((U64 *)(x), c, __ATOMIC_SEQ_CST) + (c))
+#define ins_atomic_u64_eval_cond_assign(x, k, c)  ({ U64 _new = (c); __atomic_compare_exchange_n((U64 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
+#define ins_atomic_u32_eval(x)                    __atomic_load_n(x, __ATOMIC_SEQ_CST)
+#define ins_atomic_u32_inc_eval(x)                (__atomic_fetch_add((U32 *)(x), 1, __ATOMIC_SEQ_CST) + 1)
+#define ins_atomic_u32_dec_eval(x)                (__atomic_fetch_sub((U32 *)(x), 1, __ATOMIC_SEQ_CST) - 1)
+#define ins_atomic_u32_add_eval(x, c)             (__atomic_fetch_add((U32 *)(x), c, __ATOMIC_SEQ_CST) + (c))
+#define ins_atomic_u32_eval_assign(x, c)          __atomic_exchange_n((x), (c), __ATOMIC_SEQ_CST)
+#define ins_atomic_u32_eval_cond_assign(d, e, c)  ({ U32 _new = (c); __atomic_compare_exchange_n((U32 *)(d),&_new,(e),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
+#define ins_atomic_u8_eval_assign(x, c)           __atomic_exchange_n((x), (c), __ATOMIC_SEQ_CST)
+#else
+#error Atomic intrinsics not defined for this compiler / architecture.
+#endif
+
+#if ARCH_64BIT
+#define ins_atomic_ptr_eval_cond_assign(x, k, c) (void *)ins_atomic_u64_eval_cond_assign((U64 *)(x), (U64)(k), (U64)(c))
+#define ins_atomic_ptr_eval_assign(x, c)         (void *)ins_atomic_u64_eval_assign((U64 *)(x), (U64)(c))
+#define ins_atomic_ptr_eval(x)                   (void *)ins_atomic_u64_eval((U64 *)x)
+#else
+#error Atomic intrinsics for pointers not defined for this architecture.
+#endif
+
+#if ARCH_64BIT
+#define IntFromPtr(ptr) ((U64)(ptr))
+#elif ARCH_32BIT
+#define IntFromPtr(ptr) ((U32)(ptr))
+#else
+#error Missing pointer-to-integer cast for this architecture.
+#endif
+
+#ifndef MSCBL_API_H
+#define MSCBL_API_H
+
+#ifdef __cplusplus
+#define MSCBL_EXTERN extern "C"
+#else
+#define MSCBL_EXTERN extern
+#endif
+
+#if DBG
+#if OS_WIN32
+
+#if MSCBL_CORE
+#define MSCBL_API MSCBL_EXTERN __declspec(dllexport)
+#else // MSCBL_CORE
+#define MSCBL_API MSCBL_EXTERN __declspec(dllimport)
+#endif // MSCBL_CORE
+
+#define MSCBL_EXP MSCBL_EXTERN __declspec(dllexport)
+#elif OS_LINUX || OS_ANDROID
+
+#define MSCBL_API MSCBL_EXTERN
+#define MSCBL_EXP MSCBL_EXTERN
+
+#endif // OS
+#else  // DBG
+#define MSCBL_API MSCBL_EXTERN
+#define MSCBL_EXP MSCBL_EXTERN
+#endif // DBG
+
+#endif // MSCBL_API_H
 
 typedef enum
 {
@@ -231,93 +324,6 @@ typedef struct
     } while (0)
 #define ClearResult(res) ((res) && ((*(res) = ResultSuccess()), 1))
 
-#if COMPILER_MSVC
-#include <intrin.h>
-#if ARCH_64BIT
-#define ins_atomic_u128_eval_cond_assign(x, k, c) (B32) InterlockedCompareExchange128((__int64 *)(x), ((__int64 *)&(k))[1], ((__int64 *)&(k))[0], (__int64 *)c)
-#define ins_atomic_u64_eval(x)                    *((volatile U64 *)(x))
-#define ins_atomic_u64_inc_eval(x)                InterlockedIncrement64((__int64 *)(x))
-#define ins_atomic_u64_dec_eval(x)                InterlockedDecrement64((__int64 *)(x))
-#define ins_atomic_u64_eval_assign(x, c)          InterlockedExchange64((__int64 *)(x), (c))
-#define ins_atomic_u64_add_eval(x, c)             InterlockedAdd64((__int64 *)(x), c)
-#define ins_atomic_u64_eval_cond_assign(x, k, c)  InterlockedCompareExchange64((__int64 *)(x), (k), (c))
-#define ins_atomic_u32_eval(x)                    *((volatile U32 *)(x))
-#define ins_atomic_u32_inc_eval(x)                InterlockedIncrement((LONG *)(x))
-#define ins_atomic_u32_dec_eval(x)                InterlockedDecrement((LONG *)(x))
-#define ins_atomic_u32_eval_assign(x, c)          InterlockedExchange((LONG *)(x), (c))
-#define ins_atomic_u32_eval_cond_assign(d, e, c)  InterlockedCompareExchange((LONG *)(d), (e), (c))
-#define ins_atomic_u32_add_eval(x, c)             InterlockedAdd((LONG *)(x), (c))
-#define ins_atomic_u8_eval_assign(x, c)           InterlockedExchange8((CHAR *)(x), (c))
-#else
-#error Atomic intrinsics not defined for this compiler / architecture combination.
-#endif
-#elif COMPILER_CLANG || COMPILER_GCC
-#define ins_atomic_u128_eval_cond_assign(x, k, c) (B32) __atomic_compare_exchange_n((__int128 *)(x), (__int128 *)(c), *(__int128 *)(k), 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
-#define ins_atomic_u64_eval(x)                    __atomic_load_n(x, __ATOMIC_SEQ_CST)
-#define ins_atomic_u64_inc_eval(x)                (__atomic_fetch_add((U64 *)(x), 1, __ATOMIC_SEQ_CST) + 1)
-#define ins_atomic_u64_dec_eval(x)                (__atomic_fetch_sub((U64 *)(x), 1, __ATOMIC_SEQ_CST) - 1)
-#define ins_atomic_u64_eval_assign(x, c)          __atomic_exchange_n(x, c, __ATOMIC_SEQ_CST)
-#define ins_atomic_u64_add_eval(x, c)             (__atomic_fetch_add((U64 *)(x), c, __ATOMIC_SEQ_CST) + (c))
-#define ins_atomic_u64_eval_cond_assign(x, k, c)  ({ U64 _new = (c); __atomic_compare_exchange_n((U64 *)(x),&_new,(k),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
-#define ins_atomic_u32_eval(x)                    __atomic_load_n(x, __ATOMIC_SEQ_CST)
-#define ins_atomic_u32_inc_eval(x)                (__atomic_fetch_add((U32 *)(x), 1, __ATOMIC_SEQ_CST) + 1)
-#define ins_atomic_u32_dec_eval(x)                (__atomic_fetch_sub((U32 *)(x), 1, __ATOMIC_SEQ_CST) - 1)
-#define ins_atomic_u32_add_eval(x, c)             (__atomic_fetch_add((U32 *)(x), c, __ATOMIC_SEQ_CST) + (c))
-#define ins_atomic_u32_eval_assign(x, c)          __atomic_exchange_n((x), (c), __ATOMIC_SEQ_CST)
-#define ins_atomic_u32_eval_cond_assign(d, e, c)  ({ U32 _new = (c); __atomic_compare_exchange_n((U32 *)(d),&_new,(e),0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST); _new; })
-#define ins_atomic_u8_eval_assign(x, c)           __atomic_exchange_n((x), (c), __ATOMIC_SEQ_CST)
-#else
-#error Atomic intrinsics not defined for this compiler / architecture.
-#endif
-
-#if ARCH_64BIT
-#define ins_atomic_ptr_eval_cond_assign(x, k, c) (void *)ins_atomic_u64_eval_cond_assign((U64 *)(x), (U64)(k), (U64)(c))
-#define ins_atomic_ptr_eval_assign(x, c)         (void *)ins_atomic_u64_eval_assign((U64 *)(x), (U64)(c))
-#define ins_atomic_ptr_eval(x)                   (void *)ins_atomic_u64_eval((U64 *)x)
-#else
-#error Atomic intrinsics for pointers not defined for this architecture.
-#endif
-
-#if ARCH_64BIT
-#define IntFromPtr(ptr) ((U64)(ptr))
-#elif ARCH_32BIT
-#define IntFromPtr(ptr) ((U32)(ptr))
-#else
-#error Missing pointer-to-integer cast for this architecture.
-#endif
-
-#ifndef MSCBL_API_H
-#define MSCBL_API_H
-
-#ifdef __cplusplus
-#define MSCBL_EXTERN extern "C"
-#else
-#define MSCBL_EXTERN extern
-#endif
-
-#if DBG
-#if OS_WIN32
-
-#if MSCBL_CORE
-#define MSCBL_API MSCBL_EXTERN __declspec(dllexport)
-#else // MSCBL_CORE
-#define MSCBL_API MSCBL_EXTERN __declspec(dllimport)
-#endif // MSCBL_CORE
-
-#define MSCBL_EXP MSCBL_EXTERN __declspec(dllexport)
-#elif OS_LINUX
-
-#define MSCBL_API MSCBL_EXTERN
-#define MSCBL_EXP MSCBL_EXTERN
-
-#endif // OS
-#else  // DBG
-#define MSCBL_API MSCBL_EXTERN
-#define MSCBL_EXP MSCBL_EXTERN
-#endif // DBG
-
-#endif // MSCBL_API_H
-
 MSCBL_API inline U64 NextPow2(U64 a)
 {
     if (a == 0) return 1;
@@ -330,10 +336,10 @@ MSCBL_API inline U64 NextPow2(U64 a)
     a |= a >> 32;
     return a + 1;
 }
-void bytes_as_hex_lower(U8 *data, U64 start, U64 len, char *out);
-void bytes_as_hex_upper(U8 *data, U64 start, U64 len, char *out);
-U64 time_to_timestamp(Time time);
-Time timestamp_to_time(U64 timestamp);
+void bytes_as_hex_lower(U64 in_size, U8 *in, char *out);
+void bytes_as_hex_upper(U64 in_size, U8 *in, char *out);
+MSCBL_API U64 time_to_timestamp(Time time);
+MSCBL_API Time timestamp_to_time(U64 timestamp);
 MSCBL_API Time skip_days(Time time, U32 days);
 MSCBL_API Time skip_months(Time time, U32 months);
 MSCBL_API Time skip_years(Time time, U32 years);

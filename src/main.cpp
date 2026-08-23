@@ -4,9 +4,9 @@
 #include "app/miscible.h"
 #include "os/os_inc.h"
 
-#if OS_WINDOWS
+#if !DBG && OS_WIN32
 #include "os/win32/main.cpp"
-#elif OS_LINUX
+#else
 int main(int argc, char **argv)
 {
     return mscbl_start(argc, argv);

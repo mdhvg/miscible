@@ -12,6 +12,7 @@ deps/openvino
 
 test_imgs
 wallpapers
+src/_dynamic
 src/config.yaml
 config.debug.yaml
 *.json

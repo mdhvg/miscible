@@ -2,10 +2,11 @@
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
 #pragma once
+#include "imgui.h"
 #include "IconsLucide.h"
 
 #include "db/view.h"
-#include "imgui.h"
+#include "ui/ui_core.h"
 
 enum Zoom
 {
@@ -67,7 +68,7 @@ global_v ZoomOption zoom_options[] = {
 };
 
 global_v SearchSelection search_options[] = {
-    {.type = SearchType_Text, .info_text = "Search using text in filename", .button_text = "Filename"},
+    {.type = SearchType_FTS, .info_text = "Search using text in filename", .button_text = "Filename"},
     {.type = SearchType_Embedding, .info_text = "Search by image description", .button_text = "Context"},
 };
 
@@ -91,10 +92,10 @@ local_v Zoom zoom_level = Zoom_Medium;
 
 local_v F32 topbar_height_units = 10.0f;
 
-local_v F32 sidebar_fold_units = 12.0f;
+local_v F32 sidebar_fold_units = 13.0f;
 local_v F32 sidebar_open_units = 80.0f;
-
-local_v F32 filter_accent_width = 4.0f;
 
 local_v F32 min_search_input_units = 30.0f;
 local_v F32 max_search_input_units = 850.0f;
+
+void recompute_layout();

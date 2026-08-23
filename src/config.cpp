@@ -11,9 +11,9 @@
 #include "os/os_inc.h"
 #include "base/array.h"
 #include "base/string.h"
+#include "app/miscible.h"
 
 Config mscbl_config = {0};
-Arena *config_arena = NULL;
 
 RemoteFileArr config_parse_remote_file(Arena *arena, fy_node *array)
 {
@@ -79,7 +79,7 @@ ModelGroupArr config_parse_model_groups(Arena *arena, fy_node *root)
  * For eg. if app_data is ~/Miscible, "$/atlas" resolves to ~/Miscible/atlas
  */
 
-Config default_config()
+Config default_config(Arena *arena)
 {
 #include "config.yaml"
     String config_text = sv(__mscbl_cfg_text);
@@ -89,9 +89,9 @@ Config default_config()
     fy_node *config_root = fy_document_root(config_doc);
 
     Config config = {
-        .app_data = yaml_scan_string(config_arena, config_root, "/AppData"),
-        .atlas_dir = yaml_scan_string(config_arena, config_root, "/AtlasDir"),
-        .db_path = yaml_scan_string(config_arena, config_root, "/DBPath"),
+        .app_data = yaml_scan_string(arena, config_root, "/AppData"),
+        .atlas_dir = yaml_scan_string(arena, config_root, "/AtlasDir"),
+        .db_path = yaml_scan_string(arena, config_root, "/DBPath"),
 
         .settings = {
             .scan_depth = yaml_scan_int(config_root, "/Settings/ScanDepth"), // To stop formatter from collapsing these
@@ -105,14 +105,14 @@ Config default_config()
         },
 
         .inf_settings = {
-            .base_dir = yaml_scan_string(config_arena, config_root, "/Inference/BaseDir"),                                         // To stop formatter from collapsing these
-            .ggml = config_parse_model_groups(config_arena, fy_node_by_path(config_root, "/Inference/GGML", FY_NT, FYNWF_FOLLOW)), // To stop formatter from collapsing these
-            .onnx = config_parse_model_groups(config_arena, fy_node_by_path(config_root, "/Inference/ONNX", FY_NT, FYNWF_FOLLOW)), // To stop formatter from collapsing these
+            .base_dir = yaml_scan_string(arena, config_root, "/Inference/BaseDir"),                                         // To stop formatter from collapsing these
+            .ggml = config_parse_model_groups(arena, fy_node_by_path(config_root, "/Inference/GGML", FY_NT, FYNWF_FOLLOW)), // To stop formatter from collapsing these
+            .onnx = config_parse_model_groups(arena, fy_node_by_path(config_root, "/Inference/ONNX", FY_NT, FYNWF_FOLLOW)), // To stop formatter from collapsing these
         },
     };
 
-    String backend = yaml_scan_string(config_arena, fy_node_by_path(config_root, "/Inference/Active", FY_NT, FYNWF_FOLLOW), "/Backend");
-    String model_name = yaml_scan_string(config_arena, fy_node_by_path(config_root, "/Inference/Active", FY_NT, FYNWF_FOLLOW), "/Name");
+    String backend = yaml_scan_string(arena, fy_node_by_path(config_root, "/Inference/Active", FY_NT, FYNWF_FOLLOW), "/Backend");
+    String model_name = yaml_scan_string(arena, fy_node_by_path(config_root, "/Inference/Active", FY_NT, FYNWF_FOLLOW), "/Name");
     U64 model_precision = yaml_scan_int(fy_node_by_path(config_root, "/Inference/Active", FY_NT, FYNWF_FOLLOW), "/Precision");
 
     ModelGroupArr backend_group = NULL;
@@ -127,13 +127,13 @@ Config default_config()
         backend_group = config.inf_settings.ggml;
     }
 
-    for (S64 gi = 0; gi < da_getsize(backend_group); gi++)
+    for (S64 gi = 0; gi < arr_getsize(backend_group); gi++)
     {
         if (!string_cmp(backend_group[gi].name, model_name))
         {
             config.inf_settings.active.group = &backend_group[gi];
             ModelVariantArr variants = backend_group[gi].variants;
-            for (S64 vi = 0; vi < da_getsize(variants); vi++)
+            for (S64 vi = 0; vi < arr_getsize(variants); vi++)
             {
                 if (variants[vi].precision == model_precision)
                 {
@@ -148,9 +148,9 @@ Config default_config()
     return config;
 }
 
-void setup_dirs(Config *config)
+void setup_dirs(Arena *arena, Config *config)
 {
-    StringBuilder base = string_empty(config_arena, 1024);
+    StringBuilder base = string_empty(arena, 1024);
 
     const char *home = os_gethome();
     Assert(home, "home dir not found");
@@ -163,18 +163,18 @@ void setup_dirs(Config *config)
     if (match_end(StringCast(base), "/"))
         string_pop_by(&base, 1);
 
-    StringBuilder app_data = string_init(config_arena, config->app_data);
+    StringBuilder app_data = string_init(arena, config->app_data);
     string_replace(&app_data, "~", CStrCast(base));
 
-    StringBuilder atlas_dir = string_init(config_arena, config->atlas_dir);
+    StringBuilder atlas_dir = string_init(arena, config->atlas_dir);
     string_replace(&atlas_dir, "~", CStrCast(base));
     string_replace(&atlas_dir, "$", CStrCast(app_data));
 
-    StringBuilder db_path = string_init(config_arena, config->db_path);
+    StringBuilder db_path = string_init(arena, config->db_path);
     string_replace(&db_path, "~", CStrCast(base));
     string_replace(&db_path, "$", CStrCast(app_data));
 
-    StringBuilder model_base = string_init(config_arena, config->inf_settings.base_dir);
+    StringBuilder model_base = string_init(arena, config->inf_settings.base_dir);
     string_replace(&model_base, "~", CStrCast(base));
     string_replace(&model_base, "$", CStrCast(app_data));
 
@@ -191,13 +191,9 @@ void setup_dirs(Config *config)
 
 void config_init()
 {
-    arena_alloc(MB(1), config_arena);
-
     // TODO: Put a check for existing config.yaml file
-    perf_beg(config_read);
-    mscbl_config = default_config();
-    perf_end(config_read);
-    setup_dirs(&mscbl_config);
+    mscbl_config = default_config(app_arena);
+    setup_dirs(app_arena, &mscbl_config);
 
     // if (!os_path_exist(config_path))
     // {

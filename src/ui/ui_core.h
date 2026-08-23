@@ -2,11 +2,14 @@
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
 #pragma once
+#include "base/threadpool.h"
 #include "db/fetch.h"
 #include "db/view.h"
 #include "base/string.h"
+#include "gl/gl_core.h"
 #include "ui/pages/menu/menu.h"
 #include "ui/pages/pages.h"
+#include "db/db_helpers.h"
 
 struct UIFilter
 {
@@ -45,28 +48,6 @@ struct UIFilter
     };
 };
 
-struct UIImageResult
-{
-    Arena *arena;
-    U64 arena_stop;
-    Embedding embedding;
-
-    // What db returns
-    union {
-        TimeArr time_headers;
-        StringArr str_headers;
-        ByteSizeArr size_headers;
-    };
-    S64 *item_counts;
-
-    S64 start, end;
-    ImageMetadataArr *images; // array of results in current visible window
-
-    // What I generate
-    F32 *y_offset;
-    S64 *global_group_offset;
-};
-
 struct UIViewQuery
 {
     Arena *arena;
@@ -75,16 +56,15 @@ struct UIViewQuery
 
     B32 descending;
     SortType sort_basis;
-    QueryType query_type;
     GroupSubType sub_type;
+    SearchType search_type;
+
+    S64 visible_start, visible_end;
 
     DirKey selected_dir;
-};
 
-struct UIPreview
-{
-    U32 texture;
-    S64 image_id;
+    U32 ticket;
+    ViewQueryType query_type;
 };
 
 struct UIState
@@ -103,21 +83,84 @@ struct UIState
     UIViewQuery view_query;
 };
 
-struct UISearchQuery
+struct UIMap
 {
-    SearchType type;
-    UIImageResult main;
-    UIImageResult back;
+    // What db returns
+    union {
+        S32 s32_header;
+        Time time_header;
+        String str_header;
+        ByteSize size_header;
+    };
+    S64 item_count;
+
+    // What I generate
+    F32 y_offset;
+    S64 global_group_offset;
+};
+
+struct UIMapResult
+{
+    Arena *arena;
+
+    UIMap *map;
+
+    ViewQueryType query_type;
+    B32 y_offset_computed;
+    U32 ticket;
+};
+
+struct UIMetadataResult
+{
+    Arena *arena;
+
+    ImageMetadataArr images; // array of results in current visible window
+};
+
+struct UIResult
+{
+    UIMapResult main_map;
+    UIMapResult back_map;
+
+    UIMetadataResult main_list;
+    UIMetadataResult back_list;
+};
+
+struct UIPreview
+{
+    U32 texture;
+    S64 image_id;
+    ImageMetadata metadata;
 };
 
 MSCBL_API UIState ui_state;
+MSCBL_API UIResult ui_result;
 MSCBL_API UIPreview ui_preview;
-MSCBL_API UISearchQuery ui_search;
 
 MSCBL_API U64 put_dir(StringBuilder dir);
 MSCBL_API void ui_add_filter();
 MSCBL_API void ui_viewquery_clear();
 MSCBL_API void ui_push_message(Result message);
+
+DBStmtCbk(push_image_metadata);
+
+MSCBL_API inline void ui_preview_image(S64 image_id)
+{
+    ui_preview.image_id = image_id;
+
+    sqlite3_stmt *stmt = db_prepare("SELECT * FROM Images WHERE id = ?;");
+    sqlite3_bind_int64(stmt, 1, ui_preview.image_id);
+    db_run_stmt(stmt, 1, push_image_metadata);
+
+    AsyncTask task = {
+        .func = gl_tex_id,
+        .args = {
+            {.kind = TPData_Any, .val_any = &ui_preview.texture},
+            {.kind = TPData_S64, .val_s64 = image_id},
+        },
+    };
+    threadpool_enqueue(TaskPriority_Realtime, task);
+}
 
 void ui_init();
 void ui_close();

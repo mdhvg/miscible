@@ -55,14 +55,14 @@ void *_arena_push(struct _arena_push_args args)
     Assert(args.arena, "arena not allocated");
 
     args.align = MAX(args.align, 8);
-    U64 start = AlignOf(((U64)args.arena->base + args.arena->used), args.align);
+    U64 start = AlignUpPow2(((U64)args.arena->base + args.arena->used), args.align);
     U64 end = start + args.size;
     U64 need_size = end - ((U64)args.arena->base + args.arena->used);
-    Assert(end <= args.arena->capacity + (U64)args.arena->base, "(Out of memory) Used: %zu/%zu, Need: %zu (%zu more)\n", args.arena->used, args.arena->capacity, need_size, need_size + args.arena->used - args.arena->capacity);
+    Assert(end <= args.arena->capacity + (U64)args.arena->base, "(Out of memory) Used: %zu/%zu, Need: %zu (%zu more)", args.arena->used, args.arena->capacity, need_size, need_size + args.arena->used - args.arena->capacity);
 
     // NOTE: cmt_size is arena aligned NOT base aligned
     U64 commit_size = end - (U64)args.arena;
-    commit_size = AlignOf(commit_size, os_info.page_size);
+    commit_size = AlignUpPow2(commit_size, os_info.page_size);
 
     if (commit_size > args.arena->cmt_size)
     {
@@ -96,7 +96,6 @@ void *_arena_resize(Arena *a, void *old_ptr, U64 old_size, U64 new_size)
         a->used -= old_size;
         void *new_ptr = arena_push(.arena = a, .size = new_size, .align = 1, .zero = 0);
 
-        mscbl_log_info("Saved %zu bytes", old_size);
         Assert(new_ptr == old_ptr, "In-place arena resize pointer mismatch");
         return new_ptr;
     }
@@ -114,7 +113,7 @@ void *_arena_resize(Arena *a, void *old_ptr, U64 old_size, U64 new_size)
 void arena_pop(Arena *a, U64 pos)
 {
     Assert(a, "arena is NULL");
-    U64 decmt_pos = MAX(a->min_cmt, AlignOf((U64)a->base + pos, os_info.page_size));
+    U64 decmt_pos = MAX(a->min_cmt, AlignUpPow2((U64)a->base + pos, os_info.page_size));
     U64 decmt_size = a->cmt_size - (decmt_pos - (U64)a);
 
     os_decommit((void *)decmt_pos, decmt_size);

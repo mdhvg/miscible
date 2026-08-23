@@ -38,12 +38,12 @@ struct WString
     U64 size;
 };
 
-#define StringBuilderStack(name, byte_capacity) \
-    char name##_backend_buffer[byte_capacity];  \
-    StringBuilder name = {                      \
-        .v = (U8 *)name##_backend_buffer,       \
-        .size = 0,                              \
-        .capacity = (byte_capacity) - 1,        \
+#define StringStack(name, byte_capacity)       \
+    char name##_backend_buffer[byte_capacity]; \
+    StringBuilder name = {                     \
+        .v = (U8 *)name##_backend_buffer,      \
+        .size = 0,                             \
+        .capacity = (byte_capacity) - 1,       \
         .arena = NULL}
 
 #if OS_WIN32

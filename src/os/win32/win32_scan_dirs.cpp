@@ -281,7 +281,7 @@ void cont_scan(Arena *arena)
     saved_dirs = NULL;
     db_run_stmt(db_prepare("SELECT id, mtime, level, root_dir, parent_dir, name, path FROM Dirs;"), 1, push_paths, NULL, arena);
     // Loop over them and stat
-    for (S64 i = 0; i < da_getsize(saved_dirs); i++)
+    for (S64 i = 0; i < arr_getsize(saved_dirs); i++)
     {
         if (!check_dir(saved_dirs[i]))
         {
