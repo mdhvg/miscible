@@ -66,6 +66,8 @@ MSCBL_API void *_arena_resize(Arena *a, void *old_ptr, U64 old_size, U64 new_siz
 #define push_struct0(a, type)       (type *)arena_push(.arena = a, .size = sizeof(type), .zero = 1)
 #define push_size(a, sz, type)      (type *)arena_push(.arena = a, .size = (U64)sz, .align = 8)
 
+static U64 arena_min_cmt_size = KB(64);
+
 void arena_pop(Arena *a, U64 pos);
 void arena_free(Arena *a);
 inline U64 arena_get(Arena *a)
@@ -91,8 +93,6 @@ MSCBL_API void temp_end(Temp temp);
 ArenaArray arena_array_alloc(U64 capacity, U64 size);
 void arena_array_free(ArenaArray aa);
 void arena_array_clear(ArenaArray aa);
-
-#define check_arena(a) ((!a) && (arena_alloc(Glue(a, _DEFAULT), a)))
 
 // void arena_db_alloc(ArenaDoubleBuffer *arena, U64 capacity);
 // void arena_db_switch(ArenaDoubleBuffer *arena);

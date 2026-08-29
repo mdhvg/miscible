@@ -2,10 +2,9 @@
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
 #include "os/os_inc.h"
-#include "base/arena.h"
+
 #include "base/log.h"
-#include "arena.h"
-#include "base_core.h"
+#include "base/arena.h"
 
 Arena *arena_head = NULL;
 
@@ -15,9 +14,10 @@ void _arena_alloc(U64 capacity, Arena **arena, const char *name)
 void _arena_alloc(U64 capacity, Arena **arena)
 #endif
 {
+    capacity = MAX(capacity, arena_min_cmt_size);
     void *base = os_reserve(NULL, capacity);
     Assert(base, "alloc failed");
-    U64 cmt_size = os_info.page_size;
+    U64 cmt_size = arena_min_cmt_size;
     os_commit(base, cmt_size);
 
     Arena *a = (Arena *)base;
@@ -25,7 +25,7 @@ void _arena_alloc(U64 capacity, Arena **arena)
     a->used = 0;
     a->min_use = 0;
     a->capacity = capacity;
-    a->min_cmt = os_info.page_size;
+    a->min_cmt = arena_min_cmt_size;
     a->cmt_size = cmt_size;
 
 #if DBG
@@ -54,15 +54,14 @@ void *_arena_push(struct _arena_push_args args)
         return NULL;
     Assert(args.arena, "arena not allocated");
 
-    args.align = MAX(args.align, 8);
-    U64 start = AlignUpPow2(((U64)args.arena->base + args.arena->used), args.align);
-    U64 end = start + args.size;
-    U64 need_size = end - ((U64)args.arena->base + args.arena->used);
-    Assert(end <= args.arena->capacity + (U64)args.arena->base, "(Out of memory) Used: %zu/%zu, Need: %zu (%zu more)", args.arena->used, args.arena->capacity, need_size, need_size + args.arena->used - args.arena->capacity);
+    U64 used_ptr = ((U64)args.arena->base + args.arena->used);
+    U64 start_ptr = AlignUpPow2(used_ptr, args.align);
+    U64 end_ptr = start_ptr + args.size;
+    U64 need_size = end_ptr - used_ptr;
+    Assert(end_ptr <= args.arena->capacity + (U64)args.arena->base, "(Out of memory) Used: %zu/%zu, Need: %zu (%zu more)", args.arena->used, args.arena->capacity, need_size, need_size + args.arena->used - args.arena->capacity);
 
     // NOTE: cmt_size is arena aligned NOT base aligned
-    U64 commit_size = end - (U64)args.arena;
-    commit_size = AlignUpPow2(commit_size, os_info.page_size);
+    U64 commit_size = AlignUpPow2(end_ptr - (U64)args.arena, arena_min_cmt_size);
 
     if (commit_size > args.arena->cmt_size)
     {
@@ -71,7 +70,7 @@ void *_arena_push(struct _arena_push_args args)
         os_commit(args.arena, commit_size);
     }
 
-    void *result = (void *)(start);
+    void *result = (void *)(start_ptr);
 
     args.arena->used += need_size;
     args.arena->cmt_size = commit_size;
@@ -113,7 +112,7 @@ void *_arena_resize(Arena *a, void *old_ptr, U64 old_size, U64 new_size)
 void arena_pop(Arena *a, U64 pos)
 {
     Assert(a, "arena is NULL");
-    U64 decmt_pos = MAX(a->min_cmt, AlignUpPow2((U64)a->base + pos, os_info.page_size));
+    U64 decmt_pos = MAX(a->min_cmt, AlignUpPow2((U64)a->base + pos, arena_min_cmt_size));
     U64 decmt_size = a->cmt_size - (decmt_pos - (U64)a);
 
     os_decommit((void *)decmt_pos, decmt_size);
