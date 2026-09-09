@@ -13,21 +13,23 @@ struct ArrayHeader
 };
 
 #define arr_getheader(arr) ((arr) ? ((ArrayHeader *)(arr) - 1) : (0))
-#define arr_getsize(arr) ((arr) ? (arr_getheader(arr)->size) : (0))
-#define arr_getcap(arr)  ((arr) ? (arr_getheader(arr)->capacity) : (0))
+#define arr_getsize(arr)   ((arr) ? (arr_getheader(arr)->size) : (0))
+#define arr_getcap(arr)    ((arr) ? (arr_getheader(arr)->capacity) : (0))
+
+static U64 arr_min_size = KB(4);
 
 /*******************************************************************************
 * Dynamic array (DA)
 *******************************************************************************/
-#define da_clear(arr)   da_setsize((arr), 0)
-#define da_setsize(arr, sz)                  \
-    do                                       \
-    {                                        \
-        if (arr)                             \
-        {                                    \
+#define da_clear(arr) da_setsize((arr), 0)
+#define da_setsize(arr, sz)                      \
+    do                                           \
+    {                                            \
+        if (arr)                                 \
+        {                                        \
             ArrayHeader *h = arr_getheader(arr); \
-            h->size = sz;                    \
-        }                                    \
+            h->size = sz;                        \
+        }                                        \
     } while (0)
 
 template <typename T>
@@ -63,9 +65,9 @@ void _da_push(Arena *arena, T **arr, T val)
 {
     if (!*arr)
     {
-        void *base = arena_push(arena, os_info.page_size);
+        void *base = arena_push(arena, arr_min_size);
         ArrayHeader *h0 = (ArrayHeader *)base;
-        h0->capacity = (os_info.page_size - sizeof(ArrayHeader)) / sizeof(T);
+        h0->capacity = (arr_min_size - sizeof(ArrayHeader)) / sizeof(T);
         h0->size = 0;
         *arr = (T *)(h0 + 1);
     }
@@ -97,12 +99,12 @@ void _da_push(Arena *arena, T **arr, T val)
 /*******************************************************************************
 * Virtual memory array (VA)
 *******************************************************************************/
-#define va_free(arr)    ((arr)                                                     \
-                             ? (os_release(                                        \
-                                   arr_getheader(arr),                                 \
-                                   sizeof(ArrayHeader) +                           \
-                                       sizeof(arr[0]) * arr_getheader(arr)->capacity)) \
-                             : (0))
+#define va_free(arr) ((arr)                                                         \
+                          ? (os_release(                                            \
+                                arr_getheader(arr),                                 \
+                                sizeof(ArrayHeader) +                               \
+                                    sizeof(arr[0]) * arr_getheader(arr)->capacity)) \
+                          : (0))
 
 template <typename T>
 void _va_push(T **arr, T val)
@@ -110,9 +112,9 @@ void _va_push(T **arr, T val)
     if (!*arr)
     {
         void *base = os_reserve(NULL, MB(10));
-        os_commit(base, os_info.page_size); // Commit 1 page
+        os_commit(base, arr_min_size);
         ArrayHeader *h = (ArrayHeader *)base;
-        h->capacity = (os_info.page_size - sizeof(ArrayHeader)) / sizeof(T);
+        h->capacity = (arr_min_size - sizeof(ArrayHeader)) / sizeof(T);
         h->size = 0;
         *arr = (T *)(h + 1);
     }
@@ -125,7 +127,7 @@ void _va_push(T **arr, T val)
             U64 capacity = h0->capacity * 2;
             if (capacity * sizeof(T) < req)
                 capacity = req;
-            os_commit(h0, AlignUpPow2(sizeof(ArrayHeader) + capacity * sizeof(T), os_info.page_size));
+            os_commit(h0, AlignUpPow2(sizeof(ArrayHeader) + capacity * sizeof(T), arr_min_size));
             h0->capacity = capacity;
         }
     }

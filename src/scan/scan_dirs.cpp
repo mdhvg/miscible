@@ -25,7 +25,11 @@ DBStmtCbk(push_imagerow)
 
 ThreadFunc(scan_routine)
 {
-    OSString dir = os_select_dir(W("Select Directory"), NULL, arena);
+#if OS_WIN32
+    OSString dir = os_select_dir(L"Select Directory", NULL, arena);
+#elif OS_LINUX
+    OSString dir = os_select_dir("Select Directory", NULL, arena);
+#endif
 
     if (dir.size)
     {

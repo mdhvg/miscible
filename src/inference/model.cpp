@@ -147,113 +147,23 @@ void model_insert_embedding_impl(Arena *arena)
     for (S64 batch = 0; batch < arr_getsize(inserted); batch += EMBED_BATCH_SIZE)
     {
         U64 batch_size = MIN(EMBED_BATCH_SIZE, arr_getsize(inserted) - batch);
-        S64 batch_var = batch_size - 1;
+        S64 batch_var = batch_size;
 
-        if (batch_size > 1)
+        for (U64 i = 0; i < batch_size; i++)
         {
-            for (U64 i = 1; i < batch_size; i++)
-            {
-                AsyncTask task = {
-                    .func = preprocess_image,
-                    .args = {
-                        {.kind = TPData_String, .val_str = inserted[batch + i].path},
-                        {.kind = TPData_Any, .val_any = batch_data + (i * frame_size * 3)},
-                        {.kind = TPData_Any, .val_any = config},
-                    },
-                    .batch_size = &batch_var,
-                    .batch_complete = batch_sem};
-                threadpool_enqueue(TaskPriority_Low, task);
-            }
+            AsyncTask task = {
+                .func = preprocess_image,
+                .args = {
+                    {.kind = TPData_String, .val_str = inserted[batch + i].path},
+                    {.kind = TPData_Any, .val_any = batch_data + (i * frame_size * 3)},
+                    {.kind = TPData_Any, .val_any = config},
+                },
+                .batch_size = &batch_var,
+                .batch_complete = batch_sem};
+            threadpool_enqueue(TaskPriority_Low, task);
         }
 
-        ArenaScoped(arena)
-        {
-            perf_beg(preprocess);
-            U8 *resized = push_array(arena, frame_size * 3, U8);
-
-            S32 w, h;
-            U8 *image_data = stbi_load(CStrCast(inserted[batch].path), &w, &h, NULL, 3);
-            Assert(image_data, "image data is NULL (%.*s)", StringSpr(inserted[batch].path));
-
-            S32 crop_x = 0, crop_y = 0,
-                crop_w = w, crop_h = h;
-
-            if (w > h)
-            {
-                // Landscape
-                crop_w = h;
-                crop_x = (w - h) / 2;
-            }
-            else if (h > w)
-            {
-                // Portrait
-                crop_h = w;
-                crop_y = (h - w) / 2;
-            }
-
-            U8 *cropped_source = image_data + (crop_y * w + crop_x) * 3;
-            stbir_resize_uint8_linear(cropped_source, crop_w, crop_h, w * 3, resized, image_size, image_size, 0, STBIR_RGB);
-            stbi_image_free(image_data);
-
-            F32 *__restrict r_plane = batch_data + (0 * frame_size);
-            F32 *__restrict g_plane = batch_data + (1 * frame_size);
-            F32 *__restrict b_plane = batch_data + (2 * frame_size);
-
-            const F32 mean_r = config->mean[0], inv_std_r = 1 / config->std_dev[0];
-            const F32 mean_g = config->mean[1], inv_std_g = 1 / config->std_dev[1];
-            const F32 mean_b = config->mean[2], inv_std_b = 1 / config->std_dev[2];
-
-            const F32 rescale = config->rescale_factor;
-
-            // TODO: Find some SIMD or hacky way to speed it up. Currently implemented solutions:
-            // - Loop unrolling of 8 loops
-            // - Pre-calculate indices
-            for (U32 i = 0; i < frame_size; i += 8)
-            {
-                U32 src0 = 3 * (i + 0);
-                U32 src1 = 3 * (i + 1);
-                U32 src2 = 3 * (i + 2);
-                U32 src3 = 3 * (i + 3);
-                U32 src4 = 3 * (i + 4);
-                U32 src5 = 3 * (i + 5);
-                U32 src6 = 3 * (i + 6);
-                U32 src7 = 3 * (i + 7);
-
-                // Red Plane
-                r_plane[i + 0] = ((F32)resized[src0 + 0] * rescale - mean_r) * inv_std_r;
-                r_plane[i + 1] = ((F32)resized[src1 + 0] * rescale - mean_r) * inv_std_r;
-                r_plane[i + 2] = ((F32)resized[src2 + 0] * rescale - mean_r) * inv_std_r;
-                r_plane[i + 3] = ((F32)resized[src3 + 0] * rescale - mean_r) * inv_std_r;
-                r_plane[i + 4] = ((F32)resized[src4 + 0] * rescale - mean_r) * inv_std_r;
-                r_plane[i + 5] = ((F32)resized[src5 + 0] * rescale - mean_r) * inv_std_r;
-                r_plane[i + 6] = ((F32)resized[src6 + 0] * rescale - mean_r) * inv_std_r;
-                r_plane[i + 7] = ((F32)resized[src7 + 0] * rescale - mean_r) * inv_std_r;
-
-                // Green Plane
-                g_plane[i + 0] = ((F32)resized[src0 + 1] * rescale - mean_g) * inv_std_g;
-                g_plane[i + 1] = ((F32)resized[src1 + 1] * rescale - mean_g) * inv_std_g;
-                g_plane[i + 2] = ((F32)resized[src2 + 1] * rescale - mean_g) * inv_std_g;
-                g_plane[i + 3] = ((F32)resized[src3 + 1] * rescale - mean_g) * inv_std_g;
-                g_plane[i + 4] = ((F32)resized[src4 + 1] * rescale - mean_g) * inv_std_g;
-                g_plane[i + 5] = ((F32)resized[src5 + 1] * rescale - mean_g) * inv_std_g;
-                g_plane[i + 6] = ((F32)resized[src6 + 1] * rescale - mean_g) * inv_std_g;
-                g_plane[i + 7] = ((F32)resized[src7 + 1] * rescale - mean_g) * inv_std_g;
-
-                // Blue Plane
-                b_plane[i + 0] = ((F32)resized[src0 + 2] * rescale - mean_b) * inv_std_b;
-                b_plane[i + 1] = ((F32)resized[src1 + 2] * rescale - mean_b) * inv_std_b;
-                b_plane[i + 2] = ((F32)resized[src2 + 2] * rescale - mean_b) * inv_std_b;
-                b_plane[i + 3] = ((F32)resized[src3 + 2] * rescale - mean_b) * inv_std_b;
-                b_plane[i + 4] = ((F32)resized[src4 + 2] * rescale - mean_b) * inv_std_b;
-                b_plane[i + 5] = ((F32)resized[src5 + 2] * rescale - mean_b) * inv_std_b;
-                b_plane[i + 6] = ((F32)resized[src6 + 2] * rescale - mean_b) * inv_std_b;
-                b_plane[i + 7] = ((F32)resized[src7 + 2] * rescale - mean_b) * inv_std_b;
-            }
-            perf_end(preprocess);
-        }
-
-        if (batch_size > 1)
-            os_semaphore_pop(batch_sem, U64_MAX);
+        if (!threadpool_participate(arena, &batch_var, batch_sem)) break;
 
         Embedding embeddings = inference_vision_embedding(arena, batch_data, batch_size);
         for (U32 i = 0; i < batch_size; i++)

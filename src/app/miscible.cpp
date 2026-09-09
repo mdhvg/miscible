@@ -90,7 +90,7 @@ S32 mscbl_start(S32 argc, char **argv)
 
     mscbl_log_init(mscbl_config.settings.log_age_days);
 
-    threadpool_init(os_info.worker_count);
+    threadpool_init(os_info.nproc);
     window_init();
 
     db_init();
@@ -115,9 +115,12 @@ S32 mscbl_start(S32 argc, char **argv)
 
     ui_close();
     window_shutdown();
-    inference_close();
     threadpool_free();
+    inference_close();
+    db_close();
+
     mscbl_log_deinit();
+    os_cleanup();
 
     return 0;
 }

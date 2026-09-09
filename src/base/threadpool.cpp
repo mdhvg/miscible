@@ -40,40 +40,85 @@ void threadpool_run_tasks(Worker *worker)
     if (!pool || !pool->active)
         return;
 
-    os_mutex_lock(&pool->task_mutex);
-    if (rb_isempty(pool->tasks_p0) && rb_isempty(pool->tasks_p1) && rb_isempty(pool->tasks_p2))
-        return;
-    os_mutex_unlock(&pool->task_mutex);
-
-    Arena *arena = pool->worker_arena.v[worker->id];
     AsyncTask task = {0};
+    B32 task_found = 0;
+    Arena *arena = pool->worker_arena.v[worker->id];
 
     os_mutex_lock(&pool->task_mutex);
     if (!rb_isempty(pool->tasks_p0))
     {
         rb_top(pool->tasks_p0, &task);
         rb_pop(pool->tasks_p0);
+        task_found = 1;
     }
     else if (!rb_isempty(pool->tasks_p1))
     {
         rb_top(pool->tasks_p1, &task);
         rb_pop(pool->tasks_p1);
+        task_found = 1;
     }
-    else
+    else if (!rb_isempty(pool->tasks_p2))
     {
         rb_top(pool->tasks_p2, &task);
         rb_pop(pool->tasks_p2);
+        task_found = 1;
     }
     os_mutex_unlock(&pool->task_mutex);
 
+    if (!task_found) return;
     task.func(arena, worker->id, task.args);
 
     if (task.batch_size)
     {
-        S64 left = ins_atomic_u64_dec_eval(task.batch_size);
-        if (left <= 0)
+        if (ins_atomic_u64_dec_eval(task.batch_size) <= 0)
             os_semaphore_push(task.batch_complete);
     }
+}
+
+B32 threadpool_participate(Arena *arena, volatile S64 *batch_size, Semaphore batch_sem)
+{
+    B32 ret = 1;
+    if (!pool || !pool->active)
+        ret = 0;
+
+    while (*batch_size && ret)
+    {
+        AsyncTask task = {0};
+        B32 task_found = 0;
+
+        os_mutex_lock(&pool->task_mutex);
+        if (!rb_isempty(pool->tasks_p0))
+        {
+            rb_top(pool->tasks_p0, &task);
+            rb_pop(pool->tasks_p0);
+            task_found = 1;
+        }
+        else if (!rb_isempty(pool->tasks_p1))
+        {
+            rb_top(pool->tasks_p1, &task);
+            rb_pop(pool->tasks_p1);
+            task_found = 1;
+        }
+        else if (!rb_isempty(pool->tasks_p2))
+        {
+            rb_top(pool->tasks_p2, &task);
+            rb_pop(pool->tasks_p2);
+            task_found = 1;
+        }
+        os_mutex_unlock(&pool->task_mutex);
+
+        if (task_found)
+        {
+            task.func(arena, 0, task.args);
+            if (ins_atomic_u64_dec_eval(batch_size) <= 0)
+            {
+                os_semaphore_push(task.batch_complete);
+            }
+        }
+    }
+
+    os_semaphore_pop(batch_sem, U64_MAX);
+    return ret;
 }
 
 OS_THREAD_ROUTINE(threadpool_worker)
@@ -126,6 +171,7 @@ void threadpool_enqueue(TaskPriority priority, AsyncTask task)
 #if DBG
     task.queue_func = func_name;
 #endif
+    Assert(task.func, "func is NULL");
     os_mutex_lock(&pool->task_mutex);
     switch (priority)
     {
@@ -158,7 +204,6 @@ void threadpool_free()
 
     os_semaphore_destroy(pool->task_semaphore);
     os_mutex_destroy(&pool->task_mutex);
-    MemoryZeroStruct(pool);
     pool = NULL;
     arena_free(threadpool_arena);
 }

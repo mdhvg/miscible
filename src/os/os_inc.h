@@ -7,14 +7,6 @@
 // NOTE: for an os layer to be compatible with this application, it
 // needs implementation for all of this...
 
-#define OS_COMMON         \
-    struct                \
-    {                     \
-        U64 worker_count; \
-        U64 page_size;    \
-        Process process;  \
-    }
-
 typedef union Guid Guid;
 union Guid {
     struct
@@ -45,18 +37,16 @@ struct FileMTime
 #ifndef OSSlash
 #error "OSSlash not defined"
 #endif
-#ifndef W
-#error "OS char converter not defined"
-#endif
 #ifndef LibExt
 #error "LibExt not defined"
 #endif
 
 MSCBL_API OSInfo os_info;
 typedef struct OSMmap OSMmap;
+typedef struct OSInfo OSInfo;
 
 Guid os_make_guid();
-MSCBL_API void os_prelaunch();
+void os_prelaunch();
 void os_cleanup();
 
 String os_env_var(const char *name, Arena *arena);

@@ -4,7 +4,6 @@
 #include "db/view.h"
 #include "app/miscible.h"
 #include "base/arena.h"
-#include "base/base_core.h"
 #include "base/log.h"
 #include "config.h"
 #include "db/db_helpers.h"
@@ -12,8 +11,8 @@
 #include "base/string.h"
 #include "base/threadpool.h"
 #include "db/fetch.h"
-#include "inference/inference.h"
 #include "inference/model.h"
+#include "inference/inference.h"
 #include "ui/ui_core.h"
 
 #define VIEW_FETCH_WINDOW_SIZE 1000
@@ -39,7 +38,7 @@ void view_serialize_filters(Arena *arena, UIFilter *filters, StringArr *queries)
             da_push(arena, *queries, sv(" AND Images.id"));
             if (f0->val_str.exclude)
                 da_push(arena, *queries, sv(" NOT"));
-            da_push(arena, *queries, sv(" IN (SELECT rowid FROM Image_FTS WHERE Image_FTS MATCH ?)"));
+            da_push(arena, *queries, sv(" IN (SELECT id FROM Images WHERE path LIKE '%' || ? || '%')"));
             break;
         case FilterType_DateAddedBetween:
             if (f0->val_time.from_enable)
@@ -186,7 +185,7 @@ String view_build_query_embedding(Arena *arena, B32 count_only)
     String *queries = NULL;
     UIViewQuery *request = &ui_state.view_query;
 
-    da_push(arena, queries, sv("SELECT CAST((1.0 - distance_cosine_f32(Images.embedding, ?)) * 10 AS INT) * 10 AS header,"));
+    da_push(arena, queries, sv("SELECT ROUND((1.0 - distance_cosine_f32(Images.embedding, ?)) * 10) * 10 AS header,"));
 
     // Choosing item count or metadata
     if (count_only)
@@ -208,7 +207,7 @@ String view_build_query_embedding(Arena *arena, B32 count_only)
     if (count_only)
         da_push(arena, queries, sv(" GROUP BY header HAVING item_count > 0 ORDER BY header DESC;"));
     else
-        da_push(arena, queries, sv(" ORDER BY distance DESC LIMIT ? OFFSET ?;"));
+        da_push(arena, queries, sv(" ORDER BY distance ASC LIMIT ? OFFSET ?;"));
 
     StringBuilder query = string_empty(arena, KB(4));
     for (S64 i = 0; i < arr_getsize(queries); i++)
@@ -431,7 +430,14 @@ void view_run_query_fts(Arena *arena, sqlite3_stmt *stmt, B32 count_only)
 
     S32 cursor = 1;
     cursor = view_bind_sort(stmt, request, cursor);
-    sqlite3_bind_text(stmt, cursor++, CStrCast(request->search_query), request->search_query.size, SQLITE_STATIC);
+
+    String query_text = StringCast(request->search_query);
+    StringBuilder query_safe = string_empty(arena);
+    string_push(&query_safe, sv("\""));
+    string_push(&query_safe, StringCast(request->search_query));
+    string_push(&query_safe, sv("\""));
+    sqlite3_bind_text(stmt, cursor++, CStrCast(query_safe), query_safe.size, SQLITE_STATIC);
+
     cursor = view_bind_filters(stmt, request, cursor);
     if (request->selected_dir)
         sqlite3_bind_int(stmt, cursor++, request->selected_dir);

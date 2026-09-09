@@ -72,6 +72,7 @@ struct AsyncTask
 
 void threadpool_init(U32 worker_count);
 void threadpool_free();
+B32 threadpool_participate(Arena *arena, volatile S64 *batch_size, Semaphore batch_sem);
 U64 threadpool_worker_count();
 
 enum TaskPriority

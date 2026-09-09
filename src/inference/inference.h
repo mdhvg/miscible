@@ -17,6 +17,8 @@ enum InferenceState
 struct TextModelConfig
 {
     S64 token_length;
+    Mutex tokenizer_lock;
+    OrtxTokenizer *tokenizer;
 };
 
 struct VisionModelConfig

@@ -188,7 +188,7 @@ Result download_large_file(Arena *arena, DownloadArgs args)
             threadpool_enqueue(TaskPriority_Low, task);
         }
 
-        os_semaphore_pop(wait, U64_MAX);
+        if (!threadpool_participate(arena, &batch_size, wait)) return res;
         os_semaphore_destroy(wait);
     }
 

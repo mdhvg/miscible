@@ -7,17 +7,7 @@
 #include "base/string.h"
 #include "app/miscible.h"
 
-global_v FileHandle log_file = 0;
-
-typedef struct LogEpoch LogEpoch;
-struct LogEpoch
-{
-    U64 ticks_per_sec;
-    Time base_time;
-    U64 base_ticks;
-};
-
-global_v LogEpoch epoch = {0};
+static FileHandle log_file = 0;
 
 void mscbl_log_init(U64 log_age)
 {
@@ -60,18 +50,11 @@ void mscbl_log_init(U64 log_age)
     ArenaScoped(app_arena)
     {
         StringBuilder log_filepath = string_empty(app_arena, KB(4));
-        Time today = os_get_localtime();
 
         string_format(&log_filepath, "%.*s" LOG_FILE_NAME_PRE "%02d-%02d-%04d" LOG_FILE_NAME_EXT,
-                      StringSpr(base), today.date, today.month + 1, today.year);
+                      StringSpr(base), os_info.start_time.date, os_info.start_time.month + 1, os_info.start_time.year);
         log_file = os_file_open(StringCast(log_filepath), FileAccess_Append, FileMode_OpenAlways, &res);
     }
-
-    epoch = {
-        .ticks_per_sec = os_get_ticks_freq(),
-        .base_time = os_get_localtime(),
-        .base_ticks = os_get_ticks_now(),
-    };
 }
 
 void mscbl_log_deinit()
@@ -82,22 +65,9 @@ void mscbl_log_deinit()
 
 Time get_cur_time()
 {
-    if (epoch.ticks_per_sec == 0)
-    {
-        epoch.ticks_per_sec = os_get_ticks_freq();
-        epoch.base_time = os_get_localtime();
-        epoch.base_ticks = os_get_ticks_now();
-
-        // Safety fallback just in case the OS return value is somehow 0
-        if (epoch.ticks_per_sec == 0)
-        {
-            epoch.ticks_per_sec = 1000;
-        }
-    }
-
-    U64 elapsed_ticks = os_get_ticks_now() - epoch.base_ticks;
-    U64 elapsed_ms = ((F64)elapsed_ticks * 1000.0) / epoch.ticks_per_sec;
-    Time result = epoch.base_time;
+    U64 elapsed_ticks = os_get_ticks_now() - os_info.start_ticks;
+    U64 elapsed_ms = ((F64)elapsed_ticks * 1000.0) / os_info.ticks_per_sec;
+    Time result = os_info.start_time;
 
     U64 total_ms = result.milsec + (U32)(elapsed_ms % 1000);
     result.milsec = (total_ms % 1000);

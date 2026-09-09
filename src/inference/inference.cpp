@@ -1,15 +1,17 @@
 // Copyright (c) 2025-2026 Madhav Goyal
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
+#include "base/base_core.h"
 #include "jsmn.h"
 #include "onnxruntime/core/session/onnxruntime_c_api.h"
 #include "onnxruntime/core/providers/dml/dml_provider_factory.h"
 
-#include "config.h"
-#include "base/log.h"
-#include "ortx_tokenizer.h"
 #include "ortx_types.h"
 #include "ortx_utils.h"
+#include "ortx_tokenizer.h"
+
+#include "config.h"
+#include "base/log.h"
 #include "os/os_inc.h"
 #include "ui/ui_core.h"
 #include "app/miscible.h"
@@ -49,11 +51,19 @@ void inference_init()
     os_mutex_init(&inf_ctx.session_lock);
 }
 
+Result inference_tokenizer_init(String model_base)
+{
+    os_mutex_init(&inf_ctx.text_cfg.tokenizer_lock);
+    extError_t ortx_err = OrtxCreateTokenizer(&inf_ctx.text_cfg.tokenizer, CStrCast(model_base));
+    return GenResult(ortx_err == kOrtxOK, Domain_Inference_ONNX, ortx_err, OrtxGetLastErrorMessage());
+}
+
 void inference_close()
 {
     ins_atomic_u32_eval_assign(&inf_ctx.state, InferenceState_Uninitialized);
 
-    // OrtxDisposeOnly(inf_ctx.processor);
+    OrtxDisposeOnly(inf_ctx.text_cfg.tokenizer);
+    os_mutex_destroy(&inf_ctx.text_cfg.tokenizer_lock);
 
     inf_ctx.api->SessionOptionsSetLoadCancellationFlag(inf_ctx.session_opt, 1);
 
@@ -266,19 +276,16 @@ Embedding inference_text_embedding(Arena *arena, String input)
         return {.vector = 0};
     }
 
-    OrtxTokenizer *tokenizer;
     extError_t ortx_err = kOrtxOK;
 
     U64 token_array_length = 0;
     const extTokenId_t *token_ids = NULL;
     OrtxTokenId2DArray *_token_array = NULL;
 
-    StringBuilder model_base = string_init(arena, mscbl_config.inf_settings.base_dir);
-    path_join(&model_base, mscbl_config.inf_settings.active.group->name);
-    ortx_err = OrtxCreateTokenizer(&tokenizer, CStrCast(model_base));
-    Assert(ortx_err == kOrtxOK, "ORTX error: %s", OrtxGetLastErrorMessage());
     const char *tokens[] = {CStrCast(input)};
-    ortx_err = OrtxTokenize(tokenizer, tokens, 1, &_token_array);
+    os_mutex_lock(&inf_ctx.text_cfg.tokenizer_lock);
+    ortx_err = OrtxTokenize(inf_ctx.text_cfg.tokenizer, tokens, 1, &_token_array);
+    os_mutex_unlock(&inf_ctx.text_cfg.tokenizer_lock);
     Assert(ortx_err == kOrtxOK, "ORTX error: %s", OrtxGetLastErrorMessage());
     ortx_err = OrtxTokenId2DArrayGetItem(_token_array, 0, &token_ids, &token_array_length);
     Assert(ortx_err == kOrtxOK, "ORTX error: %s", OrtxGetLastErrorMessage());
@@ -347,7 +354,6 @@ Embedding inference_text_embedding(Arena *arena, String input)
     inf_ctx.api->ReleaseValue(mask_tensor);
     inf_ctx.api->ReleaseValue(output_tensor);
     inf_ctx.api->ReleaseMemoryInfo(memory_info);
-    OrtxDisposeOnly(tokenizer);
 
     return output;
 }
@@ -508,7 +514,6 @@ ThreadFunc(inference_backend_init)
     status = inf_ctx.api->CreateSession(inf_ctx.env, WCStrCast(vision_filepath_wide), inf_ctx.session_opt, &inf_ctx.vision_sess);
 #else
     status = inf_ctx.api->CreateSession(inf_ctx.env, StringCast(vision_filepath), inf_ctx.session_opt, &inf_ctx.vision_sess);
-
 #endif
     os_mutex_unlock(&inf_ctx.session_lock);
     res = GenResult(!status, Domain_Inference_ONNX, inf_ctx.api->GetErrorCode(status), inference_ort_err(inf_ctx.api->GetErrorCode(status)));
@@ -517,6 +522,8 @@ ThreadFunc(inference_backend_init)
     res = inference_query_model(StringCast(model_base));
     CheckAndClearResult(res);
     res = inference_parse_config(arena, StringCast(model_base));
+    CheckAndClearResult(res);
+    res = inference_tokenizer_init(StringCast(model_base));
     CheckAndClearResult(res);
 
     ins_atomic_u32_eval_assign(&inf_ctx.state, InferenceState_Ready);

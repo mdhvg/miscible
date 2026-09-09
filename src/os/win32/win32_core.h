@@ -10,10 +10,9 @@
 #define OS_THREAD_ROUTINE_T     LPTHREAD_START_ROUTINE
 
 #define OSSlash "\\"
-#define W(x)    Glue(L, x)
 #define LibExt  ".dll"
 
-typedef wchar OSChar;
+typedef wchar_t OSChar;
 typedef HANDLE FileHandle;
 
 typedef HMODULE LibHandle;
@@ -48,11 +47,18 @@ struct OSMmap
     HANDLE handle;
 };
 
-typedef struct OSInfo OSInfo;
 struct OSInfo
 {
-    OS_COMMON;
-    U64 microsecond_resolution;
+    Time start_time;
+    U64 start_ticks;
+    U64 ticks_per_sec;
+
+    U64 nproc;
+    U32 proc_id;
+    Process process;
+
+    U64 page_size;
+    Arena *arena;
 };
 
 inline void win32_sleep_ms(U64 ms)

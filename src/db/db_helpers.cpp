@@ -33,7 +33,8 @@ void db_close()
     {
         if (dbP)
         {
-            Assert(sqlite3_close(dbP) == SQLITE_OK, "failed to close db");
+            if (sqlite3_close(dbP) != SQLITE_OK)
+                mscbl_log_warn("failed to close db cleanly: %s", sqlite3_errmsg(dbP));
             dbP = NULL;
         }
     }

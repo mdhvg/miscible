@@ -97,7 +97,7 @@
 
 #define ToAbs(A)              (((A) < 0) ? ((A) * -1) : (A))
 #define ToBool(A)             (((A) != 0) ? (1) : (0))
-#define AlignUpPow2(A, B)     (((A) + (B) - 1) & (~((B) - 1)))
+#define AlignUpPow2(A, B)     (((A) + (MAX(B, 1)) - 1) & (~((MAX(B, 1)) - 1)))
 #define AlignDownPow2(A, B)   ((A) & (~((B) - 1)))
 #define IndexWrapPow2(A, B)   ((A) & ((B) - 1))
 #define ToCeilInt(A, B)       (((A) + (B - 1)) / (B))

@@ -2,7 +2,6 @@
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
 #pragma once
-#include <time.h>
 #include <stdio.h>
 
 #include "base/base_core.h"
@@ -29,9 +28,9 @@ global_v U64 log_build_path_len = sizeof(__FILE__) - sizeof("src/base/log.h");
 #define mscbl_log_bare(level, loc, fmt, ...) _mscbl_log_bare(level, loc, fmt "\n" __VA_OPT__(, ) __VA_ARGS__)
 #endif
 
-#define perf_beg(A) U64 __perf_start_##A = clock()
-#define perf_gap(A) clock() - __perf_start_##A
-#define perf_end(A) mscbl_log_info("[perf]: %.4fms", (F64)(clock() - __perf_start_##A) / CLOCKS_PER_SEC * 1000.0f)
+#define perf_beg(A) U64 __perf_start_##A = os_get_ticks_now()
+#define perf_gap(A) ((F64)(os_get_ticks_now() - __perf_start_##A) * 1000.0) / os_info.ticks_per_sec)
+#define perf_end(A) mscbl_log_info("[perf]: %.4fms", ((F64)(os_get_ticks_now() - __perf_start_##A) * 1000.0f) / (os_info.ticks_per_sec > 0 ? os_info.ticks_per_sec : 1000))
 
 #define Assert(x, message, ...)                                                               \
     do                                                                                        \

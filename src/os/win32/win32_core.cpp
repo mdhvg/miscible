@@ -4,22 +4,11 @@
 #include <ShObjIdl.h>
 #include <wchar.h>
 
-#include "base/base_core.h"
+#include "base/arena.h"
 #include "base/log.h"
 #include "os/os_inc.h"
 #include "base/array.h"
 #include "base/string.h"
-
-U64 os_now_microseconds(void)
-{
-    U64 result = 0;
-    LARGE_INTEGER large_int_counter;
-    if (QueryPerformanceCounter(&large_int_counter))
-    {
-        result = (large_int_counter.QuadPart * Mil(1)) / os_info.microsecond_resolution;
-    }
-    return result;
-}
 
 global_v U32 win32_sleep_ms_from_us(U64 end_us)
 {
@@ -27,11 +16,11 @@ global_v U32 win32_sleep_ms_from_us(U64 end_us)
         return INFINITE;
 
     U32 sleep_ms = 0;
-    U64 begint = os_now_microseconds();
+    U64 begint = os_get_ticks_now() / os_info.ticks_per_sec * Mil(1);
     if (begint < end_us)
     {
         U64 sleep_us = end_us - begint;
-        sleep_ms = (U32)((sleep_us + 999) / 1000);
+        sleep_ms = (U32)ToCeilInt(sleep_us, 1000);
     }
     return sleep_ms;
 }
@@ -42,12 +31,14 @@ global_v const U64 TICKS_PER_SECOND = 10000000;          //a tick is 100ns
 
 void win32_to_unix_timestamp(U64 *win_timestamp)
 {
+    if (!win_timestamp) return;
     *win_timestamp -= UNIX_TIME_START;
     *win_timestamp /= TICKS_PER_SECOND;
 }
 
 void win32_format_path(StringBuilder *dir)
 {
+    if (!dir) return;
     string_replace(dir, "\\", "/");
 }
 
@@ -69,17 +60,14 @@ Guid os_make_guid()
 
 void os_prelaunch()
 {
-    os_info.microsecond_resolution = 1;
-    LARGE_INTEGER large_int_resolution;
-    if (QueryPerformanceFrequency(&large_int_resolution))
-    {
-        os_info.microsecond_resolution = large_int_resolution.QuadPart;
-    }
+    os_info.start_time = os_get_localtime();
+    os_info.start_ticks = os_get_ticks_now();
+    os_info.ticks_per_sec = os_get_ticks_freq();
 
     SYSTEM_INFO sysinfo = {0};
     GetSystemInfo(&sysinfo);
+    os_info.nproc = sysinfo.dwNumberOfProcessors;
     os_info.page_size = sysinfo.dwPageSize;
-    os_info.worker_count = sysinfo.dwNumberOfProcessors;
 
     // Set terminal UTF-8
     SetConsoleOutputCP(CP_UTF8);
@@ -89,8 +77,11 @@ void os_prelaunch()
     CoInitialize(NULL);
 
     // For SymGetLineFromAddr64
+    os_info.proc_id = GetCurrentProcessId();
     os_info.process = GetCurrentProcess();
     SymInitialize(os_info.process, NULL, TRUE);
+
+    arena_alloc(MB(1), os_info.arena);
 }
 
 void os_cleanup()
@@ -105,6 +96,7 @@ const char *os_gethome()
 
 String os_env_var(const char *name, Arena *arena)
 {
+    if (!name || !arena) return {0};
     char buffer[KB(4)];
 
     U64 size = GetEnvironmentVariable(name, buffer, KB(4));
@@ -170,14 +162,14 @@ Time os_get_localtime()
 U64 os_get_ticks_now()
 {
     LARGE_INTEGER count;
-    QueryPerformanceCounter(&count);
-    return count.QuadPart;
+    Assert(QueryPerformanceCounter(&count), "Error Code: (%u)\n", GetLastError());
+    return (U64)count.QuadPart;
 }
 
 U64 os_get_ticks_freq()
 {
     LARGE_INTEGER freq;
-    QueryPerformanceFrequency(&freq);
+    Assert(QueryPerformanceFrequency(&freq) && freq.QuadPart != 0, "Error Code: (%u)\n", GetLastError());
     return freq.QuadPart;
 }
 
@@ -236,6 +228,7 @@ LibHandle os_loadlib(const char *filename)
 
 WString os_select_dir(const wchar *title, const wchar *default_path, Arena *arena)
 {
+    Assert(arena, "invalid arena passed");
     PWSTR path = NULL;
     IShellItem *res_psi = NULL;
     IShellItem *def_psi = NULL;
@@ -387,27 +380,27 @@ B32 os_semaphore_pop(Semaphore s, U64 end_us)
 
 void os_mutex_init(Mutex *mutex)
 {
-    InitializeCriticalSection(mutex);
+    if (mutex) InitializeCriticalSection(mutex);
 }
 
 void os_mutex_destroy(Mutex *mutex)
 {
-    DeleteCriticalSection(mutex);
+    if (mutex) DeleteCriticalSection(mutex);
 }
 
 void os_mutex_lock(Mutex *mutex)
 {
-    EnterCriticalSection(mutex);
+    if (mutex) EnterCriticalSection(mutex);
 }
 
 void os_mutex_unlock(Mutex *mutex)
 {
-    LeaveCriticalSection(mutex);
+    if (mutex) LeaveCriticalSection(mutex);
 }
 
 B32 os_mutex_trylock(Mutex *mutex)
 {
-    return (TryEnterCriticalSection(mutex) == 1) ? (1) : (0);
+    return (mutex && TryEnterCriticalSection(mutex) == 1) ? (1) : (0);
 }
 
 Thread os_thread_launch(LPTHREAD_START_ROUTINE fn, Worker *worker)
@@ -417,10 +410,7 @@ Thread os_thread_launch(LPTHREAD_START_ROUTINE fn, Worker *worker)
 
 void os_thread_detach(Thread t)
 {
-    if (t != 0)
-    {
-        CloseHandle(t);
-    }
+    if (t != 0) CloseHandle(t);
 }
 
 void os_thread_join(Thread t)
@@ -466,6 +456,7 @@ FileHandle _os_file_open(String path, FileAccess access, FileMode mode, Result *
 
 void os_file_delete(String path, Result *res)
 {
+    ClearResult(res);
     BOOL out = DeleteFile(CStrCast(path));
     Win32Trap(res, out);
 }

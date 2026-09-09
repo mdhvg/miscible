@@ -184,7 +184,7 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
             }
 
             // NOTE: wait until batch of draw_image commands finishes
-            os_semaphore_pop(batch_sem, U64_MAX);
+            if (!threadpool_participate(arena, &batch_size, batch_sem)) break;
 
             // NOTE: save the atlas and update the database as 1 transaction
             db_run("BEGIN TRANSACTION;");
