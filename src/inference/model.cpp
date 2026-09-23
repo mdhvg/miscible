@@ -221,10 +221,11 @@ void model_insert_embedding_impl(Arena *arena)
 //     return res.success;
 // }
 
-Result model_download_files(Arena *arena, RemoteFileArr files, String model_base)
+Result model_download_files(Arena *arena, const RemoteFile *files, U64 file_count, String model_base)
 {
     Result res = ResultSuccess();
-    for (S64 fi = 0; fi < arr_getsize(files); fi++)
+    if (!files || !file_count) return res;
+    for (U64 fi = 0; fi < file_count; fi++)
     {
         RemoteFile file = files[fi];
         StringBuilder file_path = string_init(arena, StringCast(model_base));

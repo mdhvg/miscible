@@ -2,8 +2,9 @@
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
 #pragma once
+#include "onnxruntime_c_api.h"
 #include "ortx_tokenizer.h"
-#include "base/base_core.h"
+
 #include "base/threadpool.h"
 
 enum InferenceState
@@ -41,10 +42,18 @@ struct Embedding
     S64 batch_size;
 };
 
+typedef struct
+{
+    String hw_desc;
+    String hw_vendor;
+    OrtHardwareDeviceType hw_type;
+} InferenceHardware, *InferenceHardwareArr;
+
 MSCBL_API void inference_init();
 MSCBL_API void inference_close();
 MSCBL_API InferenceState inference_state_get();
 MSCBL_API VisionModelConfig *inference_preprocess_get();
+MSCBL_API InferenceHardwareArr inference_hardware_get();
 MSCBL_API Embedding inference_text_embedding(Arena *arena, String input);
 MSCBL_API Embedding inference_vision_embedding(Arena *arena, F32 *data, U32 batch_size);
 

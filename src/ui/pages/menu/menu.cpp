@@ -19,6 +19,7 @@
 #include "ui/ui_core.h"
 #include "app/miscible.h"
 #include "base/base_core.h"
+#include "inference/inference.h"
 
 void zoom_controls()
 {
@@ -52,7 +53,7 @@ void sort_controls()
             B32 is_selected = (ui_state.view_query.sort_basis == option.type);
             if (ImGui::Selectable(option.text, is_selected))
             {
-                mscbl_config.view_settings.sort_basis = option.type;
+                config_set_var(view_settings.sort_basis, option.type);
                 ui_state.view_query.sort_basis = option.type;
                 if (option.type == SortType_Size)
                 {
@@ -211,7 +212,7 @@ void menu_draw_docked_topbar(ImGuiWindowFlags flags)
             if (ImGui::Button(direction_icon, ImVec2(direction_btn_width, search_height)))
             {
                 B32 switched_direction = !ui_state.view_query.descending;
-                mscbl_config.view_settings.descending = switched_direction;
+                config_set_var(view_settings.descending, switched_direction);
                 ui_state.view_query.descending = switched_direction;
 
                 view_fetch_new();
@@ -221,8 +222,43 @@ void menu_draw_docked_topbar(ImGuiWindowFlags flags)
         ImGui::SameLine();
         if (ImGui::Button(ICON_LC_SETTINGS, ImVec2(settings_btn_width, search_height)))
         {
+            ImGui::OpenPopup("Settings");
             ui_push_message({.success = 0, .domain = Domain_App, .code = 1, .context = "implementation pending"});
             // TODO: this
+        }
+
+        ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+        ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        if (ImGui::BeginPopupModal("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            ImGui::PushFont(ui_state.title_font);
+            ImGui::Text("Available Hardware:");
+            ImGui::PopFont();
+            ImGui::Separator();
+
+            InferenceHardwareArr hardware = inference_hardware_get();
+            for (U32 i = 0; i < arr_getsize(hardware); i++)
+            {
+                DeferLoop(ImGui::BeginGroup(), ImGui::EndGroup())
+                {
+                    ImGui::Text("%.*s", StringSpr(hardware[i].hw_desc));
+                    ImGui::PushStyleColor(ImGuiCol_Text, MSCBL_FOREGROUND_MUTED);
+                    switch (hardware[i].hw_type)
+                    {
+                    case OrtHardwareDeviceType_CPU: ImGui::Text("Vendor: %.*s | Device Type: CPU", StringSpr(hardware[i].hw_vendor)); break;
+                    case OrtHardwareDeviceType_GPU: ImGui::Text("Vendor: %.*s | Device Type: GPU", StringSpr(hardware[i].hw_vendor)); break;
+                    case OrtHardwareDeviceType_NPU: ImGui::Text("Vendor: %.*s | Device Type: NPU", StringSpr(hardware[i].hw_vendor)); break;
+                    }
+                    ImGui::PopStyleColor();
+                }
+
+                ImGui::PushStyleColor(ImGuiCol_Button, MSCBL_PRIMARY);
+                ImGui::PopStyleColor();
+            }
+            ImGui::Separator();
+
+            if (ImGui::Button("Close")) ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
         }
     }
     ImGui::PopStyleVar();

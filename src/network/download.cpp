@@ -47,37 +47,36 @@ static U64 largefile_cbk(U8 *data, U64 n, U64 l, void *userp)
 
 ThreadFunc(download_worker)
 {
-    arena_clear(arena);
     Assert(args[0].kind == TPData_Any, "wrong datatype");
     Assert(args[1].kind == TPData_S64, "wrong datatype");
     Assert(args[2].kind == TPData_U64, "wrong datatype");
     Assert(args[3].kind == TPData_String, "wrong datatype");
     Assert(args[4].kind == TPData_FileDesc, "wrong datatype");
 
-    U8 *state_array = (U8 *)args[0].val_any;
-    S64 index = args[1].val_s64;
-    U64 file_size = args[2].val_u64;
-    String file_url = args[3].val_str;
-    FileHandle file_desc = args[4].val_filedesc;
-
-    U64 start = index * DOWNLOAD_PIECE_SIZE;
-    U64 end = MIN(start + DOWNLOAD_PIECE_SIZE - 1, file_size - 1);
-    U64 size = end - start + 1;
-
-    char range[256] = {0};
-    snprintf(range, 256, "%zu-%zu", start, end);
-    U8 *array = push_array(arena, size, U8);
-    cbk_params params1 = {0};
-
-    CURLcode curl_err = CURLE_OK;
-    Result res = ResultSuccess();
-
+    arena_clear(arena);
     ArenaScoped(arena)
     {
+        U8 *state_array = (U8 *)args[0].val_any;
+        S64 index = args[1].val_s64;
+        U64 file_size = args[2].val_u64;
+        String file_url = args[3].val_str;
+        FileHandle file_desc = args[4].val_filedesc;
+
+        U64 start = index * DOWNLOAD_PIECE_SIZE;
+        U64 end = MIN(start + DOWNLOAD_PIECE_SIZE - 1, file_size - 1);
+        U64 size = end - start + 1;
+
+        char range[256] = {0};
+        snprintf(range, 256, "%zu-%zu", start, end);
+        U8 *array = push_array(arena, size, U8);
+        cbk_params params1 = {0};
+
+        CURLcode curl_err = CURLE_OK;
+        Result res = ResultSuccess();
+
         CURL *curl = NULL;
         curl = curl_easy_init();
-        if (!curl)
-            continue;
+        if (!curl) continue;
 
         for (U32 i = 0; i < DOWNLOAD_RETRIES; i++)
         {
@@ -278,6 +277,7 @@ Result download_small_file(Arena *arena, DownloadArgs args)
 {
     Result res = ResultSuccess();
     Result cleanup_res = ResultSuccess();
+    Temp scratch = temp_begin(arena);
 
     CURL *curl = NULL;
     FileHandle file = 0;
@@ -344,7 +344,6 @@ Result download_small_file(Arena *arena, DownloadArgs args)
     CheckAndClearResult(res);
     os_file_close(file, &res);
     CheckAndClearResult(res);
-
     goto Return;
 
 CurlError:
@@ -360,6 +359,7 @@ Cleanup:
 Return:
     if (curl)
         curl_easy_cleanup(curl);
+    temp_end(scratch);
 
     return res;
 }

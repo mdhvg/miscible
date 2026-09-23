@@ -1,0 +1,27 @@
+#define __mscbl_cfg_text R"(
+
+# Copyright (c) 2025-2026 Madhav Goyal
+# Licensed under the GNU General Public License v3.0 (see LICENSE)
+
+AppData: "~/Miscible"
+AtlasDir: "$/atlas"
+DBPath: "$/miscible.sqlite"
+
+Settings:
+  LogAge: 10                # delete logs older than this date
+  ScanDepth: 15
+  FontSize: 16.0
+
+ViewSettings:
+  SortBasis: 4
+  Descending: 0
+
+Inference:
+  BaseDir: "$/models"
+  Hardware: 0 # TODO: This might have to change/go while making config compatible for OpenVino
+  Active:
+    Backend: ONNX
+    Precision: 1
+    Name: CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX
+
+### DO NOT EDIT THIS LINE ### )"

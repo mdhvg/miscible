@@ -18,6 +18,8 @@
 #define THUMB_SIZE     256
 
 #if OS_WIN32
+#define APP_HOME_ENV "USERPROFILE"
+#define APP_APPEND   Stringify(APP_NAME)
 #define LOG_BASE_ENV "LOCALAPPDATA"
 #define LOG_APPEND   Stringify(APP_NAME) "\\logs\\"
 #elif OS_LINUX

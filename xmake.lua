@@ -1,6 +1,6 @@
-includes("Xmake/setup.lua")
-includes("Xmake/cmake-build.lua")
-includes("Xmake/config-setup.lua")
+includes("xmake/setup.lua")
+includes("xmake/dynamic.lua")
+includes("xmake/cmake-build.lua")
 
 add_rules("mode.debug", "mode.release")
 
@@ -128,23 +128,10 @@ end)
 add_deps("libmiscible")
 add_files("src/ui/pages/pages.cpp")
 
--- bin2c
-target("bin2c")
-set_kind("binary")
-add_files("scripts/bin2c.c")
-after_build(function()
-	os.mkdir("src/_dynamic")
-	os.execv("build/bin2c", { "data/icon.png", "icon", "src/_dynamic/icon.c" })
-	os.execv("build/bin2c", { "fonts/lucide.ttf", "lucide_font", "src/_dynamic/lucide.c" })
-	os.execv("build/bin2c", { "fonts/Geist.ttf", "geist_font", "src/_dynamic/geist.c" })
-	os.execv("build/bin2c", { "fonts/InstrumentSans.ttf", "instrumentsans_font", "src/_dynamic/instrument.c" })
-end)
-
 -- Miscible.exe
 target("miscible")
 set_kind("binary")
 set_basename("Miscible")
-add_rules("create_config")
 add_files("src/main.cpp")
 if is_mode("release") then
 	if is_plat("windows") then
@@ -177,8 +164,8 @@ if is_mode("release") then
 	add_links("ortcustomops")
 	add_links("onnxruntime")
 
-	add_deps("bin2c")
 	add_deps("setup")
+	add_deps("dynamic")
 	add_deps("onnxruntime", { inherited = false })
 else
 	add_deps("pages", { inherited = false })

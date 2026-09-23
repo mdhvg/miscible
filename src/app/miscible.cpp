@@ -55,9 +55,7 @@ ThreadFunc(init_scan)
     }
     sqlite3_finalize(stmt);
 
-    // view_refresh();
-
-    // TODO: run a continuous scan afterwards
+    cont_scan(arena);
 }
 
 ThreadFunc(init_atlas)
@@ -86,7 +84,7 @@ S32 mscbl_start(S32 argc, char **argv)
 
     os_prelaunch();
     arena_alloc(MB(1), app_arena);
-    config_init();
+    config_init(app_arena);
 
     mscbl_log_init(mscbl_config.settings.log_age_days);
 
@@ -120,6 +118,7 @@ S32 mscbl_start(S32 argc, char **argv)
     db_close();
 
     mscbl_log_deinit();
+    config_deinit(app_arena);
     os_cleanup();
 
     return 0;

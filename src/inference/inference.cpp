@@ -1,24 +1,26 @@
 // Copyright (c) 2025-2026 Madhav Goyal
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
-#include "base/base_core.h"
 #include "jsmn.h"
 #include "onnxruntime/core/session/onnxruntime_c_api.h"
 #include "onnxruntime/core/providers/dml/dml_provider_factory.h"
 
 #include "ortx_types.h"
-#include "ortx_utils.h"
 #include "ortx_tokenizer.h"
 
 #include "config.h"
 #include "base/log.h"
 #include "os/os_inc.h"
+#include "base/array.h"
 #include "ui/ui_core.h"
 #include "app/miscible.h"
 #include "inference/ort.h"
 #include "inference/ops.h"
 #include "inference/model.h"
 #include "inference/inference.h"
+
+// Dynamic files
+#include "_dynamic/manifest.cpp"
 
 struct InferenceContext
 {
@@ -40,12 +42,15 @@ struct InferenceContext
 
     OrtSession *text_sess;
     OrtSession *vision_sess;
+
+    InferenceHardwareArr hardware;
 };
 
 InferenceContext inf_ctx = {.api = 0};
 
 void inference_init()
 {
+    arena_alloc(MB(1), inf_ctx.arena);
     inf_ctx.api = OrtGetApiBase()->GetApi(ORT_API_VERSION);
     Assert(inf_ctx.api, "Failed to fetch ONNX Runtime API table");
     os_mutex_init(&inf_ctx.session_lock);
@@ -62,7 +67,9 @@ void inference_close()
 {
     ins_atomic_u32_eval_assign(&inf_ctx.state, InferenceState_Uninitialized);
 
+    os_mutex_lock(&inf_ctx.text_cfg.tokenizer_lock);
     OrtxDisposeOnly(inf_ctx.text_cfg.tokenizer);
+    os_mutex_unlock(&inf_ctx.text_cfg.tokenizer_lock);
     os_mutex_destroy(&inf_ctx.text_cfg.tokenizer_lock);
 
     inf_ctx.api->SessionOptionsSetLoadCancellationFlag(inf_ctx.session_opt, 1);
@@ -71,11 +78,22 @@ void inference_close()
     if (inf_ctx.text_sess) inf_ctx.api->ReleaseSession(inf_ctx.text_sess);
     if (inf_ctx.vision_sess) inf_ctx.api->ReleaseSession(inf_ctx.vision_sess);
     os_mutex_unlock(&inf_ctx.session_lock);
-
     os_mutex_destroy(&inf_ctx.session_lock);
 
     if (inf_ctx.session_opt) inf_ctx.api->ReleaseSessionOptions(inf_ctx.session_opt);
     if (inf_ctx.env) inf_ctx.api->ReleaseEnv(inf_ctx.env);
+}
+
+void inference_switch_hardware()
+{
+    ins_atomic_u32_eval_assign(&inf_ctx.state, InferenceState_Initializing);
+    DeferLoop(os_mutex_lock(&inf_ctx.session_lock), os_mutex_unlock(&inf_ctx.session_lock))
+    {
+        // Teardown sessions and session options
+        // Switch device in session options
+        // Re-create sessions with new session options
+    }
+    ins_atomic_u32_eval_assign(&inf_ctx.state, InferenceState_Ready);
 }
 
 InferenceState inference_state_get()
@@ -86,6 +104,11 @@ InferenceState inference_state_get()
 VisionModelConfig *inference_preprocess_get()
 {
     return &inf_ctx.vision_cfg;
+}
+
+InferenceHardwareArr inference_hardware_get()
+{
+    return inf_ctx.hardware;
 }
 
 static B32 check_token(jsmntok_t *token, String key, String content)
@@ -412,6 +435,36 @@ Embedding inference_vision_embedding(Arena *arena, F32 *data, U32 batch_size)
     return output;
 }
 
+void inference_fetch_hardware(Arena *arena)
+{
+    U64 device_count = 0;
+    const OrtEpDevice *const *ep_devices = NULL;
+    OrtStatus *status = inf_ctx.api->GetEpDevices(inf_ctx.env, &ep_devices, &device_count);
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
+    da_setcap(arena, inf_ctx.hardware, device_count);
+
+    for (U64 i = 0; i < device_count; i++)
+    {
+        const OrtEpDevice *device = ep_devices[i];
+        if (device != NULL)
+        {
+            const OrtHardwareDevice *dvc = inf_ctx.api->EpDevice_Device(device);
+
+            U64 count = 0;
+            const char *const *keys = NULL;
+            const char *const *vals = NULL;
+            inf_ctx.api->GetKeyValuePairs(inf_ctx.api->HardwareDevice_Metadata(dvc), &keys, &vals, &count);
+
+            InferenceHardware hardware_info = {
+                .hw_desc = string_copy(arena, vals[0]),
+                .hw_vendor = string_copy(arena, inf_ctx.api->HardwareDevice_Vendor(dvc)),
+                .hw_type = inf_ctx.api->HardwareDevice_Type(dvc),
+            };
+            da_push(arena, inf_ctx.hardware, hardware_info);
+        }
+    }
+}
+
 ThreadFunc(inference_backend_init)
 {
     ins_atomic_u32_eval_assign(&inf_ctx.state, InferenceState_Initializing);
@@ -433,7 +486,16 @@ ThreadFunc(inference_backend_init)
 
     status = inf_ctx.api->GetExecutionProviderApi("DML", ORT_API_VERSION, (const void **)&inf_ctx.dml_api);
     Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
-    status = inf_ctx.dml_api->SessionOptionsAppendExecutionProvider_DML(inf_ctx.session_opt, 0);
+
+    // fetch available hardware list before setting one
+    inference_fetch_hardware(inf_ctx.arena);
+    U32 inference_hardware = mscbl_config.inf_settings.dml_device;
+    if (inference_hardware >= arr_getsize(inf_ctx.hardware))
+    {
+        inference_hardware = 0;
+        mscbl_log_warn("Preferred inference hardware not available. Using default %.*s", StringSpr(inf_ctx.hardware[0].hw_desc));
+    }
+    status = inf_ctx.dml_api->SessionOptionsAppendExecutionProvider_DML(inf_ctx.session_opt, inference_hardware);
     if (status)
         mscbl_log_warn("ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 #else
@@ -444,19 +506,52 @@ ThreadFunc(inference_backend_init)
         mscbl_log_warn("ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
 #endif
 
-    // U64 device_count = 0;
-    // const OrtEpDevice *const *ep_devices = NULL;
-    // status = inf_ctx.api->GetEpDevices(inf_ctx.env, &ep_devices, &device_count);
-    // Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
-    //
-    // for (U64 i = 0; i < device_count; i++)
-    // {
-    //     const OrtEpDevice *device = ep_devices[i];
-    //     if (device != NULL)
-    //     {
-    //         mscbl_log_info("Device: %s - %s", inf_ctx.api->EpDevice_EpVendor(device), inf_ctx.api->EpDevice_EpName(device));
-    //     }
-    // }
+    U64 device_count = 0;
+    const OrtEpDevice *const *ep_devices = NULL;
+    status = inf_ctx.api->GetEpDevices(inf_ctx.env, &ep_devices, &device_count);
+    Assert(!status, "ORT API Error: %.*s", StringSpr(ORTErrorMessage(inf_ctx.api, status)));
+
+    for (U64 i = 0; i < device_count; i++)
+    {
+        const OrtEpDevice *device = ep_devices[i];
+        if (device != NULL)
+        {
+            mscbl_log_info("Device: %s - %s", inf_ctx.api->EpDevice_EpVendor(device), inf_ctx.api->EpDevice_EpName(device));
+            const OrtHardwareDevice *dvc = inf_ctx.api->EpDevice_Device(device);
+
+            OrtHardwareDeviceType dvc_type = inf_ctx.api->HardwareDevice_Type(dvc);
+            U32 dvc_vid = inf_ctx.api->HardwareDevice_VendorId(dvc);
+            const char *dvc_vnd = inf_ctx.api->HardwareDevice_Vendor(dvc);
+            U32 dvc_hid = inf_ctx.api->HardwareDevice_DeviceId(dvc);
+
+            mscbl_log_info("Info:");
+            switch (dvc_type)
+            {
+            case OrtHardwareDeviceType_CPU: mscbl_log_info("\tType: CPU"); break;
+            case OrtHardwareDeviceType_GPU: mscbl_log_info("\tType: GPU"); break;
+            case OrtHardwareDeviceType_NPU: mscbl_log_info("\tType: NPU"); break;
+            }
+            mscbl_log_info("\tVID: %u", dvc_vid);
+            mscbl_log_info("\tVendor: %s", dvc_vnd);
+            mscbl_log_info("\tHID: %u", dvc_hid);
+
+            const OrtKeyValuePairs *dvc_kv = inf_ctx.api->HardwareDevice_Metadata(dvc);
+            if (dvc_kv)
+            {
+                const char *const *keys = NULL;
+                const char *const *vals = NULL;
+                U64 size = 0;
+
+                inf_ctx.api->GetKeyValuePairs(dvc_kv, &keys, &vals, &size);
+
+                mscbl_log_info("\tMetadata:");
+                for (U64 k = 0; k < size; k++)
+                {
+                    mscbl_log_info("\t\t[%s] => %s", keys[k] ? keys[k] : "_", vals[k] ? vals[k] : "_");
+                }
+            }
+        }
+    }
 
     ActiveModel active_model = mscbl_config.inf_settings.active;
 
@@ -465,10 +560,10 @@ ThreadFunc(inference_backend_init)
     os_mkdirs(StringCast(model_base));
 
     StringBuilder text_filepath = string_init(arena, StringCast(model_base));
-    path_join(&text_filepath, active_model.variant->text_files[0].name);
+    path_join(&text_filepath, active_model.variant->text[0].name);
 
     StringBuilder vision_filepath = string_init(arena, StringCast(model_base));
-    path_join(&vision_filepath, active_model.variant->vision_files[0].name);
+    path_join(&vision_filepath, active_model.variant->vision[0].name);
 
     StringBuilder checkpoint_path = string_init(arena, mscbl_config.inf_settings.base_dir);
     path_join(&checkpoint_path, sv(".checkpoint"));
@@ -478,11 +573,11 @@ ThreadFunc(inference_backend_init)
 
     if (!os_path_exists(StringCast(checkpoint_path), &res))
     {
-        res = model_download_files(arena, active_model.group->common_files, StringCast(model_base));
+        res = model_download_files(arena, active_model.group->common_files, active_model.group->common_files_size, StringCast(model_base));
         if (!res.success) goto Cleanup;
-        res = model_download_files(arena, active_model.variant->text_files, StringCast(model_base));
+        res = model_download_files(arena, active_model.variant->text, active_model.variant->text_size, StringCast(model_base));
         if (!res.success) goto Cleanup;
-        res = model_download_files(arena, active_model.variant->vision_files, StringCast(model_base));
+        res = model_download_files(arena, active_model.variant->vision, active_model.variant->vision_size, StringCast(model_base));
         if (!res.success) goto Cleanup;
 
         checkpoint_handle = os_file_open(StringCast(checkpoint_path), FileAccess_Write, FileMode_CreateAlways, &res);
@@ -499,8 +594,7 @@ ThreadFunc(inference_backend_init)
 
     os_mutex_lock(&inf_ctx.session_lock);
 #if OS_WIN32
-    WString text_filepath_wide = string_to_wide(arena, StringCast(text_filepath));
-    status = inf_ctx.api->CreateSession(inf_ctx.env, WCStrCast(text_filepath_wide), inf_ctx.session_opt, &inf_ctx.text_sess);
+    status = inf_ctx.api->CreateSession(inf_ctx.env, WCStrCast(string_to_wide(arena, StringCast(text_filepath))), inf_ctx.session_opt, &inf_ctx.text_sess);
 #else
     status = inf_ctx.api->CreateSession(inf_ctx.env, StringCast(text_filepath), inf_ctx.session_opt, &inf_ctx.text_sess);
 #endif
@@ -510,8 +604,7 @@ ThreadFunc(inference_backend_init)
 
     os_mutex_lock(&inf_ctx.session_lock);
 #if OS_WIN32
-    WString vision_filepath_wide = string_to_wide(arena, StringCast(vision_filepath));
-    status = inf_ctx.api->CreateSession(inf_ctx.env, WCStrCast(vision_filepath_wide), inf_ctx.session_opt, &inf_ctx.vision_sess);
+    status = inf_ctx.api->CreateSession(inf_ctx.env, WCStrCast(string_to_wide(arena, StringCast(vision_filepath))), inf_ctx.session_opt, &inf_ctx.vision_sess);
 #else
     status = inf_ctx.api->CreateSession(inf_ctx.env, StringCast(vision_filepath), inf_ctx.session_opt, &inf_ctx.vision_sess);
 #endif

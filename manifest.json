@@ -1,0 +1,155 @@
+{
+  "GGML": [
+    {
+      "Name": "CLIP-ViT-B-32-laion2B-s34B-b79K",
+      "Files": [
+        {
+          "Size": 303810624,
+          "Hash": "3429c49c2848325b0da06879f5fe373a1f1cd099d4db0ed94667a385eac62507",
+          "Name": "model.gguf",
+          "URL": "https://github.com/mdhvg/miscible/releases/download/Model-CLIP-1.0/CLIP-ViT-B-32-laion2B-s34B-b79K.gguf"
+        }
+      ]
+    }
+  ],
+  "ONNX": [
+    {
+      "Name": "CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX",
+      "Files": [
+        {
+          "Name": "config.json",
+          "Size": 1134,
+          "Hash": "c1d049824575fc7e2a68e7a75f556da00c8e240b08ef2f11f40fe901de637838",
+          "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/config.json"
+        },
+        {
+          "Name": "preprocessor_config.json",
+          "Size": 466,
+          "Hash": "205d45875859846dc1ca211b9a19f5db72f47e953b396954ee34d48d8e95c3c6",
+          "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/preprocessor_config.json"
+        },
+        {
+          "Name": "special_tokens_map.json",
+          "Size": 588,
+          "Hash": "2cdb3b8331a60c92fc1e55a13e9fd61fd2293c5a51275fdcccd62b780052530e",
+          "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/special_tokens_map.json"
+        },
+        {
+          "Name": "tokenizer.json",
+          "Size": 3642073,
+          "Hash": "6d9109cc838977f3ca94a379eec36aecc7c807e1785cd729660ca2fc0171fb35",
+          "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/tokenizer.json"
+        },
+        {
+          "Name": "tokenizer_config.json",
+          "Size": 774,
+          "Hash": "c3d2a67c48a59ffa8fd92de060608524b12cae93acb4fe83e5eb03147a001f5a",
+          "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/tokenizer_config.json"
+        },
+        {
+          "Name": "vocab.json",
+          "Size": 862328,
+          "Hash": "5047b556ce86ccaf6aa22b3ffccfc52d391ea4accdab9c2f2407da5b742d4363",
+          "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/vocab.json"
+        }
+      ],
+      "Variants": [
+        {
+          "Precision": 1,
+          "Text": [
+            {
+              "Name": "text.onnx",
+              "Size": 254048619,
+              "Hash": "eb560e288e3d698445cc19f5f1e83161f7c84f2f1cfb3f0e92563220815ec203",
+              "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/text.onnx"
+            }
+          ],
+          "Vision": [
+            {
+              "Name": "vision.onnx",
+              "Size": 351679426,
+              "Hash": "2be2f14bee852367c5c9165b4ef03bc77a11ffc7f910fb280ed5727544bb15f0",
+              "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/vision.onnx"
+            }
+          ]
+        },
+        {
+          "Precision": 3,
+          "Text": [
+            {
+              "Name": "text_int8.onnx",
+              "Size": 64142129,
+              "Hash": "38419ac304d576027830f15a185480c6f56f82142ed159a1bbd1545b1411ce41",
+              "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/text_int8.onnx"
+            }
+          ],
+          "Vision": [
+            {
+              "Name": "vision_int8.onnx",
+              "Size": 88640798,
+              "Hash": "3ba9fba371fae14fe82017aec1097311ebc151441d38a80184046da0d267760a",
+              "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/vision_int8.onnx"
+            }
+          ]
+        },
+        {
+          "Precision": 4,
+          "Text": [
+            {
+              "Name": "text_uint8.onnx",
+              "Size": 64142173,
+              "Hash": "1ecf1ec56f39717fcb03ced9fc12bb349ac0e1ad004b40187d383f369bc174a7",
+              "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/text_uint8.onnx"
+            }
+          ],
+          "Vision": [
+            {
+              "Name": "vision_uint8.onnx",
+              "Size": 88640833,
+              "Hash": "1e8066dfc4eae5fd898917827ff355938c1204916f8f3d05c4f089e08a3ca79e",
+              "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/vision_uint8.onnx"
+            }
+          ]
+        },
+        {
+          "Precision": 5,
+          "Text": [
+            {
+              "Name": "text_q4.onnx",
+              "Size": 125760195,
+              "Hash": "f61be730acc9da3dbb18441ccec57757f4655e68b52e346a551e9a9de36e5f08",
+              "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/text_q4.onnx"
+            }
+          ],
+          "Vision": [
+            {
+              "Name": "vision_q4.onnx",
+              "Size": 63697860,
+              "Hash": "2f8fb80d59f43ef162abb7f4d87a064922a820836b5ab21cd0deb01328825916",
+              "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/vision_q4.onnx"
+            }
+          ]
+        },
+        {
+          "Precision": 7,
+          "Text": [
+            {
+              "Name": "text_bnb4.onnx",
+              "Size": 125760195,
+              "Hash": "f61be730acc9da3dbb18441ccec57757f4655e68b52e346a551e9a9de36e5f08",
+              "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/text_bnb4.onnx"
+            }
+          ],
+          "Vision": [
+            {
+              "Name": "vision_bnb4.onnx",
+              "Size": 63697860,
+              "Hash": "2f8fb80d59f43ef162abb7f4d87a064922a820836b5ab21cd0deb01328825916",
+              "URL": "https://huggingface.co/mdhvg/CLIP-ViT-B-32-laion2B-s34B-b79K-ONNX/resolve/main/vision_bnb4.onnx"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

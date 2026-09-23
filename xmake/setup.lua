@@ -1,3 +1,5 @@
+includes("dynamic.lua")
+
 task("deps")
 on_run(function()
 	function download_and_extract(module)
@@ -151,6 +153,7 @@ end)
 
 target("setup")
 set_kind("phony")
+add_deps("dynamic")
 on_build(function(target)
 	import("core.project.task")
 	task.run("deps")

@@ -1,75 +1,23 @@
 // Copyright (c) 2025-2026 Madhav Goyal
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
-#include "libfyaml/libfyaml-core.h"
 #include "sha2.h"
+#include "libfyaml.h"
+#include "libfyaml/libfyaml-core.h"
+#include "libfyaml/libfyaml-util.h"
 
 #include "yaml.h"
-#include "db/view.h"
 #include "config.h"
+#include "db/view.h"
 #include "base/log.h"
-#include "os/os_inc.h"
 #include "base/array.h"
 #include "base/string.h"
 #include "app/miscible.h"
+#include "inference/manifest.h"
 
 Config mscbl_config = {0};
-
-RemoteFileArr config_parse_remote_file(Arena *arena, fy_node *array)
-{
-    RemoteFileArr files = NULL;
-    fy_node *cur = NULL;
-    void *pre = NULL;
-
-    while ((cur = fy_node_sequence_iterate(array, &pre)))
-    {
-        RemoteFile file = {
-            .size = yaml_scan_int(cur, "/Size"),
-            .url = yaml_scan_string(arena, cur, "/URL"),
-            .name = yaml_scan_string(arena, cur, "/Name"),
-        };
-        yaml_scan_hash(cur, file.hash, SHA256_DIGEST_SIZE, "/Hash");
-
-        da_push(arena, files, file);
-    }
-
-    return files;
-}
-
-ModelGroupArr config_parse_model_groups(Arena *arena, fy_node *root)
-{
-    if (fy_node_sequence_is_empty(root))
-        return NULL;
-
-    fy_node *cur = NULL;
-    void *pre = NULL;
-    ModelGroupArr groups = NULL;
-    while ((cur = fy_node_sequence_iterate(root, &pre)))
-    {
-        ModelGroup group = {
-            .name = yaml_scan_string(arena, cur, "/Name"),
-            .common_files = config_parse_remote_file(arena, fy_node_by_path(cur, "/Files", FY_NT, FYNWF_FOLLOW)),
-        };
-
-        {
-            fy_node *cur1 = NULL;
-            void *pre1 = NULL;
-
-            fy_node *variants_node = fy_node_by_path(cur, "/Variants", FY_NT, FYNWF_FOLLOW);
-            while ((cur1 = fy_node_sequence_iterate(variants_node, &pre1)))
-            {
-                ModelVariant variant = {.precision = (Precision)yaml_scan_int(cur1, "/Precision")};
-
-                variant.text_files = config_parse_remote_file(arena, fy_node_by_path(cur1, "/Text", FY_NT, FYNWF_FOLLOW));
-                variant.vision_files = config_parse_remote_file(arena, fy_node_by_path(cur1, "/Vision", FY_NT, FYNWF_FOLLOW));
-                da_push(arena, group.variants, variant);
-            }
-        }
-        da_push(arena, groups, group);
-    }
-
-    return groups;
-}
+String config_path = {0};
+B32 config_dirty = 0;
 
 /*
  * Reserved symbols
@@ -79,12 +27,9 @@ ModelGroupArr config_parse_model_groups(Arena *arena, fy_node *root)
  * For eg. if app_data is ~/Miscible, "$/atlas" resolves to ~/Miscible/atlas
  */
 
-Config default_config(Arena *arena)
+Config config_parse(Arena *arena, String config_content)
 {
-#include "config.yaml"
-    String config_text = sv(__mscbl_cfg_text);
-
-    fy_document *config_doc = fy_document_build_from_string(NULL, CStrCast(config_text), config_text.size);
+    fy_document *config_doc = fy_document_build_from_string(NULL, CStrCast(config_content), config_content.size);
     Assert(config_doc, "fyd is NULL");
     fy_node *config_root = fy_document_root(config_doc);
 
@@ -105,9 +50,11 @@ Config default_config(Arena *arena)
         },
 
         .inf_settings = {
-            .base_dir = yaml_scan_string(arena, config_root, "/Inference/BaseDir"),                                         // To stop formatter from collapsing these
-            .ggml = config_parse_model_groups(arena, fy_node_by_path(config_root, "/Inference/GGML", FY_NT, FYNWF_FOLLOW)), // To stop formatter from collapsing these
-            .onnx = config_parse_model_groups(arena, fy_node_by_path(config_root, "/Inference/ONNX", FY_NT, FYNWF_FOLLOW)), // To stop formatter from collapsing these
+#if OS_WIN32
+            .dml_device = (U32)yaml_scan_int(config_root, "/Inference/Hardware"),
+#elif OS_LINUX
+#endif
+            .base_dir = yaml_scan_string(arena, config_root, "/Inference/BaseDir"), // To stop formatter from collapsing these
         },
     };
 
@@ -115,29 +62,31 @@ Config default_config(Arena *arena)
     String model_name = yaml_scan_string(arena, fy_node_by_path(config_root, "/Inference/Active", FY_NT, FYNWF_FOLLOW), "/Name");
     U64 model_precision = yaml_scan_int(fy_node_by_path(config_root, "/Inference/Active", FY_NT, FYNWF_FOLLOW), "/Precision");
 
-    ModelGroupArr backend_group = NULL;
+    ModelGroup *backend_group = NULL;
+    U64 backend_group_size = 0;
     if (!string_cmp(backend, sv("ONNX")))
     {
         config.inf_settings.active.backend = Backend_ONNX;
-        backend_group = config.inf_settings.onnx;
+        backend_group = onnx_groups;
+        backend_group_size = onnx_groups_size;
     }
     else
     {
         config.inf_settings.active.backend = Backend_GGML;
-        backend_group = config.inf_settings.ggml;
+        backend_group = ggml_groups;
+        backend_group_size = ggml_groups_size;
     }
 
-    for (S64 gi = 0; gi < arr_getsize(backend_group); gi++)
+    for (S64 gi = 0; gi < backend_group_size; gi++)
     {
         if (!string_cmp(backend_group[gi].name, model_name))
         {
             config.inf_settings.active.group = &backend_group[gi];
-            ModelVariantArr variants = backend_group[gi].variants;
-            for (S64 vi = 0; vi < arr_getsize(variants); vi++)
+            for (S64 vi = 0; vi < backend_group[gi].variants_size; vi++)
             {
-                if (variants[vi].precision == model_precision)
+                if (backend_group[gi].variants[vi].precision == model_precision)
                 {
-                    config.inf_settings.active.variant = &variants[vi];
+                    config.inf_settings.active.variant = &backend_group[gi].variants[vi];
                     break;
                 }
             }
@@ -145,6 +94,7 @@ Config default_config(Arena *arena)
         }
     }
 
+    fy_document_destroy(config_doc);
     return config;
 }
 
@@ -189,29 +139,133 @@ void setup_dirs(Arena *arena, Config *config)
     config->inf_settings.base_dir = StringCast(model_base);
 }
 
-void config_init()
+void config_init(Arena *arena)
 {
-    // TODO: Put a check for existing config.yaml file
-    mscbl_config = default_config(app_arena);
-    setup_dirs(app_arena, &mscbl_config);
+    String root = os_env_var(APP_HOME_ENV, arena);
+    String append = sv(APP_APPEND);
 
-    // if (!os_path_exist(config_path))
-    // {
-    //     os_mkdir()
-    // }
-    // else
-    // {
-    // FILE *cfg_file = fopen(CStrCast(config_path), "r");
-    // Assert(cfg_file);
-    //
-    // fseek(cfg_file, 0, SEEK_END);
-    // U64 size = ftell(cfg_file);
-    // fseek(cfg_file, 0, SEEK_SET);
-    //
-    // U8 *buffer = push_array(config_arena, size, U8);
-    // Assert(fread(buffer, 1, size, cfg_file) == size);
-    // fclose(cfg_file);
-    //
-    // fy_document *fyd = fy_document_build_from_string(NULL, (const char *)buffer, size);
-    // }
+    StringBuilder base = string_init(arena, root);
+    path_join(&base, append);
+    path_join(&base, sv("config.yml"));
+
+    config_path = StringCast(base);
+
+    Result res = ResultSuccess();
+    if (os_path_exists(StringCast(base), &res))
+    {
+        FileHandle config_handle = os_file_open(StringCast(base), FileAccess_Read, FileMode_OpenAlways, &res);
+        U64 config_file_size = os_file_size(config_handle, &res);
+
+        U8 *content_buffer = push_array(arena, config_file_size, U8);
+        os_file_read(config_handle, config_file_size, content_buffer, &res);
+        os_file_close(config_handle, &res);
+        String config_content = sv(content_buffer, config_file_size);
+
+        mscbl_config = config_parse(arena, StringCast(config_content));
+    }
+    else
+    {
+#include "config.yml"
+        String config_content = sv(__mscbl_cfg_text);
+        mscbl_config = config_parse(arena, config_content);
+        config_dirty = 1;
+    }
+
+    setup_dirs(arena, &mscbl_config);
+}
+
+void config_deinit(Arena *arena)
+{
+    if (!config_dirty) return;
+
+    // Serialize config
+    struct fy_document *config_doc = fy_document_create(NULL);
+    struct fy_node *config_root = fy_node_create_mapping(config_doc);
+    fy_document_set_root(config_doc, config_root);
+
+    fy_node_mapping_append(config_root,
+                           fy_node_create_scalar(config_doc, "AppData", FY_NT),
+                           fy_node_create_scalar(config_doc, CStrCast(mscbl_config.app_data), FY_NT));
+
+    fy_node_mapping_append(config_root,
+                           fy_node_create_scalar(config_doc, "AtlasDir", FY_NT),
+                           fy_node_create_scalar(config_doc, CStrCast(mscbl_config.atlas_dir), FY_NT));
+
+    fy_node_mapping_append(config_root,
+                           fy_node_create_scalar(config_doc, "DBPath", FY_NT),
+                           fy_node_create_scalar(config_doc, CStrCast(mscbl_config.db_path), FY_NT));
+
+    {
+        fy_node *settings = fy_node_create_mapping(config_doc);
+        fy_node_mapping_append(settings,
+                               fy_node_create_scalar(config_doc, "LogAge", FY_NT),
+                               fy_node_create_scalarf(config_doc, "%d", mscbl_config.settings.log_age_days));
+
+        fy_node_mapping_append(settings,
+                               fy_node_create_scalar(config_doc, "ScanDepth", FY_NT),
+                               fy_node_create_scalarf(config_doc, "%d", mscbl_config.settings.scan_depth));
+
+        fy_node_mapping_append(settings,
+                               fy_node_create_scalar(config_doc, "FontSize", FY_NT),
+                               fy_node_create_scalarf(config_doc, "%.1f", mscbl_config.settings.font_size));
+
+        fy_node_mapping_append(config_root,
+                               fy_node_create_scalar(config_doc, "Settings", FY_NT),
+                               settings);
+    }
+
+    {
+        fy_node *view_settings = fy_node_create_mapping(config_doc);
+        fy_node_mapping_append(view_settings,
+                               fy_node_create_scalar(config_doc, "SortBasis", FY_NT),
+                               fy_node_create_scalarf(config_doc, "%d", mscbl_config.view_settings.sort_basis));
+
+        fy_node_mapping_append(view_settings,
+                               fy_node_create_scalar(config_doc, "Descending", FY_NT),
+                               fy_node_create_scalarf(config_doc, "%d", mscbl_config.view_settings.descending));
+
+        fy_node_mapping_append(config_root,
+                               fy_node_create_scalar(config_doc, "ViewSettings", FY_NT),
+                               view_settings);
+    }
+
+    {
+        fy_node *inf_settings = fy_node_create_mapping(config_doc);
+        fy_node_mapping_append(inf_settings,
+                               fy_node_create_scalar(config_doc, "BaseDir", FY_NT),
+                               fy_node_create_scalar(config_doc, CStrCast(mscbl_config.inf_settings.base_dir), FY_NT));
+        fy_node_mapping_append(inf_settings,
+                               fy_node_create_scalar(config_doc, "Hardware", FY_NT),
+#if OS_WIN32
+                               fy_node_create_scalarf(config_doc, "%u", mscbl_config.inf_settings.dml_device)
+#elif OS_LINUX
+#endif
+        );
+        {
+            fy_node *active = fy_node_create_mapping(config_doc);
+
+            fy_node_mapping_append(active,
+                                   fy_node_create_scalar(config_doc, "Backend", FY_NT),
+                                   fy_node_create_scalar(config_doc, mscbl_config.inf_settings.active.backend == Backend_GGML ? "GGML" : "ONNX", FY_NT));
+
+            fy_node_mapping_append(active,
+                                   fy_node_create_scalar(config_doc, "Precision", FY_NT),
+                                   fy_node_create_scalarf(config_doc, "%d", mscbl_config.inf_settings.active.variant->precision));
+
+            fy_node_mapping_append(active,
+                                   fy_node_create_scalar(config_doc, "Name", FY_NT),
+                                   fy_node_create_scalar(config_doc, CStrCast(mscbl_config.inf_settings.active.group->name), FY_NT));
+
+            fy_node_mapping_append(inf_settings,
+                                   fy_node_create_scalar(config_doc, "Active", FY_NT),
+                                   active);
+        }
+
+        fy_node_mapping_append(config_root,
+                               fy_node_create_scalar(config_doc, "Inference", FY_NT),
+                               inf_settings);
+    }
+
+    fy_emit_document_to_file(config_doc, FYECF_DEFAULT, CStrCast(config_path));
+    fy_document_destroy(config_doc);
 }
