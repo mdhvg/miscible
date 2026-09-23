@@ -52,6 +52,7 @@ void ui_viewquery_clear()
     string_clear(ui_state.view_query.search_query);
     arena_clear(ui_state.view_query.arena);
     ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
+    ui_state.view_query.selected_dir = 0;
     ui_state.view_query.filters = NULL;
 }
 
