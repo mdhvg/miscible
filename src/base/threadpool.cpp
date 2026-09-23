@@ -134,28 +134,30 @@ OS_THREAD_ROUTINE(threadpool_worker)
 
 void threadpool_init(U32 worker_count)
 {
-    arena_alloc(MB(1), threadpool_arena);
-    pool = push_struct0(threadpool_arena, ThreadPool);
+    arena_alloc(MB(30), threadpool_arena);
+    pool = push_struct(threadpool_arena, ThreadPool);
 
     pool->active = 1;
 
     pool->task_semaphore = os_semaphore_init(0, S32_MAX);
-    rb_init(threadpool_arena, pool->tasks_p0, KB(1));
-    rb_init(threadpool_arena, pool->tasks_p1, KB(1));
-    rb_init(threadpool_arena, pool->tasks_p2, KB(1));
+    rb_init(threadpool_arena, pool->tasks_p0, KB(50));
+    rb_init(threadpool_arena, pool->tasks_p1, KB(50));
+    rb_init(threadpool_arena, pool->tasks_p2, KB(50));
     os_mutex_init(&pool->task_mutex);
 
     pool->worker_count = worker_count;
     pool->worker_array = push_array(threadpool_arena, worker_count, Worker);
-    pool->worker_arena = arena_array_alloc(MB(50), worker_count);
+    pool->worker_arena = arena_array_alloc(MB(5), worker_count);
 
+    // init worker threads
     for (U64 i = 0; i < worker_count; i++)
     {
         Worker *worker = &pool->worker_array[i];
         worker->id = i;
     }
 
-    for (U64 i = 0; i < worker_count; i += 1)
+    // launch worker threads
+    for (U64 i = 0; i < worker_count; i++)
     {
         Worker *worker = &pool->worker_array[i];
         worker->handle = os_thread_launch(threadpool_worker, worker);
