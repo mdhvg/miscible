@@ -286,7 +286,9 @@ void cont_scan(Arena *arena)
         if (!check_dir(saved_dirs[i]))
         {
             ArenaScoped(arena)
+            {
                 recursive_insert(arena, saved_dirs[i]);
+            }
         }
     }
 

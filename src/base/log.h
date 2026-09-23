@@ -20,7 +20,7 @@ global_v U64 log_build_path_len = sizeof(__FILE__) - sizeof("src/base/log.h");
 #define mscbl_log_error(fmt, ...)            _color_log(ANSI_RED, fmt, __VA_ARGS__)
 #define mscbl_log_warn(fmt, ...)             _color_log(ANSI_YELLOW, fmt, __VA_ARGS__)
 #define mscbl_log_info(fmt, ...)             _color_log(ANSI_CYAN, fmt, __VA_ARGS__)
-#define mscbl_log_bare(level, loc, fmt, ...) printf(ANSI_PURPLE "[%s] [%s] " ANSI_RESET fmt "\n", level, loc __VA_OPT__(, ) __VA_ARGS__)
+#define mscbl_log_bare(level, loc, fmt, ...) printf(ANSI_PURPLE "[%s] " ANSI_RESET fmt "\n", loc __VA_OPT__(, ) __VA_ARGS__)
 #else
 #define mscbl_log_info(fmt, ...)             _mscbl_log("INFO", fmt, __VA_ARGS__)
 #define mscbl_log_warn(fmt, ...)             _mscbl_log("WARN", fmt, __VA_ARGS__)
@@ -30,7 +30,7 @@ global_v U64 log_build_path_len = sizeof(__FILE__) - sizeof("src/base/log.h");
 
 #define perf_beg(A) U64 __perf_start_##A = os_get_ticks_now()
 #define perf_gap(A) ((F64)(os_get_ticks_now() - __perf_start_##A) * 1000.0) / os_info.ticks_per_sec)
-#define perf_end(A) mscbl_log_info("[perf]: %.4fms", ((F64)(os_get_ticks_now() - __perf_start_##A) * 1000.0f) / (os_info.ticks_per_sec > 0 ? os_info.ticks_per_sec : 1000))
+#define perf_end(A) mscbl_log_info("[PERF:" Stringify(A) "] %.4fms", ((F64)(os_get_ticks_now() - __perf_start_##A) * 1000.0f) / (os_info.ticks_per_sec > 0 ? os_info.ticks_per_sec : 1000))
 
 #define Assert(x, message, ...)                                                               \
     do                                                                                        \
