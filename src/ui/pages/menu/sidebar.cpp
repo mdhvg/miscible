@@ -1,16 +1,14 @@
 // Copyright (c) 2025-2026 Madhav Goyal
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
-#include "IconsLucide.h"
-#include "base/base_core.h"
-#include "base/threadpool.h"
-#include "db/view.h"
 #include "imgui.h"
 #include "imgui_internal.h"
+#include "IconsLucide.h"
 
 #include "ui/pages/pages.h"
 #include "ui/pages/menu/menu.h"
 
+#include "db/view.h"
 #include "ui/theme.h"
 #include "base/log.h"
 #include "scan/scan.h"

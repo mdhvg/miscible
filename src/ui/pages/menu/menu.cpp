@@ -21,6 +21,8 @@
 #include "base/base_core.h"
 #include "inference/inference.h"
 
+static B32 settings_open = 0;
+
 void zoom_controls()
 {
     if (ImGui::BeginCombo("##zoom", zoom_options[zoom_level].text, ImGuiComboFlags_WidthFitPreview | ImGuiComboFlags_NoArrowButton))
@@ -222,42 +224,48 @@ void menu_draw_docked_topbar(ImGuiWindowFlags flags)
         ImGui::SameLine();
         if (ImGui::Button(ICON_LC_SETTINGS, ImVec2(settings_btn_width, search_height)))
         {
+            settings_open = 1;
             ImGui::OpenPopup("Settings");
-            ui_push_message({.success = 0, .domain = Domain_App, .code = 1, .context = "implementation pending"});
-            // TODO: this
         }
 
         ImVec2 center = ImGui::GetMainViewport()->GetCenter();
         ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-        if (ImGui::BeginPopupModal("Settings", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+        if (ImGui::BeginPopupModal("Settings", (bool *)&settings_open, ImGuiWindowFlags_AlwaysAutoResize))
         {
             ImGui::PushFont(ui_state.title_font);
             ImGui::Text("Available Hardware:");
             ImGui::PopFont();
             ImGui::Separator();
 
+            ImVec2 avail = ImGui::GetContentRegionAvail();
+
             InferenceHardwareArr hardware = inference_hardware_get();
             for (U32 i = 0; i < arr_getsize(hardware); i++)
             {
-                DeferLoop(ImGui::BeginGroup(), ImGui::EndGroup())
+                bool selected = (mscbl_config.inf_settings.dml_device == i);
+
+                const char *hardware_type = "CPU";
+                switch (hardware[i].hw_type)
                 {
-                    ImGui::Text("%.*s", StringSpr(hardware[i].hw_desc));
-                    ImGui::PushStyleColor(ImGuiCol_Text, MSCBL_FOREGROUND_MUTED);
-                    switch (hardware[i].hw_type)
-                    {
-                    case OrtHardwareDeviceType_CPU: ImGui::Text("Vendor: %.*s | Device Type: CPU", StringSpr(hardware[i].hw_vendor)); break;
-                    case OrtHardwareDeviceType_GPU: ImGui::Text("Vendor: %.*s | Device Type: GPU", StringSpr(hardware[i].hw_vendor)); break;
-                    case OrtHardwareDeviceType_NPU: ImGui::Text("Vendor: %.*s | Device Type: NPU", StringSpr(hardware[i].hw_vendor)); break;
-                    }
-                    ImGui::PopStyleColor();
+                case OrtHardwareDeviceType_CPU: break;
+                case OrtHardwareDeviceType_GPU: hardware_type = "GPU"; break;
+                case OrtHardwareDeviceType_NPU: hardware_type = "NPU"; break;
                 }
 
-                ImGui::PushStyleColor(ImGuiCol_Button, MSCBL_PRIMARY);
-                ImGui::PopStyleColor();
+                StringStack(display_text, KB(2));
+                string_format(&display_text, "%.*s\nVendor: %.*s | Device Type: %s", StringSpr(hardware[i].hw_desc), StringSpr(hardware[i].hw_vendor), hardware_type);
+                ImGui::PushStyleColor(ImGuiCol_Button, (selected ? MSCBL_INTERACTION_ACTIVE : COLOR_TRANSPARENT));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, MSCBL_INTERACTION_HOVER);
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, MSCBL_INTERACTION_ACTIVE);
+                ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0);
+                ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.0f, 0.5f));
+                ImGui::Button(CStrCast(display_text), ImVec2(avail.x, 0));
+                ImGui::PopStyleColor(3);
+                ImGui::PopStyleVar(2);
             }
             ImGui::Separator();
 
-            if (ImGui::Button("Close")) ImGui::CloseCurrentPopup();
+            if (ImGui::Button("Close")) settings_open = 0;
             ImGui::EndPopup();
         }
     }
