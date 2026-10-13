@@ -4,7 +4,6 @@
 #include <ShObjIdl.h>
 #include <wchar.h>
 
-#include "base/arena.h"
 #include "base/log.h"
 #include "os/os_inc.h"
 #include "base/array.h"
@@ -39,7 +38,7 @@ void win32_to_unix_timestamp(U64 *win_timestamp)
 void win32_format_path(StringBuilder *dir)
 {
     if (!dir) return;
-    string_replace(dir, "\\", "/");
+    str8_replace(dir, sv8_lit("\\"), sv8_lit("/"));
 }
 
 Guid os_make_guid()
@@ -94,16 +93,16 @@ const char *os_gethome()
     return getenv("USERPROFILE");
 }
 
-String os_env_var(const char *name, Arena *arena)
+Str8 os_env_var(const char *name, Arena *arena)
 {
     if (!name || !arena) return {0};
     char buffer[KB(4)];
 
     U64 size = GetEnvironmentVariable(name, buffer, KB(4));
-    return string_copy(arena, buffer, size);
+    return str8_copy(arena, sv8(buffer, size));
 }
 
-void os_mkdirs(String path)
+void os_mkdirs(Str8 path)
 {
     char buffer[KB(4)] = {0};
     MemoryCopy(buffer, path.v, path.size);
@@ -183,13 +182,13 @@ LibHandle os_loadlib(const char *filename)
     HANDLE hFind = INVALID_HANDLE_VALUE;
 
     const char *postfix = "*.dll";
-    String filename_str = sv(filename);
+    Str8 filename_str = sv8(filename);
     MemoryCopy(buffer, filename, filename_str.size);
     MemoryCopy(buffer + filename_str.size, postfix, sizeof(postfix) + 1);
-    String exp = {.v = (U8 *)buffer, .size = filename_str.size + sizeof(postfix) + 1};
+    Str8 exp = {.v = (U8 *)buffer, .size = filename_str.size + sizeof(postfix) + 1};
 
     U64 mtime = 0;
-    String libfile = {0};
+    Str8 libfile = {0};
     hFind = FindFirstFile(CStrCast(exp), &fdFile);
 
     do
@@ -197,9 +196,9 @@ LibHandle os_loadlib(const char *filename)
         if (hFind == INVALID_HANDLE_VALUE)
             break;
 
-        String cur_file = sv(fdFile.cFileName);
+        Str8 cur_file = sv8(fdFile.cFileName);
 
-        if (match_front(cur_file, ".") || match_front(cur_file, ".."))
+        if (str8_match_beg(cur_file, sv8_lit(".")) || str8_match_beg(cur_file, sv8_lit("..")))
             continue;
 
         if ((fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
@@ -226,7 +225,7 @@ LibHandle os_loadlib(const char *filename)
     return lib;
 }
 
-WString os_select_dir(const wchar *title, const wchar *default_path, Arena *arena)
+Str16 os_select_dir(const wchar *title, const wchar *default_path, Arena *arena)
 {
     Assert(arena, "invalid arena passed");
     PWSTR path = NULL;
@@ -252,7 +251,7 @@ WString os_select_dir(const wchar *title, const wchar *default_path, Arena *aren
     Assert(SUCCEEDED(pfd->GetResult(&res_psi)), "selection box GetResult() failed");
     res_psi->GetDisplayName(SIGDN_FILESYSPATH, &path);
 
-    WString res = string_copy(arena, path);
+    Str16 res = str16_copy(arena, path);
 
     CoTaskMemFree(path);
     res_psi->Release();
@@ -264,7 +263,7 @@ WString os_select_dir(const wchar *title, const wchar *default_path, Arena *aren
 #define _Win32Trap(res, cnd, err)     \
     do                                \
     {                                 \
-        if (!cnd && res)              \
+        if (!(cnd) && res)            \
         {                             \
             *(res) = {                \
                 .success = 0,         \
@@ -275,7 +274,7 @@ WString os_select_dir(const wchar *title, const wchar *default_path, Arena *aren
     } while (0)
 #define Win32Trap(res, cnd) _Win32Trap(res, cnd, GetLastError())
 
-B32 os_path_exists(String path, Result *res)
+B32 os_path_exists(Str8 path, Result *res)
 {
     ClearResult(res);
     DWORD attrs = GetFileAttributesA(CStrCast(path));
@@ -422,7 +421,7 @@ void os_thread_join(Thread t)
     }
 }
 
-FileHandle _os_file_open(String path, FileAccess access, FileMode mode, Result *res, U64 size)
+FileHandle _os_file_open(Str8 path, FileAccess access, FileMode mode, Result *res, U64 size)
 {
     ClearResult(res);
 
@@ -454,7 +453,7 @@ FileHandle _os_file_open(String path, FileAccess access, FileMode mode, Result *
     return handle;
 }
 
-void os_file_delete(String path, Result *res)
+void os_file_delete(Str8 path, Result *res)
 {
     ClearResult(res);
     BOOL out = DeleteFile(CStrCast(path));
@@ -513,53 +512,54 @@ U64 os_file_size(FileHandle file_desc, Result *res)
     return size.QuadPart;
 }
 
-void os_file_rename(String old_path, String new_path)
+void os_file_rename(Str8 old_path, Str8 new_path)
 {
     DWORD flags = MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED;
     Assert(MoveFileEx(CStrCast(old_path), CStrCast(new_path), flags), "error code: %lu", GetLastError());
 }
 
-FileMTime *os_list_by_pattern(String pattern, String base, Arena *arena)
+FileMtime *os_list_dir(Str8 dir, Arena *arena)
 {
-    FileMTime *res = NULL;
+    FileMtime *res = NULL;
 
-    WIN32_FIND_DATA fdFile = {0};
-    HANDLE hFind = INVALID_HANDLE_VALUE;
-
-    hFind = FindFirstFile(CStrCast(pattern), &fdFile);
-
-    do
-    {
-        if (hFind == INVALID_HANDLE_VALUE)
-            break;
-
-        String filename = sv(fdFile.cFileName);
-
-        if (match_front(filename, ".") || match_front(filename, ".."))
-            continue;
-
-        // mscbl_log_info("Logfile: %.*ls", WStringSpr(filename));
-
-        if ((fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
-        {
-            FILETIME write_time = fdFile.ftLastWriteTime;
-            U64 mtime = 0;
-            mtime = write_time.dwHighDateTime;
-            mtime <<= 32;
-            mtime |= write_time.dwLowDateTime;
-
-            win32_to_unix_timestamp(&mtime);
-
-            StringBuilder file_path = string_init(arena, base);
-            path_join(&file_path, filename);
-
-            FileMTime entry = {
-                .path = StringCast(file_path),
-                .mtime = mtime};
-            da_push(arena, res, entry);
-        }
-    } while (FindNextFile(hFind, &fdFile));
-    FindClose(hFind);
+    // TODO: Implement this
+    // WIN32_FIND_DATA fdFile = {0};
+    // HANDLE hFind = INVALID_HANDLE_VALUE;
+    //
+    // hFind = FindFirstFile(CStrCast(pattern), &fdFile);
+    //
+    // do
+    // {
+    //     if (hFind == INVALID_HANDLE_VALUE)
+    //         break;
+    //
+    //     Str8 filename = sv(fdFile.cFileName);
+    //
+    //     if (match_front(filename, ".") || match_front(filename, ".."))
+    //         continue;
+    //
+    //     // mscbl_log_info("Logfile: %.*ls", Str16Spr(filename));
+    //
+    //     if ((fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
+    //     {
+    //         FILETIME write_time = fdFile.ftLastWriteTime;
+    //         U64 mtime = 0;
+    //         mtime = write_time.dwHighDateTime;
+    //         mtime <<= 32;
+    //         mtime |= write_time.dwLowDateTime;
+    //
+    //         win32_to_unix_timestamp(&mtime);
+    //
+    //         StringBuilder file_path = string_init(arena, dir);
+    //         path_join(&file_path, filename);
+    //
+    //         FileMtime entry = {
+    //             .path = StringCast(file_path),
+    //             .mtime = mtime};
+    //         da_push(arena, res, entry);
+    //     }
+    // } while (FindNextFile(hFind, &fdFile));
+    // FindClose(hFind);
 
     return res;
 }

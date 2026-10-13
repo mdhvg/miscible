@@ -144,16 +144,16 @@ void clip_load_text_model(Arena *arena, clip_ctx *clip, clip_text_model *text_mo
         ggml_backend_tensor_set(cur, ggml_get_data(src), 0, n_size);
     }
 
-    StringBuilder keys = string_empty(arena, 256);
+    StringBuilder keys = str8_empty(arena, 256);
 
     clip_text_hparams *hparams = &text_model->hparams;
-    hparams->hidden_size = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_EMBD, "text"));
-    hparams->n_head = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_HEAD, "text"));
-    hparams->n_intermediate = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_FF, "text"));
-    hparams->n_layer = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_BLOCK, "text"));
+    hparams->hidden_size = get_u32(gguf_ctx, CStrCast(str8_format(&keys, KEY_N_EMBD, "text")));
+    hparams->n_head = get_u32(gguf_ctx, CStrCast(str8_format(&keys, KEY_N_HEAD, "text")));
+    hparams->n_intermediate = get_u32(gguf_ctx, CStrCast(str8_format(&keys, KEY_N_FF, "text")));
+    hparams->n_layer = get_u32(gguf_ctx, CStrCast(str8_format(&keys, KEY_N_BLOCK, "text")));
     hparams->num_positions = get_u32(gguf_ctx, KEY_N_POSITIONS);
-    hparams->projection_dim = get_u32(gguf_ctx, format_cstr(&keys, KEY_PROJ_DIM, "text"));
-    hparams->eps = get_f32(gguf_ctx, format_cstr(&keys, KEY_LAYER_NORM_EPS, "text"));
+    hparams->projection_dim = get_u32(gguf_ctx, CStrCast(str8_format(&keys, KEY_PROJ_DIM, "text")));
+    hparams->eps = get_f32(gguf_ctx, CStrCast(str8_format(&keys, KEY_LAYER_NORM_EPS, "text")));
 
     S32 idx_tokens = get_key_idx(gguf_ctx, KEY_TOKENS);
     hparams->n_vocab = gguf_get_arr_n(gguf_ctx, idx_tokens);
@@ -178,32 +178,32 @@ void clip_load_text_model(Arena *arena, clip_ctx *clip, clip_text_model *text_mo
     mscbl_log_info("t_n_head           %d", hparams->n_head);
     mscbl_log_info("t_n_layer          %d", hparams->n_layer);
 
-    text_model->token_embeddings = get_tensor(model_ctx, format_cstr(&keys, TN_TOKEN_EMBD, "t"));
-    text_model->position_embeddings = get_tensor(model_ctx, format_cstr(&keys, TN_POS_EMBD, "t"));
-    text_model->post_ln_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_POST, "t", "weight"));
-    text_model->post_ln_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_POST, "t", "bias"));
+    text_model->token_embeddings = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_TOKEN_EMBD, "t")));
+    text_model->position_embeddings = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_POS_EMBD, "t")));
+    text_model->post_ln_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_POST, "t", "weight")));
+    text_model->post_ln_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_POST, "t", "bias")));
     text_model->projection = get_tensor(model_ctx, TN_TEXT_PROJ);
     text_model->layers = push_array(arena, hparams->n_layer, clip_layer);
 
     for (S32 il = 0; il < hparams->n_layer; ++il)
     {
         clip_layer *layer = text_model->layers + il;
-        layer->k_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_K, "t", il, "weight"));
-        layer->q_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_Q, "t", il, "weight"));
-        layer->v_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_V, "t", il, "weight"));
-        layer->o_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_OUTPUT, "t", il, "weight"));
-        layer->ln_1_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_1, "t", il, "weight"));
-        layer->ln_2_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_2, "t", il, "weight"));
-        layer->ff_i_w = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_DOWN, "t", il, "weight"));
-        layer->ff_o_w = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "t", il, "weight"));
-        layer->k_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_K, "t", il, "bias"));
-        layer->q_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_Q, "t", il, "bias"));
-        layer->v_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_V, "t", il, "bias"));
-        layer->o_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_OUTPUT, "t", il, "bias"));
-        layer->ln_1_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_1, "t", il, "bias"));
-        layer->ln_2_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_2, "t", il, "bias"));
-        layer->ff_i_b = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_DOWN, "t", il, "bias"));
-        layer->ff_o_b = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "t", il, "bias"));
+        layer->k_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_K, "t", il, "weight")));
+        layer->q_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_Q, "t", il, "weight")));
+        layer->v_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_V, "t", il, "weight")));
+        layer->o_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_OUTPUT, "t", il, "weight")));
+        layer->ln_1_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_1, "t", il, "weight")));
+        layer->ln_2_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_2, "t", il, "weight")));
+        layer->ff_i_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_FFN_DOWN, "t", il, "weight")));
+        layer->ff_o_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_FFN_UP, "t", il, "weight")));
+        layer->k_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_K, "t", il, "bias")));
+        layer->q_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_Q, "t", il, "bias")));
+        layer->v_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_V, "t", il, "bias")));
+        layer->o_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_OUTPUT, "t", il, "bias")));
+        layer->ln_1_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_1, "t", il, "bias")));
+        layer->ln_2_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_2, "t", il, "bias")));
+        layer->ff_i_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_FFN_DOWN, "t", il, "bias")));
+        layer->ff_o_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_FFN_UP, "t", il, "bias")));
     }
 
     mscbl_log_info("Used mem: %zu", ggml_used_mem(model_ctx));
@@ -231,17 +231,17 @@ void clip_load_vision_model(Arena *arena, clip_ctx *clip, clip_vision_model *vis
         ggml_backend_tensor_set(cur, ggml_get_data(src), 0, n_size);
     }
 
-    StringBuilder keys = string_empty(arena, 256);
+    StringBuilder keys = str8_empty(arena, 256);
 
     clip_vision_hparams *hparams = &vision_model->hparams;
-    hparams->hidden_size = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_EMBD, "vision"));
-    hparams->n_head = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_HEAD, "vision"));
-    hparams->n_intermediate = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_FF, "vision"));
-    hparams->n_layer = get_u32(gguf_ctx, format_cstr(&keys, KEY_N_BLOCK, "vision"));
+    hparams->hidden_size = get_u32(gguf_ctx, CStrCast(str8_format(&keys, KEY_N_EMBD, "vision")));
+    hparams->n_head = get_u32(gguf_ctx, CStrCast(str8_format(&keys, KEY_N_HEAD, "vision")));
+    hparams->n_intermediate = get_u32(gguf_ctx, CStrCast(str8_format(&keys, KEY_N_FF, "vision")));
+    hparams->n_layer = get_u32(gguf_ctx, CStrCast(str8_format(&keys, KEY_N_BLOCK, "vision")));
     hparams->image_size = get_u32(gguf_ctx, KEY_IMAGE_SIZE);
     hparams->patch_size = get_u32(gguf_ctx, KEY_PATCH_SIZE);
-    hparams->projection_dim = get_u32(gguf_ctx, format_cstr(&keys, KEY_PROJ_DIM, "vision"));
-    hparams->eps = get_f32(gguf_ctx, format_cstr(&keys, KEY_LAYER_NORM_EPS, "vision"));
+    hparams->projection_dim = get_u32(gguf_ctx, CStrCast(str8_format(&keys, KEY_PROJ_DIM, "vision")));
+    hparams->eps = get_f32(gguf_ctx, CStrCast(str8_format(&keys, KEY_LAYER_NORM_EPS, "vision")));
 
     S32 idx_mean = get_key_idx(gguf_ctx, KEY_IMAGE_MEAN);
     S32 idx_std = get_key_idx(gguf_ctx, KEY_IMAGE_STD);
@@ -262,33 +262,33 @@ void clip_load_vision_model(Arena *arena, clip_ctx *clip, clip_vision_model *vis
 
     vision_model->patch_embeddings = get_tensor(model_ctx, TN_PATCH_EMBD);
     vision_model->class_embedding = get_tensor(model_ctx, TN_CLASS_EMBD);
-    vision_model->position_embeddings = get_tensor(model_ctx, format_cstr(&keys, TN_POS_EMBD, "v"));
-    vision_model->pre_ln_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_PRE, "v", "weight"));
-    vision_model->pre_ln_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_PRE, "v", "bias"));
-    vision_model->post_ln_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_POST, "v", "weight"));
-    vision_model->post_ln_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_POST, "v", "bias"));
+    vision_model->position_embeddings = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_POS_EMBD, "v")));
+    vision_model->pre_ln_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_PRE, "v", "weight")));
+    vision_model->pre_ln_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_PRE, "v", "bias")));
+    vision_model->post_ln_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_POST, "v", "weight")));
+    vision_model->post_ln_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_POST, "v", "bias")));
     vision_model->projection = get_tensor(model_ctx, TN_VIS_PROJ);
     vision_model->layers = push_array(arena, hparams->n_layer, clip_layer);
 
     for (S32 il = 0; il < hparams->n_layer; ++il)
     {
         clip_layer *layer = vision_model->layers + il;
-        layer->k_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_K, "v", il, "weight"));
-        layer->q_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_Q, "v", il, "weight"));
-        layer->v_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_V, "v", il, "weight"));
-        layer->o_w = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_OUTPUT, "v", il, "weight"));
-        layer->ln_1_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_1, "v", il, "weight"));
-        layer->ln_2_w = get_tensor(model_ctx, format_cstr(&keys, TN_LN_2, "v", il, "weight"));
-        layer->ff_i_w = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_DOWN, "v", il, "weight"));
-        layer->ff_o_w = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "v", il, "weight"));
-        layer->k_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_K, "v", il, "bias"));
-        layer->q_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_Q, "v", il, "bias"));
-        layer->v_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_V, "v", il, "bias"));
-        layer->o_b = get_tensor(model_ctx, format_cstr(&keys, TN_ATTN_OUTPUT, "v", il, "bias"));
-        layer->ln_1_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_1, "v", il, "bias"));
-        layer->ln_2_b = get_tensor(model_ctx, format_cstr(&keys, TN_LN_2, "v", il, "bias"));
-        layer->ff_i_b = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_DOWN, "v", il, "bias"));
-        layer->ff_o_b = get_tensor(model_ctx, format_cstr(&keys, TN_FFN_UP, "v", il, "bias"));
+        layer->k_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_K, "v", il, "weight")));
+        layer->q_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_Q, "v", il, "weight")));
+        layer->v_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_V, "v", il, "weight")));
+        layer->o_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_OUTPUT, "v", il, "weight")));
+        layer->ln_1_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_1, "v", il, "weight")));
+        layer->ln_2_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_2, "v", il, "weight")));
+        layer->ff_i_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_FFN_DOWN, "v", il, "weight")));
+        layer->ff_o_w = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_FFN_UP, "v", il, "weight")));
+        layer->k_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_K, "v", il, "bias")));
+        layer->q_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_Q, "v", il, "bias")));
+        layer->v_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_V, "v", il, "bias")));
+        layer->o_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_ATTN_OUTPUT, "v", il, "bias")));
+        layer->ln_1_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_1, "v", il, "bias")));
+        layer->ln_2_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_LN_2, "v", il, "bias")));
+        layer->ff_i_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_FFN_DOWN, "v", il, "bias")));
+        layer->ff_o_b = get_tensor(model_ctx, CStrCast(str8_format(&keys, TN_FFN_UP, "v", il, "bias")));
     }
 
     mscbl_log_info("Used mem: %zu", ggml_used_mem(model_ctx));
@@ -301,7 +301,7 @@ void clip_load_vision_model(Arena *arena, clip_ctx *clip, clip_vision_model *vis
 }
 
 // read and create ggml_context containing the tensors and their data
-Result clip_model_load(Arena *arena, clip_ctx *clip, String model_path)
+Result clip_model_load(Arena *arena, clip_ctx *clip, Str8 model_path)
 {
     Result res = ResultSuccess();
 
@@ -446,7 +446,7 @@ Cleanup:
 }
 
 // TODO: This is definitely cursed
-bool clip_tokenize(clip_ctx *ctx, String *input, clip_tokens *tokens)
+bool clip_tokenize(clip_ctx *ctx, Str8 *input, clip_tokens *tokens)
 {
     Assert(ctx->has_text_encoder, "This GGUF file seems to have no text encoder");
 

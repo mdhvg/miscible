@@ -18,6 +18,7 @@ enum InferenceState
 struct TextModelConfig
 {
     S64 token_length;
+    Str8 model_path;
     Mutex tokenizer_lock;
     OrtxTokenizer *tokenizer;
 };
@@ -29,6 +30,8 @@ struct VisionModelConfig
 
     S64 input_size;
     F64 rescale_factor;
+
+    Str8 model_path;
 };
 
 /// Represents a batch of embedding vectors used in the inference engine.
@@ -44,8 +47,8 @@ struct Embedding
 
 typedef struct
 {
-    String hw_desc;
-    String hw_vendor;
+    Str8 hw_desc;
+    Str8 hw_vendor;
     OrtHardwareDeviceType hw_type;
 } InferenceHardware, *InferenceHardwareArr;
 
@@ -54,7 +57,7 @@ MSCBL_API void inference_close();
 MSCBL_API InferenceState inference_state_get();
 MSCBL_API VisionModelConfig *inference_preprocess_get();
 MSCBL_API InferenceHardwareArr inference_hardware_get();
-MSCBL_API Embedding inference_text_embedding(Arena *arena, String input);
+MSCBL_API Embedding inference_text_embedding(Arena *arena, Str8 input);
 MSCBL_API Embedding inference_vision_embedding(Arena *arena, F32 *data, U32 batch_size);
 
 ThreadFunc(inference_backend_init);

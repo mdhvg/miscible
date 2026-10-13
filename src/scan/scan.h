@@ -14,7 +14,7 @@ extern Arena *scan_arena;
 struct ImageRow
 {
     S64 id;
-    String path;
+    Str8 path;
     U8 *data;
     S32 width;
     S32 height;

@@ -19,10 +19,10 @@ union Guid {
     U8 v[16];
 };
 
-typedef struct FileMTime FileMTime;
-struct FileMTime
+typedef struct FileMtime FileMtime;
+struct FileMtime
 {
-    String path;
+    Str8 path;
     U64 mtime;
 };
 
@@ -49,9 +49,9 @@ Guid os_make_guid();
 void os_prelaunch();
 void os_cleanup();
 
-String os_env_var(const char *name, Arena *arena);
+Str8 os_env_var(const char *name, Arena *arena);
 const char *os_gethome();
-void os_mkdirs(String path);
+void os_mkdirs(Str8 path);
 U64 os_get_timestamp();
 Time os_get_localtime();
 
@@ -63,7 +63,7 @@ LibAddress os_libfunc(LibHandle lib, const char *symbol);
 void os_closelib(LibHandle lib);
 
 MSCBL_API OSString os_select_dir(const OSChar *title, const OSChar *default_path, Arena *arena);
-B32 os_path_exists(String path, Result *res);
+B32 os_path_exists(Str8 path, Result *res);
 
 MSCBL_API void *os_reserve(void *ptr, U64 size);
 MSCBL_API void os_release(void *ptr, U64 size);
@@ -81,6 +81,7 @@ void os_mutex_lock(Mutex *mutex);
 void os_mutex_unlock(Mutex *mutex);
 B32 os_mutex_trylock(Mutex *mutex);
 
+Thread os_thread_launch(ThreadRoutine_t fn, struct Worker *worker);
 void os_thread_detach(Thread t);
 void os_thread_join(Thread t);
 
@@ -98,9 +99,9 @@ typedef enum
     FileMode_OpenAlways = (1 << 1),
 } FileMode;
 
-FileHandle _os_file_open(String path, FileAccess access, FileMode mode, Result *res, U64 size);
+FileHandle _os_file_open(Str8 path, FileAccess access, FileMode mode, Result *res, U64 size);
 #if LANG_CPP
-inline FileHandle os_file_open(String path, FileAccess access, FileMode mode, Result *res, U64 size = 0)
+inline FileHandle os_file_open(Str8 path, FileAccess access, FileMode mode, Result *res, U64 size = 0)
 {
     return _os_file_open(path, access, mode, res, size);
 }
@@ -114,7 +115,7 @@ inline FileHandle os_file_open_resize(String path, FileAccess access, FileMode m
     return _os_file_open(path, access, mode, res, size);
 }
 #endif
-void os_file_delete(String path, Result *res);
+void os_file_delete(Str8 path, Result *res);
 void os_file_close(FileHandle file_desc, Result *res);
 U64 _os_file_write(FileHandle file_desc, U64 size, U8 *buffer, Result *res, U64 offset);
 #if LANG_CPP
@@ -149,8 +150,8 @@ inline U32 os_file_read_at(FileHandle file_desc, U64 size, U8 *buffer, Result *r
 }
 #endif
 U64 os_file_size(FileHandle file_desc, Result *res);
-void os_file_rename(String old_path, String new_path);
-FileMTime *os_list_by_pattern(String pattern, String base, Arena *arena);
+void os_file_rename(Str8 old_path, Str8 new_path);
+FileMtime *os_list_dir(Str8 base, Arena *arena);
 
 #define os_map_get_data(map) (map.data)
 // NOTE: Linux requires file to be of `size` size, so use `ftruncate` first

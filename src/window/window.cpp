@@ -1,9 +1,11 @@
 // Copyright (c) 2025-2026 Madhav Goyal
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
-#include "GLFW/glfw3.h"
+#if OS_WIN32
 #define GLFW_EXPOSE_NATIVE_WIN32
-#include <GLFW/glfw3native.h>
+#endif
+#include "GLFW/glfw3.h"
+#include "GLFW/glfw3native.h"
 
 #include "gl/gl_core.h"
 #include "ui/theme.h"

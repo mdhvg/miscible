@@ -24,7 +24,7 @@ DBStmtCbk(get_id)
 
 DBStmtCbk(get_path)
 {
-    *(String *)data = string_copy(arena, sqlite3_column_text(stmt, 0));
+    *(Str8 *)data = str8_copy(arena, sqlite3_column_text(stmt, 0));
 }
 
 void db_close()

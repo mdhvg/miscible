@@ -33,9 +33,9 @@ on_run(function()
 
 		if module.extract then
 			local tmp_dir = path.join(module.parent, "tmp")
+			os.mkdir(tmp_dir)
 			if module.flat then
 				cprintf("${green}Extracting %s (Flat) to %s...${clear}\n", dl_path, module.parent)
-				os.mkdir(tmp_dir)
 				archive.extract(dl_path, tmp_dir)
 				for _, file in ipairs(os.files(path.join(tmp_dir, "**"))) do
 					local name = path.filename(file)
@@ -44,11 +44,14 @@ on_run(function()
 			else
 				cprintf("${green}Extracting %s (Structured) to %s...${clear}\n", dl_path, module.parent)
 				archive.extract(dl_path, tmp_dir)
-
 				local subdirs = os.dirs(path.join(tmp_dir, "*"))
 				if #subdirs > 0 then
 					local inner_dir = subdirs[1]
 					for _, item in ipairs(os.filedirs(path.join(inner_dir, "*"))) do
+						local item_base_path = path.join(module.parent, path.filename(item))
+						if os.exists(item_base_path) then
+							os.rm(item_base_path)
+						end
 						os.mv(item, module.parent)
 					end
 				end

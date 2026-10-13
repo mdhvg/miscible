@@ -230,8 +230,22 @@ void menu_draw_docked_topbar(ImGuiWindowFlags flags)
 
         ImVec2 center = ImGui::GetMainViewport()->GetCenter();
         ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-        if (ImGui::BeginPopupModal("Settings", (bool *)&settings_open, ImGuiWindowFlags_AlwaysAutoResize))
+        if (ImGui::BeginPopupModal("Settings", (bool *)&settings_open, ImGuiWindowFlags_Modal | ImGuiWindowFlags_AlwaysAutoResize))
         {
+            ImGui::BeginChild("SettingsList", ImVec2(200, 600));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, MSCBL_INTERACTION_HOVER);
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, MSCBL_INTERACTION_ACTIVE);
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0);
+            ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.0f, 0.5f));
+            ImGui::Button("Hardware Settings", ImVec2(avail.x, 0));
+            ImGui::PopStyleColor(2);
+            ImGui::PopStyleVar(2);
+            ImGui::Separator();
+            ImGui::EndChild();
+
+            ImGui::SameLine();
+
+            ImGui::BeginChild("CurrentSetting", ImVec2(500, 600));
             ImGui::PushFont(ui_state.title_font);
             ImGui::Text("Available Hardware:");
             ImGui::PopFont();
@@ -242,7 +256,11 @@ void menu_draw_docked_topbar(ImGuiWindowFlags flags)
             InferenceHardwareArr hardware = inference_hardware_get();
             for (U32 i = 0; i < arr_getsize(hardware); i++)
             {
+#if OS_WIN32
                 bool selected = (mscbl_config.inf_settings.dml_device == i);
+#elif OS_LINUX
+                bool selected = (mscbl_config.inf_settings.ovino_device.size);
+#endif
 
                 const char *hardware_type = "CPU";
                 switch (hardware[i].hw_type)
@@ -252,8 +270,8 @@ void menu_draw_docked_topbar(ImGuiWindowFlags flags)
                 case OrtHardwareDeviceType_NPU: hardware_type = "NPU"; break;
                 }
 
-                StringStack(display_text, KB(2));
-                string_format(&display_text, "%.*s\nVendor: %.*s | Device Type: %s", StringSpr(hardware[i].hw_desc), StringSpr(hardware[i].hw_vendor), hardware_type);
+                Str8Stack(display_text, KB(2));
+                str8_format(&display_text, "%.*s\nVendor: %.*s | Device Type: %s", Str8Spr(hardware[i].hw_desc), Str8Spr(hardware[i].hw_vendor), hardware_type);
                 ImGui::PushStyleColor(ImGuiCol_Button, (selected ? MSCBL_INTERACTION_ACTIVE : COLOR_TRANSPARENT));
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, MSCBL_INTERACTION_HOVER);
                 ImGui::PushStyleColor(ImGuiCol_ButtonActive, MSCBL_INTERACTION_ACTIVE);
@@ -264,7 +282,13 @@ void menu_draw_docked_topbar(ImGuiWindowFlags flags)
                 ImGui::PopStyleVar(2);
             }
             ImGui::Separator();
+            ImGui::EndChild();
 
+            if (ImGui::Button("Ok"))
+            {
+                settings_open = 0;
+            }
+            ImGui::SameLine();
             if (ImGui::Button("Close")) settings_open = 0;
             ImGui::EndPopup();
         }

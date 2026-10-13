@@ -6,7 +6,7 @@
 
 #include "base/string.h"
 
-String _yaml_scan_string(Arena *arena, fy_node *root, const char *node_selector, const char *text_selector);
+Str8 _yaml_scan_string(Arena *arena, fy_node *root, const char *node_selector, const char *text_selector);
 #define yaml_scan_string(arena, root, sel) _yaml_scan_string(arena, root, sel, sel " %4096s")
 
 U64 _yaml_scan_int(fy_node *root, const char *text_selector);

@@ -10,9 +10,9 @@
     res = GenResult(!st, Domain_Inference_ONNX, inf_ctx.api->GetErrorCode(st), inference_ort_err(inf_ctx.api->GetErrorCode(st))); \
     CheckAndClearResult(res);
 
-global_v inline const String ORTErrorMessage(const OrtApi *api, OrtStatus *status)
+global_v inline const Str8 ORTErrorMessage(const OrtApi *api, OrtStatus *status)
 {
-    String message = sv(api->GetErrorMessage(status));
+    Str8 message = sv8(api->GetErrorMessage(status));
     while (message.v[message.size - 1] == '\n')
         message.size--;
     return message;

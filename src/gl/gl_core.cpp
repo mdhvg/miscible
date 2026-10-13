@@ -68,14 +68,14 @@ ThreadFunc(gl_tex_id)
     Assert(args[0].kind == TPData_Any, "wrong datatype");
     Assert(args[1].kind == TPData_S64, "wrong datatype");
 
-    String path = {0};
+    Str8 path = {0};
     sqlite3_stmt *stmt = db_prepare("SELECT path FROM Images WHERE id = ?;");
     sqlite3_bind_int64(stmt, 1, args[1].val_s64);
     db_run_stmt(stmt, 1, get_path, &path, arena);
 
     S32 width, height, channels;
     U8 *data = stbi_load(CStrCast(path), &width, &height, &channels, 0);
-    Assert(data, "image data is NULL (%.*s)", StringSpr(path));
+    Assert(data, "image data is NULL (%.*s)", Str8Spr(path));
     gl_tex_data((U32 *)args[0].val_any, data, width, height, channels);
     stbi_image_free(data);
 }
@@ -87,7 +87,7 @@ ThreadFunc(gl_tex_path)
 
     S32 width, height, channels;
     U8 *data = stbi_load(CStrCast(args[1].val_str), &width, &height, &channels, 0);
-    Assert(data, "image data is NULL (%.*s)", StringSpr(args[1].val_str));
+    Assert(data, "image data is NULL (%.*s)", Str8Spr(args[1].val_str));
     gl_tex_data((U32 *)args[0].val_any, data, width, height, channels);
     stbi_image_free(data);
 }

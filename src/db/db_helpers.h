@@ -16,7 +16,7 @@ typedef DBStmtCbk(DBStCbk);
 
 void db_init();
 void db_run(const char *command, sqlite3_callback callback = NULL, void *data = NULL);
-inline void db_run(String command, sqlite3_callback callback = NULL, void *data = NULL)
+inline void db_run(Str8 command, sqlite3_callback callback = NULL, void *data = NULL)
 {
     db_run(CStrCast(command), callback, data);
 }

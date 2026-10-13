@@ -1,6 +1,7 @@
 // Copyright (c) 2025-2026 Madhav Goyal
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
+#include <cstring>
 #include <math.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -9,25 +10,6 @@
 #include "base/log.h"
 #include "base/arena.h"
 #include "base/string.h"
-
-// WString make_string_cwstr(const wchar *s)
-// {
-// #if defined WCHAR_UTF16
-//     if (!s)
-//         return {(U16 *)L"", 0};
-//     U64 len = 0;
-//     while (s[len])
-//         len++;
-//     return {(U16 *)s, len};
-// #elif defined WCHAR_UTF32
-//     if (!s)
-//         return {(U32 *)L"", 0};
-//     U64 len = 0;
-//     while (s[len])
-//         len++;
-//     return {(U32 *)s, len};
-// #endif
-// }
 
 // String make_CStrCast(const char *s)
 // {
@@ -39,7 +21,7 @@
 //     return {(U8 *)s, len};
 // }
 
-void string_growto(StringBuilder *base, U64 reqcap)
+void str8_growto(StringBuilder *base, U64 reqcap)
 {
     if (reqcap <= base->capacity)
         return;
@@ -108,7 +90,7 @@ U8 utf8_class[32] = {
 
 UnicodeDecode utf8_decode(U8 *str, U64 max)
 {
-    UnicodeDecode result = {.size = 1, .codepoint = UTF_INVALID};
+    UnicodeDecode result = {.size = 1, .codepoint = UTF8_INVALID};
     U8 byte = str[0];
     U8 byte_class = utf8_class[byte >> 3];
 
@@ -167,7 +149,7 @@ UnicodeDecode utf8_decode(U8 *str, U64 max)
 U64 utf16_encode(U16 *str, U32 codepoint)
 {
     U32 inc = 1;
-    if (codepoint == UTF_INVALID)
+    if (codepoint == UTF8_INVALID)
     {
         str[0] = (U16)'?';
     }
@@ -187,7 +169,7 @@ U64 utf16_encode(U16 *str, U32 codepoint)
 
 UnicodeDecode utf16_decode(U16 *str, U64 max)
 {
-    UnicodeDecode decode = {1, UTF_INVALID};
+    UnicodeDecode decode = {1, UTF8_INVALID};
     decode.codepoint = str[0];
     decode.size = 1;
     if (max > 1 && str[0] >= 0xD800 && str[0] < 0xDC00 && 0xDC00 <= str[1] && str[1] <= 0xDFFF)
@@ -198,129 +180,20 @@ UnicodeDecode utf16_decode(U16 *str, U64 max)
     return decode;
 }
 
-#if defined WCHAR_UTF16
-U64 string_push_wstring(StringBuilder *base, WString push)
-{
-    if (push.size == 0)
-        return 0;
-
-    string_growby(base, push.size * 3 + 1);
-    U8 *b_ptr = base->v + base->size;
-
-    U16 *in_ptr = push.v;
-    U16 *in_end = push.v + push.size;
-    U64 out_pos = 0;
-    U64 written = 0;
-
-    UnicodeDecode decode = {};
-    for (; in_ptr < in_end; in_ptr += decode.size)
-    {
-        decode = utf16_decode(in_ptr, in_end - in_ptr);
-        out_pos += utf8_encode(b_ptr + out_pos, decode.codepoint);
-        written++;
-    }
-    b_ptr[out_pos] = 0;
-    base->size += out_pos;
-    return written;
-}
-#elif defined WCHAR_UTF32
-U64 string_push_wstring(StringBuild *base, WString push)
-{
-    if (push.size == 0)
-        return 0;
-
-    string_growby(base, push.size * 4 + 1);
-    U8 *b_ptr = base->v + base->size;
-
-    U32 *in_ptr = push.v;
-    U32 *in_end = push.v + push.size;
-    U64 out_pos = 0;
-    U64 written = 0;
-    for (; in_ptr < in_end; in_ptr += 1)
-    {
-        out_pos += utf8_encode(b_ptr + out_pos, *in_ptr);
-        written++;
-    }
-    b_ptr[out_pos] = 0;
-    base->size += out_pos;
-    return written;
-}
-#endif
-
-#if defined WCHAR_UTF16
-U64 string_push_wchar(StringBuilder *base, wchar push)
-{
-    string_growby(base, 3 + 1);
-    U8 *b_ptr = base->v + base->size;
-
-    U16 *in_ptr = (U16 *)&push;
-    U64 out_pos = 0;
-
-    UnicodeDecode decode = utf16_decode(in_ptr, 1);
-    out_pos += utf8_encode(b_ptr + out_pos, decode.codepoint);
-    b_ptr[out_pos] = 0;
-    base->size += out_pos;
-    return 1;
-}
-#elif defined WCHAR_UTF32
-U64 string_push_wchar(StringBuilder *base, wchar push)
-{
-    string_growby(base, 4 + 1);
-    U8 *b_ptr = base->v + base->size;
-
-    U32 *in_ptr = (U32 *)&push;
-    U64 out_pos = 0;
-
-    UnicodeDecode decode = utf32_decode(in_ptr, 1);
-    out_pos += utf8_encode(b_ptr + out_pos, decode.codepoint);
-    b_ptr[out_pos] = 0;
-    base->size += out_pos;
-    return 1;
-}
-#endif
-
-#if defined WCHAR_UTF16
-U64 string_push_wcstr(StringBuilder *base, const wchar *push)
-{
-    if (!push)
-        return 0;
-
-    U64 len = 0;
-    while (push[len])
-        len++;
-
-    WString ws = {(U16 *)push, len};
-    return string_push_wstring(base, ws);
-}
-#elif defined WCHAR_UTF32
-U64 string_push_wcstr(StringBuilder *base, const wchar *push)
-{
-    if (!push)
-        return 0;
-
-    U64 len = 0;
-    while (push[len])
-        len++;
-
-    WString ws = {(U32 *)push, len};
-    return string_push_wstring(base, push);
-}
-#endif
-
-U64 string_push_string(StringBuilder *base, String push)
+U64 str8_push_string(StringBuilder *base, Str8 push)
 {
     if (!push.size)
         return 0;
-    string_growby(base, push.size);
+    str8_growby(base, push.size);
     MemoryCopy(base->v + base->size, push.v, push.size);
     base->size += push.size;
     base->v[base->size] = 0;
     return push.size;
 }
 
-U64 string_push_char(StringBuilder *base, char push)
+U64 str8_push_char(StringBuilder *base, char push)
 {
-    string_growby(base, 1 + 1);
+    str8_growby(base, 1 + 1);
 
     base->v[base->size] = push;
     base->size += 1;
@@ -328,7 +201,7 @@ U64 string_push_char(StringBuilder *base, char push)
     return 1;
 }
 
-U64 string_push_cstr(StringBuilder *base, const char *push)
+U64 str8_push_cstr(StringBuilder *base, const char *push)
 {
     if (!push)
         return 0;
@@ -337,33 +210,21 @@ U64 string_push_cstr(StringBuilder *base, const char *push)
     while (push[len])
         len++;
 
-    String s = {(U8 *)push, len};
-    return string_push_string(base, s);
+    Str8 s = {(U8 *)push, len};
+    return str8_push_string(base, s);
 }
 
-U64 string_assign_string(StringBuilder *base, String push)
+U64 str8_assign_string(StringBuilder *base, Str8 push)
 {
-    string_pop_to(base, 0);
-    string_growto(base, push.size);
+    str8_pop_to(base, 0);
+    str8_growto(base, push.size);
     MemoryCopy(base->v, push.v, push.size);
     base->size = push.size;
     base->v[base->size] = 0;
     return base->size;
 }
 
-WString string_view_wcstr(const wchar *c, S64 size)
-{
-    if (!c)
-        return {0};
-    if (size >= 0)
-        return {(U16 *)c, (U64)size};
-    U64 len = 0;
-    while (len[c] != 0)
-        len++;
-    return {(U16 *)c, len};
-}
-
-String string_view_cstr(const char *c, S64 size)
+Str8 str8_view_cstr(const char *c, S64 size)
 {
     if (!c)
         return {0};
@@ -375,145 +236,68 @@ String string_view_cstr(const char *c, S64 size)
     return {(U8 *)c, len};
 }
 
-WString string_copy_wcstr(Arena *arena, const wchar *c, S64 size)
+Str8 str8_copy_cstr(Arena *arena, const char *c)
 {
-    if (!c)
-        return {0};
+    if (!c) return {0};
 
     U64 len = 0;
-    if (size >= 0)
-    {
-        len = size;
-    }
-    else
-    {
-        while (c[len])
-            len++;
-    }
+    while (c[len]) len++;
 
     StringBuilder b = {.arena = arena};
-    string_growby(&b, (len + 1) * sizeof(wchar));
-
-    MemoryCopy(b.v, c, len * sizeof(wchar));
-    b.size = len;
-    ((U16 *)b.v)[b.size] = 0;
-
-    return WStringCast(b);
-}
-
-String string_copy_cstr(Arena *arena, const char *c, S64 size)
-{
-    if (!c)
-        return {0};
-    U64 len = 0;
-    if (size >= 0)
-    {
-        len = size;
-    }
-    else
-    {
-        while (c[len])
-            len++;
-    }
-
-    StringBuilder b = {.arena = arena};
-    string_growby(&b, len + 1);
+    str8_growby(&b, len + 1);
 
     MemoryCopy(b.v, c, len);
     b.size = len;
     b.v[b.size] = 0;
 
-    return StringCast(b);
+    return Str8Cast(b);
 }
 
-WString string_copy_wstr(Arena *arena, WString c)
+Str8 str8_copy_string(Arena *arena, Str8 s)
 {
     StringBuilder b = {.arena = arena};
-    string_growby(&b, (c.size + 1) * sizeof(wchar));
-    MemoryCopy(b.v, c.v, c.size * sizeof(wchar));
-    b.size = c.size;
-    ((U16 *)b.v)[b.size] = 0;
-    return WStringCast(b);
-}
-
-String string_copy_str(Arena *arena, String s)
-{
-    StringBuilder b = {.arena = arena};
-    string_growby(&b, s.size + 1);
+    str8_growby(&b, s.size + 1);
     MemoryCopy(b.v, s.v, s.size);
     b.size = s.size;
     b.v[b.size] = 0;
-    return StringCast(b);
+    return Str8Cast(b);
 }
 
-StringBuilder string_empty(Arena *arena, U64 size)
+StringBuilder str8_empty(Arena *arena, U64 size)
 {
     StringBuilder b = {.arena = arena};
-    string_growto(&b, size);
+    str8_growto(&b, size);
     return b;
 }
 
-void string_pop_to(StringBuilder *base, U64 size)
+void str8_pop_to(StringBuilder *base, U64 size)
 {
     base->size = size;
     base->v[size] = 0;
 }
 
-B32 string_cmp_wstring(WString str, WString match)
+B32 str8_cmp(Str8 str, Str8 match, StringMatchFlag flags)
 {
-    if (str.size != match.size)
-        return str.size - match.size;
+    if (str.size != match.size) return 0;
 
-    U64 l = 0, r = 0;
-    for (U64 i = 0; i < str.size && i < match.size; i++)
+    if (flags & StringMatch_IgnoreCase)
     {
-        l += str.v[i];
-        r += match.v[i];
-    }
-    return l - r;
-}
-
-B32 string_cmp_string(String str, String match)
-{
-    if (str.size != match.size)
-        return str.size - match.size;
-
-    U64 l = 0, r = 0;
-    for (U64 i = 0; i < str.size && i < match.size; i++)
-    {
-        l += str.v[i];
-        r += match.v[i];
-    }
-    return l - r;
-}
-
-#if defined WCHAR_UTF16
-WString string_to_wide(Arena *arena, String str)
-{
-    WString res = {.v = 0};
-    if (str.size)
-    {
-        U64 cap = str.size * 2;
-        res.v = push_array(arena, cap + 1, U16);
-
-        U8 *in_ptr = str.v;
-        U8 *in_end = str.v + str.size;
-        U64 size = 0;
-        UnicodeDecode decode = {.size = 0};
-        for (; in_ptr < in_end; in_ptr += decode.size)
+        for (S64 i = 0; i < str.size; i++)
         {
-            decode = utf8_decode(in_ptr, in_end - in_ptr);
-            size += utf16_encode(res.v + size, decode.codepoint);
-        }
-        res.v[size] = 0;
-        res.size = size;
-    }
-    return res;
-}
-#elif defined WCHAR_UTF32
-#endif
+            U8 b1 = str.v[i];
+            U8 b2 = match.v[i];
 
-void string_formatv(StringBuilder *base, const char *fmt, va_list args)
+            if (b1 >= 'A' && b1 <= 'Z') b1 += 32;
+            if (b2 >= 'A' && b2 <= 'Z') b2 += 32;
+
+            if (b1 != b2) return 0;
+        }
+    }
+
+    return memcmp(str.v, match.v, str.size) == 0;
+}
+
+void str8_formatv(StringBuilder *base, const char *fmt, va_list args)
 {
     va_list args2;
     va_copy(args2, args);
@@ -522,8 +306,8 @@ void string_formatv(StringBuilder *base, const char *fmt, va_list args)
 
     if (base->arena)
     {
-        string_clear(*base);
-        string_growto(base, size);
+        Str8Clear(*base);
+        str8_growto(base, size);
     }
 
     if (size > base->capacity)
@@ -533,30 +317,14 @@ void string_formatv(StringBuilder *base, const char *fmt, va_list args)
     base->v[size] = 0;
 }
 
-WString string_formatw(StringBuilder *base, const wchar *fmt, ...)
+Str8 str8_format(StringBuilder *base, const char *fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-
-    U64 size = vswprintf(0, 0, fmt, args) + 1;
-    string_clear(*base);
-    string_growto(base, size * sizeof(wchar));
-
-    base->size = vswprintf((wchar *)base->v, size, fmt, args);
-    base->v[size * sizeof(wchar)] = 0;
+    str8_formatv(base, fmt, args);
     va_end(args);
 
-    return WStringCast(*base);
-}
-
-String string_format(StringBuilder *base, const char *fmt, ...)
-{
-    va_list args;
-    va_start(args, fmt);
-    string_formatv(base, fmt, args);
-    va_end(args);
-
-    String result = StringCast(*base);
+    Str8 result = Str8Cast(*base);
     return result;
 }
 
@@ -566,7 +334,7 @@ String string_format(StringBuilder *base, const char *fmt, ...)
 //     va_copy(args2, args);
 //
 //     U64 size = vsnprintf(0, 0, fmt, args2) + 1;
-//     string_growto(s, size);
+//     str8_growto(s, size);
 //     s->size       = vsnprintf((char *)s->v, size, fmt, args);
 //     s->v[s->size] = 0;
 //
@@ -588,35 +356,115 @@ String string_format(StringBuilder *base, const char *fmt, ...)
 //     va_start(args, fmt);
 //     format_strv(s, fmt, args);
 //     va_end(args);
-//     return CStrCast(StringCast(s));
+//     return CStrCast(Str8Cast(s));
 // }
 
-S64 string_find_cstr(String s, const char *f)
+B32 str8_find(Str8 str, Str8 match, StringMatchFlag flags, S64 *loc)
 {
-    for (U64 i = 0; i < s.size; i++)
+    if (!str.size || !match.size || str.size < match.size) return 0;
+
+    for (S64 str_idx = 0; str_idx <= str.size - match.size; str_idx++)
     {
-        if (match_front(s, f))
+        S64 match_idx = 0;
+        while (match_idx < match.size)
         {
-            return i;
+            U8 b1 = str.v[str_idx + match_idx];
+            U8 b2 = match.v[match_idx];
+
+            if (b1 != b2)
+            {
+                if (flags & StringMatch_IgnoreCase)
+                {
+                    if (b1 >= 'A' && b1 <= 'Z') b1 += 32;
+                    if (b2 >= 'A' && b2 <= 'Z') b2 += 32;
+
+                    if (b1 != b2) break;
+                }
+                else
+                {
+                    break;
+                }
+            }
+            match_idx++;
+        }
+
+        if (match_idx == match.size)
+        {
+            if (loc) *loc = str_idx;
+            return 1;
         }
     }
-    return -1;
+
+    return 0;
 }
 
-S64 string_rfind_wstr(WString s, wchar f)
+B32 str8_rfind(Str8 str, Str8 match, StringMatchFlag flags, S64 *loc)
 {
-    for (U64 i = s.size; i >= 0; i--)
+    if (!str.size || !match.size || str.size < match.size) return 0;
+
+    for (S64 str_idx = str.size - match.size; str_idx >= 0; str_idx--)
     {
-        if (s.v[i] == f)
-            return i;
+        S64 match_idx = 0;
+        while (match_idx < match.size)
+        {
+            U8 b1 = str.v[str_idx + match_idx];
+            U8 b2 = match.v[match_idx];
+
+            if (b1 != b2)
+            {
+                if (flags & StringMatch_IgnoreCase)
+                {
+                    if (b1 >= 'A' && b1 <= 'Z') b1 += 32;
+                    if (b2 >= 'A' && b2 <= 'Z') b2 += 32;
+
+                    if (b1 != b2) break;
+                }
+                else
+                {
+                    break;
+                }
+            }
+            match_idx++;
+        }
+
+        if (match_idx == match.size)
+        {
+            if (loc) *loc = str_idx;
+            return 1;
+        }
     }
-    return -1;
+
+    return 0;
 }
 
-U64 string_replace_string(StringBuilder *base, String find, String replace, U64 count)
+// S64 str8_find_cstr(String s, const char *f)
+// {
+//     for (U64 i = 0; i < s.size; i++)
+//     {
+//         if (match_front(s, f))
+//         {
+//             return i;
+//         }
+//     }
+//     return -1;
+// }
+//
+// S64 str8_rfind(String s, String f)
+// {
+//     for (U64 i = s.size; i >= 0; i--)
+//     {
+//     }
+//     return -1;
+// }
+
+U64 str8_replace(StringBuilder *base, Str8 find, Str8 replace, U64 count, StringMatchFlag flags)
 {
+    if (!base || base->size == 0 || find.size == 0 || base->size < find.size) return 0;
+
     U64 replaced = 0;
     U64 instances = 0;
+    U64 size_diff = 0;
+    U64 orig_size = base->size;
 
     if (find.size == replace.size)
         goto FAST_PATH;
@@ -628,14 +476,21 @@ U64 string_replace_string(StringBuilder *base, String find, String replace, U64 
 FAST_PATH:
     for (U64 i = 0; i < base->size - find.size + 1;)
     {
-        if (count && replaced >= count)
-            break;
+        if (count && replaced >= count) break;
 
         U64 found = 0;
         for (U64 j = 0; j < find.size; j++)
         {
-            if (base->v[i + j] != find.v[j])
-                break;
+            U8 b1 = base->v[i + j];
+            U8 b2 = find.v[j];
+
+            if (flags & StringMatch_IgnoreCase)
+            {
+                if (b1 >= 'A' && b1 <= 'Z') b1 += 32;
+                if (b2 >= 'A' && b2 <= 'Z') b2 += 32;
+            }
+
+            if (b1 != b2) break;
             found++;
         }
         if (find.size == found)
@@ -654,20 +509,27 @@ FAST_PATH:
 MOVE_PATH:
     for (U64 i = 0; i < base->size - find.size + 1;)
     {
-        if (count && replaced >= count)
-            break;
+        if (count && replaced >= count) break;
 
         U64 found = 0;
         for (U64 j = 0; j < find.size; j++)
         {
-            if (base->v[i + j] != find.v[j])
-                break;
+            U8 b1 = base->v[i + j];
+            U8 b2 = find.v[j];
+
+            if (flags & StringMatch_IgnoreCase)
+            {
+                if (b1 >= 'A' && b1 <= 'Z') b1 += 32;
+                if (b2 >= 'A' && b2 <= 'Z') b2 += 32;
+            }
+
+            if (b1 != b2) break;
             found++;
         }
         if (find.size == found)
         {
             MemoryCopy(base->v + i, replace.v, replace.size);
-            MemoryCopy(base->v + i + replace.size, base->v + i + find.size, base->size - i - replace.size);
+            MemoryCopy(base->v + i + replace.size, base->v + i + find.size, base->size - (i + find.size));
             i += replace.size;
             replaced++;
         }
@@ -682,14 +544,21 @@ MOVE_PATH:
 GROW_PATH:
     for (U64 i = 0; i < base->size - find.size + 1;)
     {
-        if (count && instances >= count)
-            break;
+        if (count && instances >= count) break;
 
         U64 found = 0;
         for (U64 j = 0; j < find.size; j++)
         {
-            if (base->v[i + j] != find.v[j])
-                break;
+            U8 b1 = base->v[i + j];
+            U8 b2 = find.v[j];
+
+            if (flags & StringMatch_IgnoreCase)
+            {
+                if (b1 >= 'A' && b1 <= 'Z') b1 += 32;
+                if (b2 >= 'A' && b2 <= 'Z') b2 += 32;
+            }
+
+            if (b1 != b2) break;
             found++;
         }
         if (find.size == found)
@@ -703,27 +572,37 @@ GROW_PATH:
         }
     }
 
-    string_growby(base, instances * (replace.size - find.size));
-    base->size += instances * (replace.size - find.size);
+    if (instances == 0) goto RES;
 
-    for (U64 i = 0; i < base->size - find.size;)
+    size_diff = instances * (replace.size - find.size);
+    str8_growby(base, size_diff);
+
+    base->size += size_diff;
+
+    for (S64 i = (S64)base->size - (S64)size_diff - (S64)find.size; i < base->size - find.size; i--)
     {
-        if (count && replaced >= count)
-            break;
-
         U64 found = 0;
         for (U64 j = 0; j < find.size; j++)
         {
-            if (base->v[i + j] != find.v[j])
-                break;
+            U8 b1 = base->v[i + j];
+            U8 b2 = find.v[j];
+
+            if (flags & StringMatch_IgnoreCase)
+            {
+                if (b1 >= 'A' && b1 <= 'Z') b1 += 32;
+                if (b2 >= 'A' && b2 <= 'Z') b2 += 32;
+            }
+
+            if (b1 != b2) break;
             found++;
         }
         if (find.size == found)
         {
-            MemoryCopy(base->v + i + replace.size, base->v + i + find.size, base->size - i - find.size + 1);
+            MemoryCopy(base->v + i + replace.size, base->v + i + find.size, base->size - (i + find.size) - size_diff + (replaced * (replace.size - find.size)));
             MemoryCopy(base->v + i, replace.v, replace.size);
-            i += replace.size;
+
             replaced++;
+            i -= (replace.size - 1);
         }
         else
         {
@@ -737,131 +616,35 @@ RES:
     return replaced;
 }
 
-U64 string_replace_wstring(WString base, WString find, WString replace, U64 count)
+B32 str8_match_beg(Str8 str, Str8 match, StringMatchFlag flags)
 {
-    Assert(find.size == replace.size, "find and replace size should be same for string view replace");
-    U64 replaced = 0;
-
-    for (U64 i = 0; i < base.size - find.size + 1;)
-    {
-        if (count && replaced >= count)
-            break;
-
-        U64 found = 0;
-        for (U64 j = 0; j < find.size; j++)
-        {
-            if (base.v[i + j] != find.v[j])
-                break;
-            found++;
-        }
-        if (find.size == found)
-        {
-            MemoryCopy(base.v + i, replace.v, find.size);
-            i += find.size;
-            replaced++;
-        }
-        else
-        {
-            i++;
-        }
-    }
-    return replaced;
-}
-
-U64 string_replace_cstr(StringBuilder *base, const char *find, const char *replace, U64 count)
-{
-    if (!find || !replace || !*find)
-        return 0;
-
-    return string_replace_string(base, sv(find), sv(replace), count);
-}
-
-U64 string_replace_wcstr(WString base, const wchar *find, const wchar *replace, U64 count)
-{
-    if (!find || !replace || !*find)
-        return 0;
-
-    return string_replace_wstring(base, sv(find), sv(replace), count);
-}
-
-B32 match_front_wcstr(WString base, const wchar *match)
-{
-    if (!match)
-        return 0;
+    if (!match.size) return 0;
 
     U64 len_match = 0;
-    while (match[len_match])
-        len_match++;
+    while (match.v[len_match]) len_match++;
 
-    if (len_match > base.size)
-        return false;
+    if (len_match > str.size) return false;
 
     for (U64 i = 0; i < len_match; i++)
     {
-        if (base.v[i] != match[i])
-            return 0;
+        if (str.v[i] != match.v[i]) return 0;
     }
 
     return 1;
 }
 
-B32 match_end_wcstr(WString base, const wchar *match)
+B32 str8_match_end(Str8 str, Str8 match, StringMatchFlag flags)
 {
-    if (!match)
-        return 0;
+    if (!match.size) return 0;
 
     U64 len_match = 0;
-    while (match[len_match])
-        len_match++;
+    while (match.v[len_match]) len_match++;
 
-    if (len_match > base.size)
-        return 0;
+    if (len_match > str.size) return 0;
 
-    for (S64 i = base.size, j = len_match; j >= 0; i--, j--)
+    for (S64 i = str.size - 1, j = len_match - 1; j >= 0; i--, j--)
     {
-        if (base.v[i] != match[j])
-            return 0;
-    }
-    return 1;
-}
-
-B32 match_front_cstr(String base, const char *match)
-{
-    if (!match)
-        return 0;
-
-    U64 len_match = 0;
-    while (match[len_match])
-        len_match++;
-
-    if (len_match > base.size)
-        return false;
-
-    for (U64 i = 0; i < len_match; i++)
-    {
-        if (base.v[i] != match[i])
-            return 0;
-    }
-
-    return 1;
-}
-
-B32 match_end_cstr(String base, const char *match)
-{
-    if (!match)
-        return 0;
-
-    U64 len_match = 0;
-    while (match[len_match])
-        len_match++;
-
-    if (len_match > base.size)
-        return 0;
-
-    for (S64 i = base.size - 1, j = len_match - 1; j >= 0; i--, j--)
-    {
-        if (base.v[i] != match[j])
-            return 0;
+        if (str.v[i] != match.v[j]) return 0;
     }
     return 1;
 }
@@ -880,7 +663,7 @@ global_v U8 integer_symbol_reverse[128] =
 };
 // clang-format on
 
-S8 string_get_sign(String *str)
+S8 str8_get_sign(Str8 *str)
 {
     S8 ret = 1;
     for (U8 **i = &str->v; *i < str->v + str->size && **i == '-'; ((*i)++, str->size--))
@@ -890,7 +673,7 @@ S8 string_get_sign(String *str)
     return ret;
 }
 
-U64 string_to_u64(String str, U32 radix)
+U64 str8_to_u64(Str8 str, U32 radix)
 {
     if (radix <= 1 || radix > 16)
         return 0;
@@ -904,14 +687,14 @@ U64 string_to_u64(String str, U32 radix)
     return x;
 }
 
-F64 string_to_f64(String str)
+F64 str8_to_f64(Str8 str)
 {
     char buffer[64];
     MemoryCopy(buffer, str.v, str.size);
     buffer[str.size] = 0;
     char *__end = NULL;
     return strtod(buffer, &__end);
-    // S8 sign = string_get_sign(&str);
+    // S8 sign = str8_get_sign(&str);
     //
     // F64 x = 0;
     // U8 fraction = 0;
@@ -936,36 +719,40 @@ F64 string_to_f64(String str)
     // return sign * x;
 }
 
-String month_string(Month month)
+Str8 str8_month(Month month)
 {
     switch (month)
     {
-    case Month_Jan: return sv("JAN");
-    case Month_Feb: return sv("FEB");
-    case Month_Mar: return sv("MAR");
-    case Month_Apr: return sv("APR");
-    case Month_May: return sv("MAY");
-    case Month_Jun: return sv("JUN");
-    case Month_Jul: return sv("JUL");
-    case Month_Aug: return sv("AUG");
-    case Month_Sep: return sv("SEP");
-    case Month_Oct: return sv("OCT");
-    case Month_Nov: return sv("NOV");
-    case Month_Dec: return sv("DEC");
-    default: return sv("Err");
+    case Month_Jan: return sv8("JAN");
+    case Month_Feb: return sv8("FEB");
+    case Month_Mar: return sv8("MAR");
+    case Month_Apr: return sv8("APR");
+    case Month_May: return sv8("MAY");
+    case Month_Jun: return sv8("JUN");
+    case Month_Jul: return sv8("JUL");
+    case Month_Aug: return sv8("AUG");
+    case Month_Sep: return sv8("SEP");
+    case Month_Oct: return sv8("OCT");
+    case Month_Nov: return sv8("NOV");
+    case Month_Dec: return sv8("DEC");
+    default: return sv8("Err");
     }
 }
 
-String byte_string(ByteUnit unit)
+Str8 str8_byte(ByteUnit unit)
 {
     switch (unit)
     {
-    case Byte: return sv("B");
-    case KiByte: return sv("KB");
-    case MiByte: return sv("MB");
-    case GiByte: return sv("GB");
-    case TiByte: return sv("TB");
-    case PiByte: return sv("PB");
-    default: return sv("Err");
+    case Byte: return sv8("B");
+    case KiByte: return sv8("KB");
+    case MiByte: return sv8("MB");
+    case GiByte: return sv8("GB");
+    case TiByte: return sv8("TB");
+    case PiByte: return sv8("PB");
+    default: return sv8("Err");
     }
 }
+
+#if OS_WIN32
+#include "base/wstring.cpp"
+#endif

@@ -78,8 +78,8 @@ def generate_c_code(json_path, output_path):
         out.append(f"    // [{i}] {file['name']}")
         out.append("    {")
         out.append(f"        .size = {file['size']},")
-        out.append(f'        .url  = sv("{file["url"]}"),')
-        out.append(f'        .name = sv("{file["name"]}"),')
+        out.append(f'        .url  = sv8_lit("{file["url"]}"),')
+        out.append(f'        .name = sv8_lit("{file["name"]}"),')
         out.append(f"        .hash = {hash_c}")
         out.append("    },")
     out.append("};")
@@ -91,7 +91,7 @@ def generate_c_code(json_path, output_path):
     for group in processed_ggml:
         common_ptr = f"&master_files[{group['common_start']}]" if group['common_count'] > 0 else "NULL"
         out.append("    {")
-        out.append(f'        .name              = sv("{group["name"]}"),')
+        out.append(f'        .name              = sv8_lit("{group["name"]}"),')
         out.append(f"        .common_files      = {common_ptr},")
         out.append(f"        .common_files_size = {group['common_count']},")
         out.append("        .variants          = NULL,")
@@ -128,7 +128,7 @@ def generate_c_code(json_path, output_path):
         var_size = len(group['variants']) if group['variants'] else 0
 
         out.append("    {")
-        out.append(f'        .name              = sv("{group["name"]}"),')
+        out.append(f'        .name              = sv8_lit("{group["name"]}"),')
         out.append(f"        .common_files      = {common_ptr},")
         out.append(f"        .common_files_size = {group['common_count']},")
         out.append(f"        .variants          = {var_array_name},")

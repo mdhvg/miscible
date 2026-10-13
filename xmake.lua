@@ -11,7 +11,7 @@ if is_plat("windows") then
 end
 
 set_targetdir("$(projectdir)/build")
-set_objectdir("$(projectdir)/build")
+set_objectdir("$(projectdir)/build/intermediate")
 
 add_defines("SQLITE_CORE=1")
 add_defines("CURL_STATICLIB")
@@ -50,7 +50,8 @@ target("tests")
 set_kind("binary")
 add_defines("MSCBL_CORE=1")
 add_files("tests/all.cpp")
-add_files("tests/**/*.cpp")
+add_files("tests/base/array.cpp")
+add_files("tests/base/string.cpp")
 add_includedirs("deps/doctest")
 
 -- C target

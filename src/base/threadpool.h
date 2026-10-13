@@ -41,7 +41,7 @@ struct TPData
     TPData_ kind;
     union {
         ArenaArray val_arena_arr;
-        String val_str;
+        Str8 val_str;
         OSString val_os_str;
 
         void *val_any;

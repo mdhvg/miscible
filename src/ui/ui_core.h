@@ -89,7 +89,7 @@ struct UIMap
     union {
         S32 s32_header;
         Time time_header;
-        String str_header;
+        Str8 str_header;
         ByteSize size_header;
     };
     S64 item_count;

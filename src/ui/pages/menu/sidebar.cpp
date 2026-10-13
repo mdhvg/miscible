@@ -43,15 +43,15 @@ void directory_tree(DirKey cur = 1)
     ImGui::SameLine();
 
     DirTree dir = fetch_directories[cur];
-    StringStack(sb, KB(1));
-    string_format(&sb, ICON_LC_FOLDER " %.*s", StringSpr(dir.name));
-    const char *dirname = format_cstr(&sb, ICON_LC_FOLDER " %.*s", StringSpr(dir.name));
-    Assert(dirname, "dirname is null");
+    Str8Stack(sb, KB(1));
+    str8_format(&sb, ICON_LC_FOLDER " %.*s", Str8Spr(dir.name));
+    Str8 dirname = str8_format(&sb, ICON_LC_FOLDER " %.*s", Str8Spr(dir.name));
+    Assert(dirname.size, "dirname is null");
 
     ImGui::PushStyleColor(ImGuiCol_Button, (ui_state.view_query.selected_dir == cur)
                                                ? (MSCBL_INTERACTION_HOVER)
                                                : (COLOR_TRANSPARENT));
-    if (ImGui::Button(dirname, ImVec2(ImGui::GetContentRegionAvail().x, 0)))
+    if (ImGui::Button(CStrCast(dirname), ImVec2(ImGui::GetContentRegionAvail().x, 0)))
     {
         if (ui_state.view_query.selected_dir == cur)
             ui_state.view_query.selected_dir = 0;
@@ -118,7 +118,7 @@ void filters()
                             };
                             break;
                         case FilterType_Path:
-                            filter->val_str = {.val = string_empty(ui_state.view_query.arena, 4096), .exclude = 0};
+                            filter->val_str = {.val = str8_empty(ui_state.view_query.arena, 4096), .exclude = 0};
                             break;
                         case FilterType_DateAddedBetween:
                         case FilterType_DateCreatedBetween:
@@ -171,7 +171,7 @@ void filters()
             case FilterType_SizeBetween: {
                 ImVec2 right_edge = ImGui::GetContentRegionMax();
 
-                F32 from_align = right_edge.x - SPACING(16) - ImGui::CalcTextSize(CStrCast(byte_string(filter->val_byte.from.unit))).x - ImGui::CalcTextSize(ICON_LC_POWER).x - 4.0f * style.FramePadding.x;
+                F32 from_align = right_edge.x - SPACING(16) - ImGui::CalcTextSize(CStrCast(str8_byte(filter->val_byte.from.unit))).x - ImGui::CalcTextSize(ICON_LC_POWER).x - 4.0f * style.FramePadding.x;
                 ImGui::PushStyleColor(ImGuiWindowDockStyleCol_Text, filter->val_byte.from_enable ? MSCBL_FOREGROUND : MSCBL_FOREGROUND_MUTED);
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("Bigger than ");
@@ -182,12 +182,12 @@ void filters()
                 ImGui::DragFloat("##FromBytes", &filter->val_byte.from.value, 0.1f, 0.0f, 1023.0f, "%.2f");
 
                 ImGui::SameLine(0, 0);
-                if (ImGui::BeginCombo("##FromMultiplier", CStrCast(byte_string(filter->val_byte.from.unit)), ImGuiComboFlags_HeightSmall | ImGuiComboFlags_NoArrowButton | ImGuiComboFlags_WidthFitPreview))
+                if (ImGui::BeginCombo("##FromMultiplier", CStrCast(str8_byte(filter->val_byte.from.unit)), ImGuiComboFlags_HeightSmall | ImGuiComboFlags_NoArrowButton | ImGuiComboFlags_WidthFitPreview))
                 {
                     for (U32 i = 0; i < Byte_COUNT; i++)
                     {
                         B32 is_selected = (filter->val_byte.from.unit == (ByteUnit)i);
-                        if (ImGui::Selectable(CStrCast(byte_string((ByteUnit)i)), is_selected))
+                        if (ImGui::Selectable(CStrCast(str8_byte((ByteUnit)i)), is_selected))
                         {
                             filter->val_byte.from.unit = (ByteUnit)i;
                         }
@@ -207,7 +207,7 @@ void filters()
                 }
                 ImGui::PopStyleColor(2);
 
-                F32 to_align = right_edge.x - SPACING(16) - ImGui::CalcTextSize(CStrCast(byte_string(filter->val_byte.to.unit))).x - ImGui::CalcTextSize(ICON_LC_POWER).x - 4.0f * style.FramePadding.x;
+                F32 to_align = right_edge.x - SPACING(16) - ImGui::CalcTextSize(CStrCast(str8_byte(filter->val_byte.to.unit))).x - ImGui::CalcTextSize(ICON_LC_POWER).x - 4.0f * style.FramePadding.x;
                 ImGui::PushStyleColor(ImGuiWindowDockStyleCol_Text, filter->val_byte.to_enable ? MSCBL_FOREGROUND : MSCBL_FOREGROUND_MUTED);
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("Smaller than ");
@@ -218,12 +218,12 @@ void filters()
                 ImGui::DragFloat("##ToBytes", &filter->val_byte.to.value, 0.1f, 0.0f, 1023.0f, "%.2f");
 
                 ImGui::SameLine(0, 0);
-                if (ImGui::BeginCombo("##ToMultiplier", CStrCast(byte_string(filter->val_byte.to.unit)), ImGuiComboFlags_HeightSmall | ImGuiComboFlags_NoArrowButton | ImGuiComboFlags_WidthFitPreview))
+                if (ImGui::BeginCombo("##ToMultiplier", CStrCast(str8_byte(filter->val_byte.to.unit)), ImGuiComboFlags_HeightSmall | ImGuiComboFlags_NoArrowButton | ImGuiComboFlags_WidthFitPreview))
                 {
                     for (U32 i = 0; i < Byte_COUNT; i++)
                     {
                         B32 is_selected = (filter->val_byte.to.unit == (ByteUnit)i);
-                        if (ImGui::Selectable(CStrCast(byte_string((ByteUnit)i)), is_selected))
+                        if (ImGui::Selectable(CStrCast(str8_byte((ByteUnit)i)), is_selected))
                         {
                             filter->val_byte.to.unit = (ByteUnit)i;
                         }
@@ -266,12 +266,12 @@ void filters()
 
                 ImGui::SameLine(0, 0);
                 ImGui::SetNextItemWidth(SPACING(12.0f));
-                if (ImGui::BeginCombo("##MonthFrom", CStrCast(month_string(filter->val_time.from.month)), ImGuiComboFlags_HeightSmall | ImGuiComboFlags_NoArrowButton))
+                if (ImGui::BeginCombo("##MonthFrom", CStrCast(str8_month(filter->val_time.from.month)), ImGuiComboFlags_HeightSmall | ImGuiComboFlags_NoArrowButton))
                 {
                     for (U32 i = 0; i < Month_COUNT; i++)
                     {
                         B32 is_selected = (filter->val_time.from.month == (Month)i);
-                        if (ImGui::Selectable(CStrCast(month_string((Month)i)), is_selected))
+                        if (ImGui::Selectable(CStrCast(str8_month((Month)i)), is_selected))
                         {
                             filter->val_time.from.month = (Month)i;
                         }
@@ -306,12 +306,12 @@ void filters()
 
                 ImGui::SameLine(0, 0);
                 ImGui::SetNextItemWidth(SPACING(12.0f));
-                if (ImGui::BeginCombo("##MonthTo", CStrCast(month_string(filter->val_time.to.month)), ImGuiComboFlags_HeightSmall | ImGuiComboFlags_NoArrowButton))
+                if (ImGui::BeginCombo("##MonthTo", CStrCast(str8_month(filter->val_time.to.month)), ImGuiComboFlags_HeightSmall | ImGuiComboFlags_NoArrowButton))
                 {
                     for (U32 i = 0; i < Month_COUNT; i++)
                     {
                         B32 is_selected = (filter->val_time.to.month == (Month)i);
-                        if (ImGui::Selectable(CStrCast(month_string((Month)i)), is_selected))
+                        if (ImGui::Selectable(CStrCast(str8_month((Month)i)), is_selected))
                         {
                             filter->val_time.to.month = (Month)i;
                         }

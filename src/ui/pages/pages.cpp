@@ -12,14 +12,14 @@ S32 text_callback(ImGuiInputTextCallbackData *data)
 
     if (data->BufTextLen >= (*buf)->size)
     {
-        String input = {
+        Str8 input = {
             .v = (U8 *)(data->Buf + (*buf)->size),
             .size = (U64)(data->BufTextLen - (*buf)->size)};
-        string_push(*buf, input);
+        str8_push(*buf, input);
     }
     else
     {
-        string_pop_to((*buf), data->BufTextLen);
+        str8_pop_to((*buf), data->BufTextLen);
     }
 
     return 0;

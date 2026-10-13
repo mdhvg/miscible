@@ -22,7 +22,7 @@ struct download_params
     U8 *state;
     S64 index;
     U64 file_size;
-    StringArr file_urls;
+    Str8Arr file_urls;
     FileHandle file_desc;
 };
 
@@ -59,7 +59,7 @@ ThreadFunc(download_worker)
         U8 *state_array = (U8 *)args[0].val_any;
         S64 index = args[1].val_s64;
         U64 file_size = args[2].val_u64;
-        String file_url = args[3].val_str;
+        Str8 file_url = args[3].val_str;
         FileHandle file_desc = args[4].val_filedesc;
 
         U64 start = index * DOWNLOAD_PIECE_SIZE;
@@ -134,8 +134,8 @@ Result download_large_file(Arena *arena, DownloadArgs args)
     S64 block_count = ToCeilInt(args.file_size, DOWNLOAD_PIECE_SIZE);
     U64 state_array_size = ToCeilInt(block_count, (sizeof(U8) * 8));
 
-    StringBuilder statefile_path = string_init(arena, StringCast(args.file_path));
-    string_push(&statefile_path, ".state");
+    StringBuilder statefile_path = str8_init(arena, Str8Cast(args.file_path));
+    str8_push(&statefile_path, ".state");
 
     sha256_ctx ctx = {0};
     U8 *file_buffer = NULL;
@@ -149,14 +149,14 @@ Result download_large_file(Arena *arena, DownloadArgs args)
     S64 batch_size = block_count;
 
     OSMmap map = {0};
-    statefile_desc = os_file_open(StringCast(statefile_path), FileAccess_Read | FileAccess_Write, FileMode_OpenAlways, &res);
+    statefile_desc = os_file_open(Str8Cast(statefile_path), FileAccess_Read | FileAccess_Write, FileMode_OpenAlways, &res);
     CheckAndClearResult(res);
 
     map = os_file_map(statefile_desc, state_array_size, &res);
     CheckAndClearResult(res);
     state_array = (U8 *)os_map_get_data(map);
 
-    file_desc = os_file_open(StringCast(args.file_path), FileAccess_Read | FileAccess_Write, FileMode_OpenAlways, &res);
+    file_desc = os_file_open(Str8Cast(args.file_path), FileAccess_Read | FileAccess_Write, FileMode_OpenAlways, &res);
     CheckAndClearResult(res);
 
     for (S64 i = 0; i < block_count; i++)
@@ -231,7 +231,7 @@ Result download_large_file(Arena *arena, DownloadArgs args)
     sha256_final(&ctx, file_hash);
     if (memcmp(file_hash, args.file_hash, SHA256_DIGEST_SIZE) != 0)
     {
-        os_file_delete(StringCast(statefile_path), &res);
+        os_file_delete(Str8Cast(statefile_path), &res);
         res = {.success = 0,
                .domain = Domain_App,
                .code = AppError_ChecksumFail,
@@ -268,8 +268,8 @@ Return:
 static U64 smallfile_cbk(U8 *data, U64 n, U64 l, void *userp)
 {
     StringBuilder *base = (StringBuilder *)userp;
-    String view = {(U8 *)data, n * l};
-    string_push(base, view);
+    Str8 view = {(U8 *)data, n * l};
+    str8_push(base, view);
     return n * l;
 }
 
@@ -286,7 +286,7 @@ Result download_small_file(Arena *arena, DownloadArgs args)
     sha256_ctx ctx = {0};
     U8 hash_found[SHA256_DIGEST_SIZE] = {0};
 
-    StringBuilder file_content = string_empty(arena, args.file_size);
+    StringBuilder file_content = str8_empty(arena, args.file_size);
 
     curl = curl_easy_init();
     if (!curl)
@@ -340,7 +340,7 @@ Result download_small_file(Arena *arena, DownloadArgs args)
 
     file = os_file_open(args.file_path, FileAccess_Write, FileMode_OpenAlways, &res);
     CheckAndClearResult(res);
-    os_file_write(file, StringSpr(file_content), &res);
+    os_file_write(file, Str8Spr(file_content), &res);
     CheckAndClearResult(res);
     os_file_close(file, &res);
     CheckAndClearResult(res);

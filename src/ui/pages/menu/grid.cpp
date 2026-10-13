@@ -178,7 +178,7 @@ void menu_grid()
                     {
                     case SortType_Directory:
                     case SortType_Filename:
-                        ImGui::Text("%.*s", StringSpr(map->map[g].str_header));
+                        ImGui::Text("%.*s", Str8Spr(map->map[g].str_header));
                         break;
                     case SortType_Size: {
                         ByteSize size = map->map[g].size_header;
@@ -195,7 +195,7 @@ void menu_grid()
                             next_size = size_to_bytesize(bytesize_to_size(size) + ui_state.view_query.sub_type);
                         default: break;
                         }
-                        ImGui::Text("%.0f%.*s-%.0f%.*s", size.value, StringSpr(byte_string(size.unit)), next_size.value, StringSpr(byte_string(next_size.unit)));
+                        ImGui::Text("%.0f%.*s-%.0f%.*s", size.value, Str8Spr(str8_byte(size.unit)), next_size.value, Str8Spr(str8_byte(next_size.unit)));
                     }
                     break;
                     case SortType_DateAdded:
@@ -206,13 +206,13 @@ void menu_grid()
                         case Group_DateDay: {
                             Time date = map->map[g].time_header;
                             Time next_day = skip_days(date, 1);
-                            ImGui::Text("%d-%d %.*s %d", date.date, next_day.date, StringSpr(month_string(date.month)), date.year);
+                            ImGui::Text("%d-%d %.*s %d", date.date, next_day.date, Str8Spr(str8_month(date.month)), date.year);
                         }
                         break;
                         case Group_DateMonth: {
                             Time date = map->map[g].time_header;
                             Time next_month = skip_months(date, 1);
-                            ImGui::Text("%.*s-%.*s %d", StringSpr(month_string(date.month)), StringSpr(month_string(next_month.month)), date.year);
+                            ImGui::Text("%.*s-%.*s %d", Str8Spr(str8_month(date.month)), Str8Spr(str8_month(next_month.month)), date.year);
                         }
                         break;
                         case Group_DateYear: {

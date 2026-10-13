@@ -32,7 +32,7 @@ ThreadFunc(preprocess_image)
     Assert(args[0].kind == TPData_String, "wrong datatype");
     Assert(args[1].kind == TPData_Any, "wrong datatype");
     Assert(args[2].kind == TPData_Any, "wrong datatype");
-    String image_path = args[0].val_str;
+    Str8 image_path = args[0].val_str;
     F32 *write_base = (F32 *)args[1].val_any;
     VisionModelConfig *config = (VisionModelConfig *)args[2].val_any;
 
@@ -45,7 +45,7 @@ ThreadFunc(preprocess_image)
 
         S32 w, h;
         U8 *image_data = stbi_load(CStrCast(image_path), &w, &h, NULL, 3);
-        Assert(image_data, "image data is NULL (%.*s)", StringSpr(image_path));
+        Assert(image_data, "image data is NULL (%.*s)", Str8Spr(image_path));
 
         S32 crop_x = 0, crop_y = 0,
             crop_w = w, crop_h = h;
@@ -221,19 +221,19 @@ void model_insert_embedding_impl(Arena *arena)
 //     return res.success;
 // }
 
-Result model_download_files(Arena *arena, const RemoteFile *files, U64 file_count, String model_base)
+Result model_download_files(Arena *arena, const RemoteFile *files, U64 file_count, Str8 model_base)
 {
     Result res = ResultSuccess();
     if (!files || !file_count) return res;
     for (U64 fi = 0; fi < file_count; fi++)
     {
         RemoteFile file = files[fi];
-        StringBuilder file_path = string_init(arena, StringCast(model_base));
-        path_join(&file_path, file.name);
+        StringBuilder file_path = str8_init(arena, Str8Cast(model_base));
+        str8_path_join(&file_path, file.name);
 
         DownloadArgs args = {
             .link = file.url,
-            .file_path = StringCast(file_path),
+            .file_path = Str8Cast(file_path),
             .file_size = file.size,
             .file_hash = file.hash};
         res = download_file(arena, args);
@@ -279,7 +279,7 @@ DBStmtCbk(print_dist)
         sqlite3_column_double(stmt, 2));
 }
 
-Embedding model_embed_text(Arena *arena, String text)
+Embedding model_embed_text(Arena *arena, Str8 text)
 {
     if (!text.size)
         return {0};

@@ -19,6 +19,8 @@ on_install(function(package)
 	local configs = {
 		"-GNinja",
 		"-DGGML_BUILD_SHARED_LIBS=OFF",
+		"-DGGML_BUILD_EXAMPLES=OFF",
+		"-DGGML_BUILD_TESTS=OFF",
 		"-DGGML_OPENMP=OFF",
 	}
 	import("package.tools.cmake").install(package, configs)
@@ -52,6 +54,15 @@ add_requires("curl_local")
 package("libfyaml_local")
 set_sourcedir("deps/libfyaml")
 on_install(function(package)
+	local configs = {
+		"-GNinja",
+		"-DBUILD_SHARED_LIBS=OFF",
+		"-DENABLE_STATIC_TOOLS=OFF",
+		"-DENABLE_ASAN=OFF",
+		"-DENABLE_NETWORK=OFF",
+		"-DENABLE_DEVMODE=OFF",
+		"-DENABLE_PYTHON_BINDINGS=OFF",
+	}
 	import("package.tools.cmake").install(package, configs)
 end)
 package_end()
@@ -104,6 +115,93 @@ on_build(function(target)
 			"onnxruntime_ENABLE_TRAINING_OPS=OFF",
 			"onnxruntime_BUILD_BENCHMARKS=OFF",
 			"onnxruntime_USE_UNITY_BUILD=OFF",
+			"ONNX_USE_UNITY_BUILD=OFF",
+			-- "OpenVINO_DIR=" .. path.join(os.projectdir(), "deps/openvino/runtime/cmake"),
+		}
+
+		cprintf("${bright green}Building ONNXRuntime via Python script...${clear}\n")
+		print("uv", table.unpack(args))
+		os.execv("uv", args)
+
+		cprintf("${bright green}Building ONNXRuntime-Extensions manually...${clear}\n")
+		os.execv("cmake", {
+			"-S",
+			"deps/onnxruntime-extensions",
+			"-B",
+			"build/onnxruntime-extensions",
+			"-GNinja",
+			"-DCMAKE_BUILD_TYPE=" .. cfg,
+
+			"-DOCOS_ENABLE_C_API=ON",
+			"-DOCOS_BUILD_SHARED_LIB=OFF",
+			"-DOCOS_ENABLE_STATIC_LIB=ON",
+
+			"-DOCOS_ENABLE_TOKENIZERS=ON",
+			"-DOCOS_ENABLE_GPT2_TOKENIZER=ON",
+
+			"-DOCOS_ENABLE_BLINGFIRE=OFF",
+			"-DOCOS_ENABLE_AUDIO=OFF",
+			"-DOCOS_ENABLE_VISION=OFF",
+			"-DOCOS_ENABLE_DLIB=OFF",
+			"-DOCOS_ENABLE_MATH=OFF",
+			"-DOCOS_ENABLE_SPM_TOKENIZER=OFF",
+		})
+
+		os.execv("cmake", {
+			"--build",
+			"build/onnxruntime-extensions",
+		})
+
+		local app_bin_dir = target:targetdir()
+
+		cprintf("${bright green}Copying required ONNXRuntime DLLs to %s...${clear}\n", app_bin_dir)
+		os.cp(path.join("build/onnxruntime", cfg, "*.dll"), app_bin_dir)
+		os.cp(path.join("build/onnxruntime", cfg, "*.lib"), app_bin_dir)
+
+		-- os.cp(path.join("build/onnxruntime-extensions/lib", "*.dll"), app_bin_dir)
+		os.cp(path.join("build/onnxruntime-extensions/lib", "*.lib"), app_bin_dir)
+	end
+	if is_plat("linux") then
+		import("core.base.option")
+
+		local cfg = "Release"
+		if is_mode("debug") then
+			cfg = "Debug"
+		end
+
+		local args = {
+			"run",
+			"deps/onnxruntime/tools/ci_build/build.py",
+			"--config",
+			cfg,
+			"--update",
+			"--build",
+			"--build_shared_lib",
+			"--parallel",
+			"--compile_no_warning_as_error",
+			"--skip_submodule_sync",
+			"--skip_tests",
+			-- "--use_openvino",
+			-- "--use_extensions",
+			"--cmake_generator",
+			"Ninja",
+			"--build_dir",
+			"build/onnxruntime",
+
+			"--targets",
+			"onnxruntime",
+			"onnxruntime_providers",
+			-- "onnxruntime_providers_openvino",
+			"onnxruntime_providers_shared",
+
+			"--cmake_extra_defines",
+			-- "CMAKE_POLICY_VERSION_MINIMUM=3.5",
+			-- "OCOS_ENABLE_BLINGFIRE=OFF",
+			"onnxruntime_BUILD_UNIT_TESTS=OFF",
+			"onnxruntime_ENABLE_TRAINING=OFF",
+			"onnxruntime_ENABLE_TRAINING_APIS=OFF",
+			"onnxruntime_ENABLE_TRAINING_OPS=OFF",
+			"onnxruntime_BUILD_BENCHMARKS=OFF",
 			"ONNX_USE_UNITY_BUILD=OFF",
 			-- "OpenVINO_DIR=" .. path.join(os.projectdir(), "deps/openvino/runtime/cmake"),
 		}

@@ -9,33 +9,27 @@
 
 static FileHandle log_file = 0;
 
-void mscbl_log_init(U64 log_age)
+void mscbl_log_init(U64 log_age_days)
 {
-    String root = os_env_var(LOG_BASE_ENV, app_arena);
-    String append = sv(LOG_APPEND);
+    Str8 root = os_env_var(LOG_BASE_ENV, app_arena);
+    Str8 append = sv8_lit(LOG_APPEND);
 
-    StringBuilder base = string_init(app_arena, root);
-    path_join(&base, append);
+    StringBuilder base = str8_init(app_arena, root);
+    str8_path_join(&base, append);
 
     Result res = ResultSuccess();
 
-    if (os_path_exists(StringCast(base), &res))
+    if (os_path_exists(Str8Cast(base), &res))
     {
         ArenaScoped(app_arena)
         {
-            String pattern_part = sv(LOG_FILE_NAME_PRE "*" LOG_FILE_NAME_EXT);
-
-            StringBuilder pattern = string_init(app_arena, root);
-            path_join(&pattern, append);
-            path_join(&pattern, pattern_part);
-
             U64 cur_time = os_get_timestamp();
-            FileMTime *files = os_list_by_pattern(StringCast(pattern), StringCast(base), app_arena);
+            FileMtime *files = os_list_dir(Str8Cast(base), app_arena);
             for (S64 i = 0; i < arr_getsize(files); i++)
             {
-                FileMTime entry = files[i];
+                FileMtime entry = files[i];
                 U64 seconds_since = cur_time - entry.mtime;
-                if (log_age * 86400 <= seconds_since)
+                if (log_age_days * 86400 <= seconds_since)
                 {
                     os_file_delete(entry.path, &res);
                 }
@@ -44,16 +38,16 @@ void mscbl_log_init(U64 log_age)
     }
     else
     {
-        os_mkdirs(StringCast(base));
+        os_mkdirs(Str8Cast(base));
     }
 
     ArenaScoped(app_arena)
     {
-        StringBuilder log_filepath = string_empty(app_arena, KB(4));
+        StringBuilder log_filepath = str8_empty(app_arena, KB(4));
 
-        string_format(&log_filepath, "%.*s" LOG_FILE_NAME_PRE "%02d-%02d-%04d" LOG_FILE_NAME_EXT,
-                      StringSpr(base), os_info.start_time.date, os_info.start_time.month + 1, os_info.start_time.year);
-        log_file = os_file_open(StringCast(log_filepath), FileAccess_Append, FileMode_OpenAlways, &res);
+        str8_format(&log_filepath, "%.*s" LOG_FILE_NAME_PRE "%02d-%02d-%04d" LOG_FILE_NAME_EXT,
+                    Str8Spr(base), os_info.start_time.date, os_info.start_time.month + 1, os_info.start_time.year);
+        log_file = os_file_open(Str8Cast(log_filepath), FileAccess_Append, FileMode_OpenAlways, &res);
     }
 }
 

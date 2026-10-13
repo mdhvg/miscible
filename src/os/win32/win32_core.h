@@ -6,15 +6,17 @@
 #include <Windows.h>
 #include <dbghelp.h>
 
+#include "base/wstring.h"
+
 #define OS_THREAD_ROUTINE(name) DWORD name(LPVOID data)
-#define OS_THREAD_ROUTINE_T     LPTHREAD_START_ROUTINE
 
 #define OSSlash "\\"
 #define LibExt  ".dll"
 
 typedef wchar_t OSChar;
-typedef HANDLE FileHandle;
+typedef Str16 OSString;
 
+typedef HANDLE FileHandle;
 typedef HMODULE LibHandle;
 typedef FARPROC LibAddress;
 
@@ -22,6 +24,7 @@ typedef HANDLE Process;
 typedef HANDLE Thread;
 typedef HANDLE Semaphore;
 typedef CRITICAL_SECTION Mutex;
+typedef LPTHREAD_START_ROUTINE ThreadRoutine_t;
 
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
@@ -77,5 +80,3 @@ inline void os_closelib(LibHandle lib)
 {
     FreeLibrary(lib);
 }
-
-Thread os_thread_launch(OS_THREAD_ROUTINE_T fn, struct Worker *worker);

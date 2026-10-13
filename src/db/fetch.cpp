@@ -16,7 +16,7 @@ DirTree *fetch_directories = NULL;
 DBStmtCbk(push_atlas)
 {
     S64 id = sqlite3_column_int64(stmt, 0);
-    String path = string_copy(app_arena, sqlite3_column_text(stmt, 1));
+    Str8 path = str8_copy(app_arena, sqlite3_column_text(stmt, 1));
 
     AtlasMap atl = {id};
     while (arr_getsize(fetch_atlases) < id + 1)
@@ -34,14 +34,14 @@ DBStmtCbk(push_atlas)
         threadpool_enqueue(TaskPriority_Realtime, task);
     }
     else
-        mscbl_log_info("Skipped atlas [%zu] %.*s", id, StringSpr(path));
+        mscbl_log_info("Skipped atlas [%zu] %.*s", id, Str8Spr(path));
 }
 
 DBStmtCbk(push_dirs)
 {
     S64 id = sqlite3_column_int64(stmt, 0);
     U64 level = (U64)sqlite3_column_int64(stmt, 1);
-    String name = string_copy(app_arena, sqlite3_column_text(stmt, 2));
+    Str8 name = str8_copy(app_arena, sqlite3_column_text(stmt, 2));
     S64 parent_dir = sqlite3_column_int64(stmt, 3);
 
     if (!parent_dir)
@@ -72,15 +72,15 @@ DBStmtCbk(push_dirs)
 
 DBStmtCbk(push_pending)
 {
-    String **paths = (String **)data;
-    String path = string_copy(arena, sqlite3_column_text(stmt, 0));
+    Str8 **paths = (Str8 **)data;
+    Str8 path = str8_copy(arena, sqlite3_column_text(stmt, 0));
     da_push(arena, *paths, path);
 }
 
 DBStmtCbk(push_pending16)
 {
-    WString **paths = (WString **)data;
-    WString path = string_copy(arena, (wchar *)sqlite3_column_text16(stmt, 0));
+    Str16 **paths = (Str16 **)data;
+    Str16 path = str16_copy(arena, (wchar *)sqlite3_column_text16(stmt, 0));
     da_push(arena, *paths, path);
 }
 

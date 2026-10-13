@@ -39,8 +39,8 @@ typedef enum
 typedef struct
 {
     U64 size;
-    String url;
-    String name;
+    Str8 url;
+    Str8 name;
     U8 hash[32];
 } RemoteFile;
 
@@ -55,7 +55,7 @@ typedef struct
 
 typedef struct
 {
-    String name;
+    Str8 name;
     const RemoteFile *common_files;
     U64 common_files_size;
     const ModelVariant *variants;
@@ -74,17 +74,18 @@ typedef struct
 #if OS_WIN32
     U32 dml_device;
 #elif OS_LINUX
+    String ovino_device;
 #endif
 
-    String base_dir;
+    Str8 base_dir;
     ActiveModel active;
 } InferenceSettings;
 
 typedef struct
 {
-    String app_data;
-    String atlas_dir;
-    String db_path;
+    Str8 app_data;
+    Str8 atlas_dir;
+    Str8 db_path;
 
     Settings settings;
     ViewSettings view_settings;

@@ -7,7 +7,7 @@
 struct ImageMetadata
 {
     S64 id;
-    String path, filename;
+    Str8 path, filename;
 
     S64 atlas_id;
     U32 atlas_idx;
@@ -35,7 +35,7 @@ struct DirTree
 {
     S64 id;
     U64 level;
-    String name;
+    Str8 name;
     DirKey next_idx;
     DirKey child_idx;
 };

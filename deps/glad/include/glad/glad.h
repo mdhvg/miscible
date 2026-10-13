@@ -86,12 +86,8 @@ GLAPI int gladLoadGL(void);
 
 GLAPI int gladLoadGLLoader(GLADloadproc);
 
-// Macro for windows
-#ifdef _WIN32
 #include <glad/khrplatform.h>
-#else
-#include <KHR/khrplatform.h>
-#endif // _WIN32
+
 typedef unsigned int GLenum;
 typedef unsigned char GLboolean;
 typedef unsigned int GLbitfield;

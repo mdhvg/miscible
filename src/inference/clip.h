@@ -143,12 +143,12 @@ struct clip_ctx
     S32 ftype = 1;
 };
 
-Result clip_model_load(Arena *arena, clip_ctx *clip, String model_path);
+Result clip_model_load(Arena *arena, clip_ctx *clip, Str8 model_path);
 
 void clip_free(clip_ctx *ctx);
 
 // TODO: Assuming this works **as intended** for now. Need the check later
-bool clip_tokenize(clip_ctx *ctx, String *input, struct clip_tokens *tokens);
+bool clip_tokenize(clip_ctx *ctx, Str8 *input, struct clip_tokens *tokens);
 
 Embedding clip_get_text_embedding(Arena *arena, clip_ctx *clip, clip_tokens *tokens);
 ggml_cgraph *build_text_encode_graph(clip_text_model *text_model, clip_ctx *clip, U64 token_size);

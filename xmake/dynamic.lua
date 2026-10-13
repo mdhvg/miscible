@@ -13,27 +13,27 @@ after_build(function()
 	os.execv("build/bin2c", { "fonts/InstrumentSans.ttf", "instrumentsans_font", "src/_dynamic/instrument.c" })
 
 	import("lib.detect.find_tool")
-	local generated = 0
 
 	local uv = find_tool("uv")
 	if uv then
+		cprintf("${green}Found uv${clear}\n")
 		os.execv("uv", { "run", "scripts/gen_manifest.py", "manifest.json", "src/_dynamic/manifest.cpp" })
-		generated = 1
+		return
 	end
 
 	local python = find_tool("python")
 	if python then
+		cprintf("${green}Found python${clear}\n")
 		os.execv("python", { "scripts/gen_manifest.py", "manifest.json", "src/_dynamic/manifest.cpp" })
-		generated = 1
+		return
 	end
 
 	local python3 = find_tool("python3")
 	if python3 then
+		cprintf("${green}Found python3${clear}\n")
 		os.execv("python3", { "scripts/gen_manifest.py", "manifest.json", "src/_dynamic/manifest.cpp" })
-		generated = 1
+		return
 	end
 
-	if generated == 0 then
-		raise("Error: Neither 'uv' nor 'python' was found to run gen_manifest.py")
-	end
+	raise("Error: Neither 'uv' nor 'python' was found to run gen_manifest.py")
 end)

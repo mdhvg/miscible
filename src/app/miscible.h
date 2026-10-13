@@ -23,6 +23,8 @@
 #define LOG_BASE_ENV "LOCALAPPDATA"
 #define LOG_APPEND   Stringify(APP_NAME) "\\logs\\"
 #elif OS_LINUX
+#define APP_HOME_ENV "HOME"
+#define APP_APPEND   Stringify(APP_NAME)
 #define LOG_BASE_ENV "HOME"
 #define LOG_APPEND   ".local/share/" Stringify(APP_NAME) "/logs/"
 #endif

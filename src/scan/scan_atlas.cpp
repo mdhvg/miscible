@@ -26,7 +26,7 @@ ThreadFunc(draw_image)
                         + (args[2].val_u32 % THUMB_PER_SIDE * ATLAS_CHANNELS * THUMB_SIZE);
 
     U8 *image_data = stbi_load(CStrCast(image_row->path), &image_row->width, &image_row->height, &image_row->channels, ATLAS_CHANNELS);
-    Assert(image_data, "image data is NULL (%.*s)", StringSpr(image_row->path));
+    Assert(image_data, "image data is NULL (%.*s)", Str8Spr(image_row->path));
 
     S32 w = image_row->width, h = image_row->height;
 
@@ -57,7 +57,7 @@ struct DrawAtlas
     S64 id;
     U8 *data;
     B32 is_new;
-    String path;
+    Str8 path;
     U32 indices[ATLAS_CAPACITY];
 };
 
@@ -66,7 +66,7 @@ DBStmtCbk(get_atlas)
     DrawAtlas *ret = (DrawAtlas *)data;
     DrawAtlas row = {
         .id = sqlite3_column_int64(stmt, 0),
-        .path = string_copy(arena, sqlite3_column_text(stmt, 1)),
+        .path = str8_copy(arena, sqlite3_column_text(stmt, 1)),
     };
     *ret = row;
 }
@@ -118,11 +118,11 @@ DrawAtlas scan_get_draw_atlas(Arena *arena, S64 num_image)
     }
     else
     {
-        StringBuilder new_atlas_path = string_init(arena, mscbl_config.atlas_dir);
+        StringBuilder new_atlas_path = str8_init(arena, mscbl_config.atlas_dir);
         U64 new_atlas_filename_begin = new_atlas_path.size + 1;
-        path_join(&new_atlas_path, sv("00000000000000000000000000000000.tga"));
-        bytes_as_hex_lower(sizeof(Guid), os_make_guid().v, CStrCast(string_from(StringCast(new_atlas_path), new_atlas_filename_begin)));
-        atlas.path = StringCast(new_atlas_path);
+        str8_path_join(&new_atlas_path, sv8_lit("00000000000000000000000000000000.tga"));
+        bytes_as_hex_lower(sizeof(Guid), os_make_guid().v, CStrCast(str8_from(Str8Cast(new_atlas_path), new_atlas_filename_begin)));
+        atlas.path = Str8Cast(new_atlas_path);
 
         stmt = db_prepare(make_atlas_query);
         sqlite3_bind_text(stmt, 1, CStrCast(new_atlas_path), new_atlas_path.size, SQLITE_STATIC);
@@ -222,8 +222,8 @@ void scan_atlas_bake(Arena *arena, ImageRow *inserted)
             sqlite3_finalize(slot_stmt);
 
             B32 write_success = ToBool(stbi_write_tga(CStrCast(atlas.path), ATLAS_SIZE, ATLAS_SIZE, ATLAS_CHANNELS, atlas.data));
-            Assert(write_success, "failed to save image (%.*s)", StringSpr(atlas.path));
-            mscbl_log_info("Written atlas: %.*s", StringSpr(atlas.path));
+            Assert(write_success, "failed to save image (%.*s)", Str8Spr(atlas.path));
+            mscbl_log_info("Written atlas: %.*s", Str8Spr(atlas.path));
 
             // NOTE: only writes to DB if everything up till here succeeds
             db_run("COMMIT;");

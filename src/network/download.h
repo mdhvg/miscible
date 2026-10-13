@@ -8,8 +8,8 @@
 
 struct DownloadArgs
 {
-    String link;
-    String file_path;
+    Str8 link;
+    Str8 file_path;
 
     U64 file_size;
     U8 *file_hash;

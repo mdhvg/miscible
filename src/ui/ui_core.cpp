@@ -49,9 +49,9 @@ UIResult ui_result = {};
 
 void ui_viewquery_clear()
 {
-    string_clear(ui_state.view_query.search_query);
+    Str8Clear(ui_state.view_query.search_query);
     arena_clear(ui_state.view_query.arena);
-    ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
+    ui_state.view_query.search_query = str8_empty(ui_state.view_query.arena, 4096);
     ui_state.view_query.selected_dir = 0;
     ui_state.view_query.filters = NULL;
 }
@@ -113,7 +113,7 @@ void ui_init()
         .func = gl_tex_path,
         .args = {
             {.kind = TPData_Any, .val_any = &ui_state.icon_texture},
-            {.kind = TPData_String, .val_str = sv(ROOT_DIR "/data/icon.png")},
+            {.kind = TPData_String, .val_str = sv8_lit(ROOT_DIR "/data/icon.png")},
         }};
 #else
     // NOTE: This is because of the comment at imgui_draw.cpp(3753)
@@ -143,7 +143,7 @@ void ui_init()
     arena_alloc(MB(1), ui_result.main_map.arena);
     arena_alloc(MB(10), ui_result.back_list.arena);
     arena_alloc(MB(10), ui_result.main_list.arena);
-    ui_state.view_query.search_query = string_empty(ui_state.view_query.arena, 4096);
+    ui_state.view_query.search_query = str8_empty(ui_state.view_query.arena, 4096);
 
     // Toast message init
     os_mutex_init(&ui_toast.mutex);
@@ -263,7 +263,7 @@ void ui_render()
 
         ByteSize used = size_to_bytesize(cur->used);
         ByteSize cap = size_to_bytesize(cur->capacity);
-        ImGui::Text("Used %.3f%s of %.3f%s", used.value, CStrCast(byte_string(used.unit)), cap.value, CStrCast(byte_string(cap.unit)));
+        ImGui::Text("Used %.3f%s of %.3f%s", used.value, CStrCast(str8_byte(used.unit)), cap.value, CStrCast(str8_byte(cap.unit)));
         ImGui::ProgressBar((F64)cur->used / (F64)cur->capacity);
         total += cur->capacity;
         total_used += cur->used;
@@ -271,7 +271,7 @@ void ui_render()
 
     ByteSize used = size_to_bytesize(total_used);
     ByteSize cap = size_to_bytesize(total);
-    ImGui::Text("Total used: %.3f%s of %.3f%s", used.value, CStrCast(byte_string(used.unit)), cap.value, CStrCast(byte_string(cap.unit)));
+    ImGui::Text("Total used: %.3f%s of %.3f%s", used.value, CStrCast(str8_byte(used.unit)), cap.value, CStrCast(str8_byte(cap.unit)));
     ImGui::ProgressBar((F64)total_used / (F64)total);
 
     ImGui::End();

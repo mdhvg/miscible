@@ -5,7 +5,7 @@
 #include "db/fetch.h"
 #include "inference/inference.h"
 
-enum SortType
+typedef enum
 {
     SortType_Directory,
     SortType_Filename,
@@ -14,9 +14,9 @@ enum SortType
     SortType_DateCreated,
     SortType_DateModified,
     SortType_COUNT,
-};
+} SortType;
 
-enum GroupSubType
+typedef enum
 {
     Group_None = 0,
 
@@ -31,9 +31,9 @@ enum GroupSubType
     Group_Size10MB = MB(10),
     Group_Size100MB = MB(100),
     Group_Size1GB = GB(1),
-};
+} GroupSubType;
 
-enum FilterType
+typedef enum
 {
     FilterType_SizeBetween,
 
@@ -44,21 +44,21 @@ enum FilterType
     FilterType_DateModifiedBetween,
 
     FilterType_COUNT
-};
+} FilterType;
 
-enum SearchType
+typedef enum
 {
     SearchType_FTS,
     SearchType_Embedding,
     SearchType_COUNT
-};
+} SearchType;
 
-enum ViewQueryType
+typedef enum
 {
     ViewQuery_Default,
     ViewQuery_FTS,
     ViewQuery_Embedding,
-};
+} ViewQueryType;
 
 MSCBL_API void view_fetch_map();
 MSCBL_API void view_fetch_images(S64 start, S64 end);

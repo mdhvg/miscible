@@ -17,7 +17,7 @@
 
 #define VIEW_FETCH_WINDOW_SIZE 1000
 
-void view_serialize_filters(Arena *arena, UIFilter *filters, StringArr *queries)
+void view_serialize_filters(Arena *arena, UIFilter *filters, Str8Arr *queries)
 {
     for (UIFilter *f0 = filters; f0 != NULL; f0 = f0->next)
     {
@@ -28,195 +28,195 @@ void view_serialize_filters(Arena *arena, UIFilter *filters, StringArr *queries)
         {
         case FilterType_SizeBetween:
             if (f0->val_byte.from_enable)
-                da_push(arena, *queries, sv(" AND size >= ?"));
+                da_push(arena, *queries, sv8_lit(" AND size >= ?"));
             if (f0->val_byte.to_enable)
-                da_push(arena, *queries, sv(" AND size < ?"));
+                da_push(arena, *queries, sv8_lit(" AND size < ?"));
             break;
         case FilterType_Path:
             if (!f0->val_str.val.size)
                 continue;
-            da_push(arena, *queries, sv(" AND Images.id"));
+            da_push(arena, *queries, sv8_lit(" AND Images.id"));
             if (f0->val_str.exclude)
-                da_push(arena, *queries, sv(" NOT"));
-            da_push(arena, *queries, sv(" IN (SELECT id FROM Images WHERE path LIKE '%' || ? || '%')"));
+                da_push(arena, *queries, sv8_lit(" NOT"));
+            da_push(arena, *queries, sv8_lit(" IN (SELECT id FROM Images WHERE path LIKE '%' || ? || '%')"));
             break;
         case FilterType_DateAddedBetween:
             if (f0->val_time.from_enable)
-                da_push(arena, *queries, sv(" AND atime >= ?"));
+                da_push(arena, *queries, sv8_lit(" AND atime >= ?"));
             if (f0->val_time.to_enable)
-                da_push(arena, *queries, sv(" AND atime < ?"));
+                da_push(arena, *queries, sv8_lit(" AND atime < ?"));
             break;
         case FilterType_DateCreatedBetween:
             if (f0->val_time.from_enable)
-                da_push(arena, *queries, sv(" AND ctime >= ?"));
+                da_push(arena, *queries, sv8_lit(" AND ctime >= ?"));
             if (f0->val_time.to_enable)
-                da_push(arena, *queries, sv(" AND ctime < ?"));
+                da_push(arena, *queries, sv8_lit(" AND ctime < ?"));
             break;
         case FilterType_DateModifiedBetween:
             if (f0->val_time.from_enable)
-                da_push(arena, *queries, sv(" AND mtime >= ?"));
+                da_push(arena, *queries, sv8_lit(" AND mtime >= ?"));
             if (f0->val_time.to_enable)
-                da_push(arena, *queries, sv(" AND mtime < ?"));
+                da_push(arena, *queries, sv8_lit(" AND mtime < ?"));
             break;
         default: break;
         }
     }
 }
 
-void view_serialize_sort(Arena *arena, UIViewQuery *request, StringArr *queries)
+void view_serialize_sort(Arena *arena, UIViewQuery *request, Str8Arr *queries)
 {
     switch (request->sort_basis)
     {
     case SortType_Directory:
-        da_push(arena, *queries, sv(" Dirs.path"));
+        da_push(arena, *queries, sv8_lit(" Dirs.path"));
         break;
     case SortType_Filename:
-        da_push(arena, *queries, sv(" UPPER(SUBSTR(Images.filename, 1, 1))"));
+        da_push(arena, *queries, sv8_lit(" UPPER(SUBSTR(Images.filename, 1, 1))"));
         break;
     case SortType_Size:
-        da_push(arena, *queries, sv(" (Images.size / ?) * ?"));
+        da_push(arena, *queries, sv8_lit(" (Images.size / ?) * ?"));
         break;
     case SortType_DateAdded:
-        da_push(arena, *queries, sv(" (Images.atime / ?) * ?"));
+        da_push(arena, *queries, sv8_lit(" (Images.atime / ?) * ?"));
         break;
     case SortType_DateCreated:
-        da_push(arena, *queries, sv(" (Images.ctime / ?) * ?"));
+        da_push(arena, *queries, sv8_lit(" (Images.ctime / ?) * ?"));
         break;
     case SortType_DateModified:
-        da_push(arena, *queries, sv(" (Images.mtime / ?) * ?"));
+        da_push(arena, *queries, sv8_lit(" (Images.mtime / ?) * ?"));
         break;
     default: break;
     }
 }
 
-String view_build_query_default(Arena *arena, B32 count_only)
+Str8 view_build_query_default(Arena *arena, B32 count_only)
 {
-    StringArr queries = NULL;
+    Str8Arr queries = NULL;
     UIViewQuery *request = &ui_state.view_query;
 
-    da_push(arena, queries, sv("SELECT"));
+    da_push(arena, queries, sv8_lit("SELECT"));
     view_serialize_sort(arena, request, &queries);
-    da_push(arena, queries, sv(" AS header,"));
+    da_push(arena, queries, sv8_lit(" AS header,"));
 
     if (count_only)
-        da_push(arena, queries, sv(" COUNT(*) AS item_count"));
+        da_push(arena, queries, sv8_lit(" COUNT(*) AS item_count"));
     else
-        da_push(arena, queries, sv(" Images.*"));
+        da_push(arena, queries, sv8_lit(" Images.*"));
 
-    da_push(arena, queries, sv(" FROM Images"));
+    da_push(arena, queries, sv8_lit(" FROM Images"));
 
     if (request->sort_basis == SortType_Directory)
-        da_push(arena, queries, sv(" JOIN Dirs ON Images.parent_dir = Dirs.id"));
+        da_push(arena, queries, sv8_lit(" JOIN Dirs ON Images.parent_dir = Dirs.id"));
 
-    da_push(arena, queries, sv(" WHERE 1=1"));
+    da_push(arena, queries, sv8_lit(" WHERE 1=1"));
 
     view_serialize_filters(arena, request->filters, &queries);
     if (request->selected_dir)
-        da_push(arena, queries, sv(" AND Images.path LIKE (SELECT Dirs.path FROM Dirs WHERE Dirs.id = ?) || '" OSSlash "%'"));
+        da_push(arena, queries, sv8_lit(" AND Images.path LIKE (SELECT Dirs.path FROM Dirs WHERE Dirs.id = ?) || '" OSSlash "%'"));
 
     if (count_only)
     {
-        da_push(arena, queries, sv(" GROUP BY header HAVING item_count > 0 ORDER BY header"));
-        da_push(arena, queries, request->descending ? sv(" DESC;") : sv(" ASC;"));
+        da_push(arena, queries, sv8_lit(" GROUP BY header HAVING item_count > 0 ORDER BY header"));
+        da_push(arena, queries, request->descending ? sv8_lit(" DESC;") : sv8_lit(" ASC;"));
     }
     else
     {
-        da_push(arena, queries, sv(" ORDER BY header"));
-        da_push(arena, queries, request->descending ? sv(" DESC") : sv(" ASC"));
-        da_push(arena, queries, sv(" , Images.id ASC LIMIT ? OFFSET ?;"));
+        da_push(arena, queries, sv8_lit(" ORDER BY header"));
+        da_push(arena, queries, request->descending ? sv8_lit(" DESC") : sv8_lit(" ASC"));
+        da_push(arena, queries, sv8_lit(" , Images.id ASC LIMIT ? OFFSET ?;"));
     }
 
-    StringBuilder query = string_empty(arena, KB(4));
+    StringBuilder query = str8_empty(arena, KB(4));
     for (S64 i = 0; i < arr_getsize(queries); i++)
-        string_push(&query, queries[i]);
+        str8_push(&query, queries[i]);
 
-    return StringCast(query);
+    return Str8Cast(query);
 }
 
-String view_build_query_fts(Arena *arena, B32 count_only)
+Str8 view_build_query_fts(Arena *arena, B32 count_only)
 {
-    String *queries = NULL;
+    Str8 *queries = NULL;
     UIViewQuery *request = &ui_state.view_query;
 
-    da_push(arena, queries, sv("SELECT"));
+    da_push(arena, queries, sv8_lit("SELECT"));
     view_serialize_sort(arena, request, &queries);
-    da_push(arena, queries, sv(" AS header,"));
+    da_push(arena, queries, sv8_lit(" AS header,"));
 
     // Choosing item count or metadata
     if (count_only)
-        da_push(arena, queries, sv(" COUNT(*) AS item_count"));
+        da_push(arena, queries, sv8_lit(" COUNT(*) AS item_count"));
     else
-        da_push(arena, queries, sv(" Images.*"));
+        da_push(arena, queries, sv8_lit(" Images.*"));
 
-    da_push(arena, queries, sv(" FROM Images"));
+    da_push(arena, queries, sv8_lit(" FROM Images"));
 
     if (request->sort_basis == SortType_Directory)
-        da_push(arena, queries, sv(" JOIN Dirs ON Images.parent_dir = Dirs.id"));
+        da_push(arena, queries, sv8_lit(" JOIN Dirs ON Images.parent_dir = Dirs.id"));
 
-    da_push(arena, queries, sv(" WHERE Images.id IN (SELECT rowid FROM Image_FTS WHERE Image_FTS MATCH ?)"));
+    da_push(arena, queries, sv8_lit(" WHERE Images.id IN (SELECT rowid FROM Image_FTS WHERE Image_FTS MATCH ?)"));
 
     // Apply filters
     view_serialize_filters(arena, ui_state.view_query.filters, &queries);
     if (request->selected_dir)
-        da_push(arena, queries, sv(" AND Images.path LIKE (SELECT Dirs.path FROM Dirs WHERE Dirs.id = ?) || '" OSSlash "%'"));
+        da_push(arena, queries, sv8_lit(" AND Images.path LIKE (SELECT Dirs.path FROM Dirs WHERE Dirs.id = ?) || '" OSSlash "%'"));
 
     // Set order and limits
     if (count_only)
     {
-        da_push(arena, queries, sv(" GROUP BY header HAVING item_count > 0 ORDER BY header"));
-        da_push(arena, queries, request->descending ? sv(" DESC;") : sv(" ASC;"));
+        da_push(arena, queries, sv8_lit(" GROUP BY header HAVING item_count > 0 ORDER BY header"));
+        da_push(arena, queries, request->descending ? sv8_lit(" DESC;") : sv8_lit(" ASC;"));
     }
     else
     {
-        da_push(arena, queries, sv(" ORDER BY header"));
-        da_push(arena, queries, request->descending ? sv(" DESC") : sv(" ASC"));
-        da_push(arena, queries, sv(" , Images.id ASC LIMIT ? OFFSET ?;"));
+        da_push(arena, queries, sv8_lit(" ORDER BY header"));
+        da_push(arena, queries, request->descending ? sv8_lit(" DESC") : sv8_lit(" ASC"));
+        da_push(arena, queries, sv8_lit(" , Images.id ASC LIMIT ? OFFSET ?;"));
     }
 
-    StringBuilder query = string_empty(arena, KB(4));
+    StringBuilder query = str8_empty(arena, KB(4));
     for (S64 i = 0; i < arr_getsize(queries); i++)
-        string_push(&query, queries[i]);
+        str8_push(&query, queries[i]);
 
-    return StringCast(query);
+    return Str8Cast(query);
 }
 
-String view_build_query_embedding(Arena *arena, B32 count_only)
+Str8 view_build_query_embedding(Arena *arena, B32 count_only)
 {
-    String *queries = NULL;
+    Str8 *queries = NULL;
     UIViewQuery *request = &ui_state.view_query;
 
-    da_push(arena, queries, sv("SELECT ROUND((1.0 - distance_cosine_f32(Images.embedding, ?)) * 10) * 10 AS header,"));
+    da_push(arena, queries, sv8_lit("SELECT ROUND((1.0 - distance_cosine_f32(Images.embedding, ?)) * 10) * 10 AS header,"));
 
     // Choosing item count or metadata
     if (count_only)
-        da_push(arena, queries, sv(" COUNT(*) AS item_count"));
+        da_push(arena, queries, sv8_lit(" COUNT(*) AS item_count"));
     else
-        da_push(arena, queries, sv(" Images.*"));
-    da_push(arena, queries, sv(" , distance_cosine_f32(Images.embedding, ?) AS distance FROM Images"));
+        da_push(arena, queries, sv8_lit(" Images.*"));
+    da_push(arena, queries, sv8_lit(" , distance_cosine_f32(Images.embedding, ?) AS distance FROM Images"));
 
     if (request->sort_basis == SortType_Directory)
-        da_push(arena, queries, sv(" JOIN Dirs ON Images.parent_dir = Dirs.id"));
-    da_push(arena, queries, sv(" WHERE Images.embedding IS NOT NULL"));
+        da_push(arena, queries, sv8_lit(" JOIN Dirs ON Images.parent_dir = Dirs.id"));
+    da_push(arena, queries, sv8_lit(" WHERE Images.embedding IS NOT NULL"));
 
     // Apply filters
     view_serialize_filters(arena, ui_state.view_query.filters, &queries);
     if (request->selected_dir)
-        da_push(arena, queries, sv(" AND Images.path LIKE (SELECT Dirs.path FROM Dirs WHERE Dirs.id = ?) || '" OSSlash "%'"));
+        da_push(arena, queries, sv8_lit(" AND Images.path LIKE (SELECT Dirs.path FROM Dirs WHERE Dirs.id = ?) || '" OSSlash "%'"));
 
     // Set order and limits
     if (count_only)
-        da_push(arena, queries, sv(" GROUP BY header HAVING item_count > 0 ORDER BY header DESC;"));
+        da_push(arena, queries, sv8_lit(" GROUP BY header HAVING item_count > 0 ORDER BY header DESC;"));
     else
-        da_push(arena, queries, sv(" ORDER BY distance ASC LIMIT ? OFFSET ?;"));
+        da_push(arena, queries, sv8_lit(" ORDER BY distance ASC LIMIT ? OFFSET ?;"));
 
-    StringBuilder query = string_empty(arena, KB(4));
+    StringBuilder query = str8_empty(arena, KB(4));
     for (S64 i = 0; i < arr_getsize(queries); i++)
-        string_push(&query, queries[i]);
+        str8_push(&query, queries[i]);
 
-    return StringCast(query);
+    return Str8Cast(query);
 }
 
-String view_build_query(Arena *arena, B32 count_only)
+Str8 view_build_query(Arena *arena, B32 count_only)
 {
     switch (ui_state.view_query.query_type)
     {
@@ -246,7 +246,7 @@ DBStmtCbk(push_image_map)
         {
         case SortType_Directory:
         case SortType_Filename:
-            map.str_header = string_copy(arena, sqlite3_column_text(stmt, 0));
+            map.str_header = str8_copy(arena, sqlite3_column_text(stmt, 0));
             break;
         case SortType_Size:
             map.size_header = size_to_bytesize(sqlite3_column_int64(stmt, 0));
@@ -270,8 +270,8 @@ DBStmtCbk(push_image_list)
     S32 cursor = 1;
     S64 image_id = sqlite3_column_int64(stmt, cursor++);
 
-    String image_path = string_copy(arena, sqlite3_column_text(stmt, cursor++));
-    String image_filename = string_copy(arena, sqlite3_column_text(stmt, cursor++));
+    Str8 image_path = str8_copy(arena, sqlite3_column_text(stmt, cursor++));
+    Str8 image_filename = str8_copy(arena, sqlite3_column_text(stmt, cursor++));
 
     S64 image_atlas_id = sqlite3_column_int64(stmt, cursor++);
     U32 image_atlas_idx = (U32)sqlite3_column_int(stmt, 5);
@@ -338,7 +338,7 @@ S32 view_bind_filters(sqlite3_stmt *stmt, UIViewQuery *request, S32 cursor)
         case FilterType_Path: {
             if (!f0->val_str.val.size)
                 continue;
-            String value = StringCast(f0->val_str.val);
+            Str8 value = Str8Cast(f0->val_str.val);
             sqlite3_bind_text(stmt, cursor++, CStrCast(value), value.size, SQLITE_STATIC);
         }
         break;
@@ -431,11 +431,11 @@ void view_run_query_fts(Arena *arena, sqlite3_stmt *stmt, B32 count_only)
     S32 cursor = 1;
     cursor = view_bind_sort(stmt, request, cursor);
 
-    String query_text = StringCast(request->search_query);
-    StringBuilder query_safe = string_empty(arena);
-    string_push(&query_safe, sv("\""));
-    string_push(&query_safe, StringCast(request->search_query));
-    string_push(&query_safe, sv("\""));
+    Str8 query_text = Str8Cast(request->search_query);
+    StringBuilder query_safe = str8_empty(arena);
+    str8_push(&query_safe, sv8_lit("\""));
+    str8_push(&query_safe, Str8Cast(request->search_query));
+    str8_push(&query_safe, sv8_lit("\""));
     sqlite3_bind_text(stmt, cursor++, CStrCast(query_safe), query_safe.size, SQLITE_STATIC);
 
     cursor = view_bind_filters(stmt, request, cursor);
@@ -476,7 +476,7 @@ void view_run_query_embedding(Arena *arena, sqlite3_stmt *stmt, B32 count_only)
 
     S32 cursor = 1;
     Embedding text_embedding = {0};
-    text_embedding = inference_text_embedding(arena, StringCast(request->search_query));
+    text_embedding = inference_text_embedding(arena, Str8Cast(request->search_query));
     if (text_embedding.dimension == 0)
         return;
 
