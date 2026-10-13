@@ -2,39 +2,42 @@
 // Licensed under the GNU General Public License v3.0 (see LICENSE)
 
 #pragma once
-#include <sys/random.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include <semaphore.h>
 
-#include "base/base_core.h"
-#include "base/threadpool.h"
-#include "base/log.h"
+#include "base/string.h"
 
-#define W(x)       #x
-#define LibHandle  void *
-#define LibAddress void *
-#define LibExt     ".so"
-
-typedef void *(OS_THREAD_ROUTINE_T(void *));
 #define OS_THREAD_ROUTINE(name) void *name(void *data)
-#define OSAssert(x)                                                                                      \
-    {                                                                                                    \
-        if (!(x))                                                                                        \
-        {                                                                                                \
-            printf("[" ASCII_RED "%s" ASCII_RESET "] Error Code: 0x%X (%lu)\n", __func__, errno, errno); \
-            Assert(0);                                                                                   \
-        }                                                                                                \
-        else                                                                                             \
-        {                                                                                                \
-            ((void)0);                                                                                   \
-        }                                                                                                \
-    }
-#define OSChar    char
-#define Semaphore sem_t
-#define Thread    pthread_t
+
+#define OSSlash  "/"
+#define LibExt   ".so"
+
+typedef char OSChar;
+typedef Str8 OSString;
+
+typedef int FileHandle;
+typedef void *LibHandle;
+typedef void *LibAddress;
+
+typedef pid_t Process;
+typedef pthread_t Thread;
+typedef sem_t Semaphore;
+typedef pthread_mutex_t Mutex;
+typedef void *(ThreadRoutine_t(void *));
 
 struct OSInfo
 {
-    OS_COMMON;
+    Time start_time;
+    U64 start_ticks;
+    U64 ticks_per_sec;
+
+    U64 nproc;
+    U32 proc_id;
+    Process process;
+
+    U64 page_size;
+    Arena *arena;
 };
 
 const char *os_select_dir(const char *title, const char *default_path);
-Thread os_thread_launch(OS_THREAD_ROUTINE_T fn, Worker *worker);
